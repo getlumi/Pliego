@@ -30,11 +30,32 @@ export default function App() {
   }, [])
 
   const checkOnboarding = async (userId) => {
-    const { data } = await supabase
+    let { data } = await supabase
       .from('users')
       .select('onboarding_seen')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
+
+    if (!data) {
+      // Perfil no existe (p.ej. el insert en el registro no se completó a tiempo).
+      // Lo creamos aquí para que la cuenta nunca quede en un estado roto.
+      const { data: authUser } = await supabase.auth.getUser()
+      const meta = authUser?.user?.user_metadata ?? {}
+      const { data: inserted } = await supabase
+        .from('users')
+        .insert({
+          id: userId,
+          name: meta.name ?? 'Usuario',
+          phone: meta.phone ?? authUser?.user?.email?.split('@')[0] ?? '',
+          wallet_balance: 0,
+          privacy_accepted_at: new Date().toISOString(),
+          onboarding_seen: false,
+        })
+        .select('onboarding_seen')
+        .maybeSingle()
+      data = inserted
+    }
+
     setOnboarded(data?.onboarding_seen ?? false)
     setLoading(false)
   }
