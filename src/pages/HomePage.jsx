@@ -17,7 +17,21 @@ export default function HomePage({ session, onNavigate }) {
   }, [session])
 
   const loadUser = async () => {
-    const { data } = await supabase.from('users').select('name, wallet_balance').eq('id', session.user.id).maybeSingle()
+    let { data } = await supabase.from('users').select('name, wallet_balance').eq('id', session.user.id).maybeSingle()
+    if (!data) {
+      const meta = session.user.user_metadata ?? {}
+      // Intenta crear el perfil si aún no existe (insert ignorado si ya lo creó otra parte del flujo)
+      await supabase.from('users').insert({
+        id: session.user.id,
+        name: meta.name ?? 'Usuario',
+        phone: meta.phone ?? '',
+        wallet_balance: 0,
+        privacy_accepted_at: new Date().toISOString(),
+        onboarding_seen: true,
+      })
+      const retry = await supabase.from('users').select('name, wallet_balance').eq('id', session.user.id).maybeSingle()
+      data = retry.data
+    }
     setUser(data)
   }
 
@@ -62,24 +76,33 @@ export default function HomePage({ session, onNavigate }) {
       {/* Header */}
       <div style={{
         background: 'var(--gradient-dark)', padding: '48px 20px 24px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
       }}>
-        <div>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 10,
+            background: 'rgba(255,255,255,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <i className="ti ti-file-text" style={{ fontSize: 18, color: '#fff' }} />
+          </div>
+          <p style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>Pliego</p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 600, marginBottom: 6 }}>
             Hola, {user?.name?.split(' ')[0] ?? ''}
           </p>
-          <p style={{ fontSize: 22, fontWeight: 900, color: '#fff' }}>Pliego</p>
+          <button onClick={() => onNavigate('wallet')} style={{
+            background: 'rgba(255,255,255,0.15)',
+            border: '1px solid rgba(255,255,255,0.25)',
+            borderRadius: 12, padding: '8px 14px',
+            display: 'flex', alignItems: 'center', gap: 6,
+            color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+          }}>
+            <i className="ti ti-wallet" style={{ fontSize: 16 }} />
+            ${(user?.wallet_balance ?? 0).toFixed(2)}
+          </button>
         </div>
-        <button onClick={() => onNavigate('wallet')} style={{
-          background: 'rgba(255,255,255,0.15)',
-          border: '1px solid rgba(255,255,255,0.25)',
-          borderRadius: 12, padding: '8px 14px',
-          display: 'flex', alignItems: 'center', gap: 6,
-          color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-        }}>
-          <i className="ti ti-wallet" style={{ fontSize: 16 }} />
-          ${(user?.wallet_balance ?? 0).toFixed(2)}
-        </button>
       </div>
 
       {/* Upload zone */}
