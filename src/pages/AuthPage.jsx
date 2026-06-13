@@ -25,11 +25,14 @@ export default function AuthPage({ onAuth }) {
         if (password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres')
         const { data, error } = await supabase.auth.signUp({
           email, password,
-          options: { data: { name, phone } }
+          options: { data: { name, phone: phone.replace(/\s/g,'') } }
         })
         if (error) throw error
+        if (!data?.session) {
+          throw new Error('No se pudo iniciar sesión automáticamente. Intenta entrar con "Entrar".')
+        }
         if (data?.user) {
-          await supabase.from('users').insert({
+          const { error: insertError } = await supabase.from('users').insert({
             id: data.user.id,
             name,
             phone: phone.replace(/\s/g,''),
@@ -37,6 +40,10 @@ export default function AuthPage({ onAuth }) {
             privacy_accepted_at: new Date().toISOString(),
             onboarding_seen: false,
           })
+          // 23505 = ya existe (duplicado) — no es un error real para el usuario
+          if (insertError && insertError.code !== '23505') {
+            throw new Error('Tu cuenta se creó, pero hubo un problema guardando tu perfil. Intenta entrar de nuevo.')
+          }
           onAuth()
         }
       }
