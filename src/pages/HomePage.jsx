@@ -190,7 +190,7 @@ function ShopCard({ shop, serviceIcons, Stars }) {
               "{shop.latest_comment}"
             </p>
           )}
-          <div style={{ display:'flex', gap:8' }}>
+          <div style={{ display:'flex', gap:8 }}>
             <button
               onClick={e => { e.stopPropagation(); window.open(`https://maps.google.com/?q=${shop.latitude},${shop.longitude}`) }}
               className="btn-outline" style={{ fontSize:13, padding:'8px 12px' }}
