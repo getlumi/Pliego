@@ -17,7 +17,7 @@ export default function HomePage({ session, onNavigate }) {
   }, [session])
 
   const loadUser = async () => {
-    const { data } = await supabase.from('users').select('name, wallet_balance').eq('id', session.user.id).single()
+    const { data } = await supabase.from('users').select('name, wallet_balance').eq('id', session.user.id).maybeSingle()
     setUser(data)
   }
 
@@ -66,26 +66,20 @@ export default function HomePage({ session, onNavigate }) {
       }}>
         <div>
           <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>
-            {session ? `Hola, ${user?.name?.split(' ')[0] ?? ''}` : 'Bienvenido'}
+            Hola, {user?.name?.split(' ')[0] ?? ''}
           </p>
           <p style={{ fontSize: 22, fontWeight: 900, color: '#fff' }}>Pliego</p>
         </div>
-        {session ? (
-          <button onClick={() => onNavigate('wallet')} style={{
-            background: 'rgba(255,255,255,0.15)',
-            border: '1px solid rgba(255,255,255,0.25)',
-            borderRadius: 12, padding: '8px 14px',
-            display: 'flex', alignItems: 'center', gap: 6,
-            color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-          }}>
-            <i className="ti ti-wallet" style={{ fontSize: 16 }} />
-            ${(user?.wallet_balance ?? 0).toFixed(2)}
-          </button>
-        ) : (
-          <button onClick={() => onNavigate('auth')} className="btn-primary" style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}>
-            Regístrate
-          </button>
-        )}
+        <button onClick={() => onNavigate('wallet')} style={{
+          background: 'rgba(255,255,255,0.15)',
+          border: '1px solid rgba(255,255,255,0.25)',
+          borderRadius: 12, padding: '8px 14px',
+          display: 'flex', alignItems: 'center', gap: 6,
+          color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+        }}>
+          <i className="ti ti-wallet" style={{ fontSize: 16 }} />
+          ${(user?.wallet_balance ?? 0).toFixed(2)}
+        </button>
       </div>
 
       {/* Upload zone */}
