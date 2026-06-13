@@ -14,7 +14,7 @@ export default function AuthPage({ onAuth }) {
     setError('')
     setLoading(true)
     try {
-      const email = `${phone.replace(/\s/g,'')}@pliego.app`
+      const email = `${phone.replace(/\s/g,'')}@pliego.com`
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw new Error('Número o contraseña incorrectos')
