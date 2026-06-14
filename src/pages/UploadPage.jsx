@@ -11,7 +11,7 @@ export default function UploadPage({ session, onNavigate }) {
           <p style={{ fontSize:15, fontWeight:700, marginBottom:6 }}>Toca para elegir tu archivo</p>
           <p style={{ fontSize:13, color:'var(--text-secondary)' }}>PDF, DOCX, JPG o PNG</p>
           <input type="file" accept=".pdf,.docx,.jpg,.jpeg,.png" multiple
-            style={{ display:'block', margin:'20px auto 0', fontSize:14 }} />
+            style={{ display:'block', margin:'20px auto 0', fontSize:16 }} />
         </div>
         <p style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>
           <i className="ti ti-shield-check" style={{ fontSize:13 }} /> Tu documento se elimina automáticamente en 3 días
