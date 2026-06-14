@@ -10,10 +10,24 @@ const steps = [
 export default function OnboardingPage({ session, onComplete }) {
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   const finish = async () => {
     setSaving(true)
-    await supabase.from('users').update({ onboarding_seen: true }).eq('id', session.user.id)
+    setError('')
+    const { data, error: err } = await supabase
+      .from('users')
+      .update({ onboarding_seen: true })
+      .eq('id', session.user.id)
+      .select('onboarding_seen')
+      .maybeSingle()
+
+    if (err || !data?.onboarding_seen) {
+      console.error('No se pudo guardar onboarding_seen:', err)
+      setError('No se pudo guardar. Verifica tu conexión e intenta de nuevo.')
+      setSaving(false)
+      return
+    }
     onComplete()
   }
 
@@ -66,9 +80,14 @@ export default function OnboardingPage({ session, onComplete }) {
           Siguiente <i className="ti ti-arrow-right" style={{ fontSize: 16, verticalAlign: -2 }} />
         </button>
       ) : (
-        <button onClick={finish} disabled={saving} className="btn-primary" style={{ maxWidth: 300 }}>
-          {saving ? 'Un momento...' : '¡Listo, empezar!'}
-        </button>
+        <>
+          <button onClick={finish} disabled={saving} className="btn-primary" style={{ maxWidth: 300 }}>
+            {saving ? 'Un momento...' : '¡Listo, empezar!'}
+          </button>
+          {error && (
+            <p style={{ fontSize: 12, color: '#FCA5A5', marginTop: 12, maxWidth: 280 }}>{error}</p>
+          )}
+        </>
       )}
     </div>
   )
