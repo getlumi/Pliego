@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { DAY_KEYS, DAY_LABELS, DEFAULT_HOURS } from '../lib/hours'
 
 const SERVICE_OPTIONS = [
   { type: 'bn_bond',       icon: 'ti-file-text', label: 'B/N · Bond carta',     defaultPrice: 1 },
@@ -44,7 +45,7 @@ export default function PrintshopPage({ session }) {
 
   if (loading) {
     return (
-      <div className="page">
+      <div className="page" style={{ paddingBottom: 0 }}>
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div>
       </div>
     )
@@ -53,7 +54,7 @@ export default function PrintshopPage({ session }) {
   if (!shop) return <RegisterShop session={session} onRegistered={loadShop} />
 
   return (
-    <div className="page">
+    <div className="page" style={{ paddingBottom: 0 }}>
       <div style={{ background: 'var(--gradient-dark)', padding: '48px 20px 20px' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 4 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -62,9 +63,12 @@ export default function PrintshopPage({ session }) {
             </div>
             <p style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>Pliego · Negocio</p>
           </div>
-          <div style={{ width:32, height:32, borderRadius:'50%', background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#fff' }}>
-            {shop.name?.[0]?.toUpperCase() ?? 'P'}
-          </div>
+          <button onClick={() => supabase.auth.signOut()} aria-label="Cerrar sesión" style={{
+            width:32, height:32, borderRadius:'50%', background:'rgba(255,255,255,0.15)',
+            border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer',
+          }}>
+            <i className="ti ti-logout" style={{ fontSize:15, color:'#fff' }} />
+          </button>
         </div>
         <p style={{ fontSize:13, color:'rgba(255,255,255,0.6)' }}>{shop.name}</p>
       </div>
@@ -94,7 +98,7 @@ export default function PrintshopPage({ session }) {
 // ============================================================
 // REGISTRO
 // ============================================================
-function RegisterShop({ session, onRegistered }) {
+export function RegisterShop({ session, onRegistered, onCancel }) {
   const [name, setName]   = useState('')
   const [whatsapp, setWhatsapp] = useState('')
   const [coords, setCoords] = useState(null)
@@ -127,6 +131,7 @@ function RegisterShop({ session, onRegistered }) {
         longitude: coords.lng,
         whatsapp: whatsapp.replace(/\s/g,''),
         owner_id: session.user.id,
+        hours: DEFAULT_HOURS,
       })
       .select()
       .single()
@@ -151,7 +156,7 @@ function RegisterShop({ session, onRegistered }) {
   }
 
   return (
-    <div className="page">
+    <div className="page" style={{ paddingBottom: 0 }}>
       <div className="scroll-content" style={{ paddingTop: 48 }}>
         <div className="card">
           <p style={{ fontSize:16, fontWeight:800, marginBottom:4 }}>Registra tu negocio</p>
@@ -183,6 +188,15 @@ function RegisterShop({ session, onRegistered }) {
             {saving ? 'Registrando...' : 'Registrar mi papelería'}
             {!saving && <i className="ti ti-arrow-right" style={{ fontSize:16 }} />}
           </button>
+
+          {onCancel && (
+            <button onClick={onCancel} style={{
+              width:'100%', marginTop:10, background:'none', border:'none',
+              color:'var(--text-muted)', fontSize:13, cursor:'pointer', textAlign:'center',
+            }}>
+              No tengo papelería, soy cliente
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -274,8 +288,13 @@ function OrdersTab({ shop, orders, onReload }) {
 // ============================================================
 function ConfigTab({ shop, services, onSaved }) {
   const [name, setName] = useState(shop.name)
-  const [opensAt, setOpensAt] = useState(shop.opens_at?.slice(0,5) ?? '09:00')
-  const [closesAt, setClosesAt] = useState(shop.closes_at?.slice(0,5) ?? '21:00')
+  const [hours, setHours] = useState(() => {
+    const h = shop.hours ?? DEFAULT_HOURS
+    // copia profunda para no mutar el prop
+    const copy = {}
+    DAY_KEYS.forEach(d => { copy[d] = (h[d] ?? []).map(p => ({ ...p })) })
+    return copy
+  })
   const [svcState, setSvcState] = useState(() => {
     const byType = {}
     services.forEach(s => { byType[s.service_type] = { enabled: s.enabled, price: s.price_per_sheet } })
@@ -300,8 +319,7 @@ function ConfigTab({ shop, services, onSaved }) {
 
     await supabase.from('printshops').update({
       name: name.trim(),
-      opens_at: opensAt,
-      closes_at: closesAt,
+      hours,
     }).eq('id', shop.id)
 
     for (const opt of SERVICE_OPTIONS) {
@@ -326,17 +344,19 @@ function ConfigTab({ shop, services, onSaved }) {
         <input type="text" value={name} onChange={e => setName(e.target.value)}
           style={{ width:'100%', marginBottom:14, padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
 
-        <div style={{ display:'flex', gap:10 }}>
-          <div style={{ flex:1 }}>
-            <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>ABRE</label>
-            <input type="time" value={opensAt} onChange={e => setOpensAt(e.target.value)}
-              style={{ width:'100%', padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
-          </div>
-          <div style={{ flex:1 }}>
-            <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>CIERRA</label>
-            <input type="time" value={closesAt} onChange={e => setClosesAt(e.target.value)}
-              style={{ width:'100%', padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
-          </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', marginBottom:2 }}>HORARIOS</label>
+          {DAY_KEYS.map(day => (
+            <DayHours
+              key={day}
+              label={DAY_LABELS[day]}
+              periods={hours[day]}
+              onChange={periods => setHours(prev => ({ ...prev, [day]: periods }))}
+            />
+          ))}
+          <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>
+            Si abres en dos turnos (ej. mañana y tarde), usa "+ Agregar turno".
+          </p>
         </div>
       </div>
 
@@ -401,6 +421,61 @@ function Chip({ icon, label, bold }) {
     </span>
   )
 }
+
+function DayHours({ label, periods, onChange }) {
+  const closed = periods.length === 0
+
+  const updatePeriod = (idx, key, value) => {
+    const copy = periods.map((p, i) => i === idx ? { ...p, [key]: value } : p)
+    onChange(copy)
+  }
+  const addPeriod = () => onChange([...periods, { open: '16:00', close: '20:00' }])
+  const removePeriod = (idx) => onChange(periods.filter((_, i) => i !== idx))
+  const toggleClosed = () => onChange(closed ? [{ open: '09:00', close: '21:00' }] : [])
+
+  return (
+    <div style={{ border:'1px solid var(--border-light)', borderRadius:'var(--radius-md)', padding:'8px 10px' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: closed ? 0 : 6 }}>
+        <span style={{ fontSize:13, fontWeight:700, width:80 }}>{label}</span>
+        <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'var(--text-secondary)', cursor:'pointer' }}>
+          <input type="checkbox" checked={!closed} onChange={toggleClosed} style={{ width:'auto' }} />
+          {closed ? 'Cerrado' : 'Abierto'}
+        </label>
+      </div>
+
+      {!closed && (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {periods.map((p, idx) => (
+            <div key={idx} style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <input type="time" value={p.open} onChange={e => updatePeriod(idx, 'open', e.target.value)}
+                style={{ flex:1, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:13 }} />
+              <span style={{ fontSize:12, color:'var(--text-muted)' }}>–</span>
+              <input type="time" value={p.close} onChange={e => updatePeriod(idx, 'close', e.target.value)}
+                style={{ flex:1, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:13 }} />
+              {periods.length > 1 && (
+                <button onClick={() => removePeriod(idx)} aria-label="Quitar turno" style={{
+                  width:28, height:28, borderRadius:'50%', border:'none', background:'var(--red-light)',
+                  color:'var(--red)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0,
+                }}>
+                  <i className="ti ti-x" style={{ fontSize:13 }} />
+                </button>
+              )}
+            </div>
+          ))}
+          {periods.length < 2 && (
+            <button onClick={addPeriod} style={{
+              alignSelf:'flex-start', background:'none', border:'none',
+              color:'var(--green)', fontSize:12, fontWeight:700, cursor:'pointer', padding:'2px 0',
+            }}>
+              <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:-1 }} /> Agregar turno
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 
 function ToggleSwitch({ checked, onChange, disabled }) {
   return (
