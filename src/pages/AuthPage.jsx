@@ -8,6 +8,7 @@ export default function AuthPage({ onAuth }) {
   const [name,     setName]     = useState('')
   const [remember, setRemember] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
+  const [intent, setIntent] = useState('consumer') // 'consumer' | 'business'
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
 
@@ -19,7 +20,7 @@ export default function AuthPage({ onAuth }) {
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw new Error('Número o contraseña incorrectos')
-        onAuth()
+        onAuth(intent)
       } else {
         if (!name.trim())      throw new Error('Por favor escribe tu nombre')
         if (!phone.trim())     throw new Error('Por favor escribe tu WhatsApp')
@@ -35,7 +36,7 @@ export default function AuthPage({ onAuth }) {
         // 2) Iniciar sesión normalmente
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
         if (signInError) throw new Error('Tu cuenta se creó. Ahora entra con "Entrar".')
-        onAuth()
+        onAuth(intent)
       }
     } catch (e) {
       setError(e.message)
@@ -80,6 +81,19 @@ export default function AuthPage({ onAuth }) {
         <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>
           Imprime cerca de ti, sin complicaciones
         </p>
+
+        <button
+          onClick={() => setIntent(i => i === 'business' ? 'consumer' : 'business')}
+          style={{
+            marginTop: 16, display: 'flex', alignItems: 'center', gap: 6,
+            background: intent === 'business' ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
+            border: '1px solid rgba(255,255,255,0.25)', borderRadius: 'var(--radius-full)',
+            padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer',
+          }}
+        >
+          <i className="ti ti-printer" style={{ fontSize: 14 }} />
+          {intent === 'business' ? 'Entrando como negocio · cambiar' : '¿Tienes una papelería? Entra aquí'}
+        </button>
       </div>
 
       {/* Card */}
@@ -164,7 +178,11 @@ export default function AuthPage({ onAuth }) {
             onClick={handleSubmit} disabled={loading}
             className="btn-primary" style={{ marginTop: 8, opacity: loading ? 0.7 : 1 }}
           >
-            {loading ? 'Un momento...' : mode === 'login' ? 'Entrar a Pliego' : 'Crear mi cuenta'}
+            {loading
+              ? 'Un momento...'
+              : mode === 'login'
+                ? (intent === 'business' ? 'Entrar a mi negocio' : 'Entrar a Pliego')
+                : (intent === 'business' ? 'Crear cuenta de negocio' : 'Crear mi cuenta')}
             {!loading && <i className="ti ti-arrow-right" style={{ fontSize: 18 }} />}
           </button>
 
