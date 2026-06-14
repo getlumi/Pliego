@@ -7,6 +7,7 @@ import UploadPage      from './pages/UploadPage'
 import WalletPage      from './pages/WalletPage'
 import HistoryPage     from './pages/HistoryPage'
 import ProfilePage     from './pages/ProfilePage'
+import PrintshopPage   from './pages/PrintshopPage'
 import Navbar          from './components/layout/Navbar'
 
 export default function App() {
@@ -69,6 +70,7 @@ export default function App() {
       case 'wallet':  return <WalletPage session={session} onNavigate={navigate} />
       case 'history': return <HistoryPage session={session} onNavigate={navigate} />
       case 'profile': return <ProfilePage session={session} onNavigate={navigate} />
+      case 'printshop': return <PrintshopPage session={session} onNavigate={navigate} />
       default:        return <HomePage   session={session} onNavigate={navigate} />
     }
   }
