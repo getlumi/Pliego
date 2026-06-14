@@ -25,7 +25,7 @@ export default function AuthPage({ onAuth }) {
         if (password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres')
 
         // 1) Crear la cuenta ya confirmada via Edge Function (no depende de "Confirm email")
-        const { data: regData, error: regError } = await supabase.functions.invoke('register', {
+        const { data: regData, error: regError } = await supabase.functions.invoke('smart-task', {
           body: { name, phone: phone.replace(/\s/g,''), password }
         })
         if (regError) throw new Error('No se pudo crear tu cuenta. Intenta de nuevo.')
