@@ -209,7 +209,7 @@ function ShopCard({ shop, serviceIcons, Stars }) {
           )}
           <div style={{ display:'flex', gap:8 }}>
             <button
-              onClick={e => { e.stopPropagation(); window.open(`https://maps.google.com/?q=${shop.latitude},${shop.longitude}`) }}
+              onClick={e => { e.stopPropagation(); window.open(`https://www.google.com/maps/dir/?api=1&destination=${shop.latitude},${shop.longitude}`, '_blank') }}
               className="btn-outline" style={{ fontSize:13, padding:'8px 12px' }}
             >
               <i className="ti ti-map-pin" style={{ fontSize:15 }} /> Cómo llegar
