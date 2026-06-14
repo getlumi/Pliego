@@ -59,7 +59,7 @@ export default function AuthPage({ onAuth }) {
       <div style={{
         position: 'absolute', bottom: -80, left: -40,
         width: 160, height: 160,
-        background: 'rgba(159,225,203,0.08)', borderRadius: '50%',
+        background: 'rgba(255,255,255,0.04)', borderRadius: '50%',
       }} />
 
       {/* Logo */}
@@ -100,7 +100,7 @@ export default function AuthPage({ onAuth }) {
               padding: '10px 0', fontSize: 14, fontWeight: 700,
               color: mode === m ? 'var(--green)' : 'var(--text-secondary)',
               cursor: 'pointer',
-              boxShadow: mode === m ? '0 2px 8px rgba(29,158,117,0.1)' : 'none',
+              boxShadow: mode === m ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
               transition: 'all 0.2s',
             }}>
               {m === 'login' ? 'Entrar' : 'Registrarme'}
