@@ -7,6 +7,7 @@ export default function AuthPage({ onAuth }) {
   const [password, setPassword] = useState('')
   const [name,     setName]     = useState('')
   const [remember, setRemember] = useState(true)
+  const [showPassword, setShowPassword] = useState(false)
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
 
@@ -130,11 +131,17 @@ export default function AuthPage({ onAuth }) {
 
           <Field label="CONTRASEÑA" icon="ti-lock">
             <input
-              type="password" placeholder="Mínimo 6 caracteres"
+              type={showPassword ? 'text' : 'password'} placeholder="Mínimo 6 caracteres"
               value={password} onChange={e => setPassword(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSubmit()}
               style={inputStyle} autoComplete="current-password" name="password"
             />
+            <button type="button" onClick={() => setShowPassword(v => !v)} style={{
+              background:'none', border:'none', padding:0, cursor:'pointer',
+              color:'var(--text-muted)', display:'flex', alignItems:'center', flexShrink:0,
+            }} aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
+              <i className={`ti ${showPassword ? 'ti-eye-off' : 'ti-eye'}`} style={{ fontSize:18 }} />
+            </button>
           </Field>
 
           <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
