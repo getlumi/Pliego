@@ -193,6 +193,6 @@ function Field({ label, icon, children }) {
 
 const inputStyle = {
   border: 'none', outline: 'none', flex: 1,
-  fontSize: 14, color: 'var(--text-primary)',
+  fontSize: 16, color: 'var(--text-primary)',
   background: 'transparent', fontFamily: 'inherit', width: '100%',
 }
