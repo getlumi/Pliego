@@ -7,13 +7,15 @@ import UploadPage      from './pages/UploadPage'
 import WalletPage      from './pages/WalletPage'
 import HistoryPage     from './pages/HistoryPage'
 import ProfilePage     from './pages/ProfilePage'
-import PrintshopPage   from './pages/PrintshopPage'
+import PrintshopPage, { RegisterShop } from './pages/PrintshopPage'
 import Navbar          from './components/layout/Navbar'
 
 export default function App() {
   const [session,  setSession]  = useState(null)
   const [loading,  setLoading]  = useState(true)
   const [onboarded, setOnboarded] = useState(false)
+  const [ownsShop, setOwnsShop] = useState(false)
+  const [businessIntent, setBusinessIntent] = useState(false)
   const [page,     setPage]     = useState('home')
 
   useEffect(() => {
@@ -25,7 +27,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setSession(session)
       if (session) checkOnboarding(session.user.id)
-      else { setOnboarded(false); setLoading(false) }
+      else { setOnboarded(false); setOwnsShop(false); setBusinessIntent(false); setLoading(false) }
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -58,6 +60,14 @@ export default function App() {
     }
 
     setOnboarded(data?.onboarding_seen ?? false)
+
+    const { data: shop } = await supabase
+      .from('printshops')
+      .select('id')
+      .eq('owner_id', userId)
+      .maybeSingle()
+    setOwnsShop(!!shop)
+
     setLoading(false)
   }
 
@@ -70,7 +80,6 @@ export default function App() {
       case 'wallet':  return <WalletPage session={session} onNavigate={navigate} />
       case 'history': return <HistoryPage session={session} onNavigate={navigate} />
       case 'profile': return <ProfilePage session={session} onNavigate={navigate} />
-      case 'printshop': return <PrintshopPage session={session} onNavigate={navigate} />
       default:        return <HomePage   session={session} onNavigate={navigate} />
     }
   }
@@ -97,13 +106,31 @@ export default function App() {
 
   if (!session) return (
     <div className="app-shell"><div className="phone-frame">
-      <AuthPage onAuth={() => {}} />
+      <AuthPage onAuth={(intent) => setBusinessIntent(intent === 'business')} />
     </div></div>
   )
 
   if (!onboarded) return (
     <div className="app-shell"><div className="phone-frame">
       <OnboardingPage session={session} onComplete={() => setOnboarded(true)} />
+    </div></div>
+  )
+
+  // Cuenta de negocio: panel propio, sin la navegación de cliente
+  if (ownsShop) return (
+    <div className="app-shell"><div className="phone-frame">
+      <PrintshopPage session={session} />
+    </div></div>
+  )
+
+  // Llegó pidiendo "tengo una papelería" pero aún no la registra
+  if (businessIntent) return (
+    <div className="app-shell"><div className="phone-frame">
+      <RegisterShop
+        session={session}
+        onRegistered={() => setOwnsShop(true)}
+        onCancel={() => setBusinessIntent(false)}
+      />
     </div></div>
   )
 
