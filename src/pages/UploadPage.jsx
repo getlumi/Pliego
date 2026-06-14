@@ -30,9 +30,12 @@ export default function UploadPage({ session, onNavigate }) {
   const [paperType, setPaperType] = useState('bond')
   const [instructions, setInstructions] = useState('')
 
+  const filesRef = useRef(files)
+  filesRef.current = files
+
   useEffect(() => {
-    return () => files.forEach(f => f.previewUrl && URL.revokeObjectURL(f.previewUrl))
-  }, [files])
+    return () => filesRef.current.forEach(f => f.previewUrl && URL.revokeObjectURL(f.previewUrl))
+  }, [])
 
   const handleFiles = (e) => {
     const list = Array.from(e.target.files ?? [])
