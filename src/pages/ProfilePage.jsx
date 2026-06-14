@@ -12,6 +12,9 @@ export default function ProfilePage({ session, onNavigate }) {
         <p style={{ fontSize:20, fontWeight:800, color:'#fff' }}>{name}</p>
       </div>
       <div className="scroll-content">
+        <button className="btn-primary" onClick={() => onNavigate('printshop')}>
+          <i className="ti ti-printer" style={{ fontSize:18 }} /> Tengo una papelería
+        </button>
         <button className="btn-outline" onClick={() => supabase.auth.signOut()}>
           <i className="ti ti-logout" style={{ fontSize:18 }} /> Cerrar sesión
         </button>
