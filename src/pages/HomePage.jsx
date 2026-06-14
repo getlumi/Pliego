@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { isOpenNow, todayLabel } from '../lib/hours'
 
 export default function HomePage({ session, onNavigate }) {
   const [shops,    setShops]    = useState([])
@@ -36,11 +37,9 @@ export default function HomePage({ session, onNavigate }) {
   }
 
   const loadShops = async (coords) => {
-    const now = new Date()
-    const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
     const { data } = await supabase.from('printshops').select('*, printshop_services(*)').order('rating_avg', { ascending: false })
     if (!data) { setLoading(false); return }
-    let shops = data.filter(s => s.opens_at <= hhmm && s.closes_at >= hhmm)
+    let shops = data.filter(s => isOpenNow(s.hours))
     if (coords) {
       shops = shops.map(s => ({ ...s, dist: distKm(coords.latitude, coords.longitude, s.latitude, s.longitude) }))
       shops.sort((a, b) => a.dist - b.dist)
@@ -170,7 +169,7 @@ function ShopCard({ shop, serviceIcons, Stars }) {
             </span>
           </div>
           <p style={{ fontSize:12, color:'var(--text-secondary)', marginTop:3 }}>
-            {shop.dist ? `${shop.dist.toFixed(1)} km · ` : ''}Abierto hasta {shop.closes_at}
+            {shop.dist ? `${shop.dist.toFixed(1)} km · ` : ''}{todayLabel(shop.hours)}
           </p>
         </div>
         <span style={{
