@@ -1,0 +1,423 @@
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+
+const SERVICE_OPTIONS = [
+  { type: 'bn_bond',       icon: 'ti-file-text', label: 'B/N · Bond carta',     defaultPrice: 1 },
+  { type: 'color_bond',    icon: 'ti-palette',   label: 'Color · Bond carta',   defaultPrice: 5 },
+  { type: 'opalina_bn',    icon: 'ti-sparkles',  label: 'Opalina · B/N',        defaultPrice: 3 },
+  { type: 'opalina_color', icon: 'ti-sparkles',  label: 'Opalina · Color',      defaultPrice: 8 },
+  { type: 'doble_carta',   icon: 'ti-files',     label: 'Doble carta / oficio', defaultPrice: 2 },
+]
+
+const STATUS_LABEL = { nuevo: 'Nuevo', en_proceso: 'En proceso', listo: 'Listo', entregado: 'Entregado' }
+const STATUS_BADGE = { nuevo: 'badge-green', en_proceso: 'badge-amber', listo: 'badge-green', entregado: 'badge' }
+
+export default function PrintshopPage({ session }) {
+  const [loading, setLoading] = useState(true)
+  const [shop, setShop]       = useState(null)
+  const [services, setServices] = useState([])
+  const [orders, setOrders]   = useState([])
+  const [tab, setTab]         = useState('orders')
+
+  useEffect(() => { loadShop() }, [])
+
+  const loadShop = async () => {
+    const { data } = await supabase
+      .from('printshops')
+      .select('*, printshop_services(*)')
+      .eq('owner_id', session.user.id)
+      .maybeSingle()
+    setShop(data)
+    setServices(data?.printshop_services ?? [])
+    if (data) await loadOrders(data.id)
+    setLoading(false)
+  }
+
+  const loadOrders = async (shopId) => {
+    const { data } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('printshop_id', shopId)
+      .order('created_at', { ascending: false })
+    setOrders(data ?? [])
+  }
+
+  if (loading) {
+    return (
+      <div className="page">
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div>
+      </div>
+    )
+  }
+
+  if (!shop) return <RegisterShop session={session} onRegistered={loadShop} />
+
+  return (
+    <div className="page">
+      <div style={{ background: 'var(--gradient-dark)', padding: '48px 20px 20px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 4 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ width:32, height:32, borderRadius:10, background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <i className="ti ti-printer" style={{ fontSize:18, color:'#fff' }} />
+            </div>
+            <p style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>Pliego · Negocio</p>
+          </div>
+          <div style={{ width:32, height:32, borderRadius:'50%', background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#fff' }}>
+            {shop.name?.[0]?.toUpperCase() ?? 'P'}
+          </div>
+        </div>
+        <p style={{ fontSize:13, color:'rgba(255,255,255,0.6)' }}>{shop.name}</p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display:'flex', gap:8, padding:'14px 16px 0' }}>
+        {[{id:'orders', label:'Pedidos', icon:'ti-list-details'}, {id:'config', label:'Configuración', icon:'ti-settings'}].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            flex:1, padding:'10px 0', borderRadius:'var(--radius-md)',
+            border: tab === t.id ? 'none' : '1px solid var(--border)',
+            background: tab === t.id ? 'var(--gradient)' : '#fff',
+            color: tab === t.id ? '#fff' : 'var(--text-secondary)',
+            fontSize:13, fontWeight:700, cursor:'pointer',
+          }}>
+            <i className={`ti ${t.icon}`} style={{ fontSize:14, verticalAlign:-2, marginRight:6 }} />{t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'orders'
+        ? <OrdersTab shop={shop} orders={orders} onReload={loadShop} />
+        : <ConfigTab shop={shop} services={services} onSaved={loadShop} />}
+    </div>
+  )
+}
+
+// ============================================================
+// REGISTRO
+// ============================================================
+function RegisterShop({ session, onRegistered }) {
+  const [name, setName]   = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
+  const [coords, setCoords] = useState(null)
+  const [locating, setLocating] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const getLocation = () => {
+    setError('')
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      pos => { setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocating(false) },
+      ()  => { setError('No pudimos obtener tu ubicación. Revisa los permisos del navegador.'); setLocating(false) },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
+
+  const submit = async () => {
+    setError('')
+    if (!name.trim())     return setError('Escribe el nombre de tu negocio')
+    if (!whatsapp.trim()) return setError('Escribe tu número de WhatsApp')
+    if (!coords)          return setError('Necesitamos tu ubicación para registrarte')
+
+    setSaving(true)
+    const { data: shop, error: shopError } = await supabase
+      .from('printshops')
+      .insert({
+        name: name.trim(),
+        latitude: coords.lat,
+        longitude: coords.lng,
+        whatsapp: whatsapp.replace(/\s/g,''),
+        owner_id: session.user.id,
+      })
+      .select()
+      .single()
+
+    if (shopError) {
+      setError('No se pudo registrar tu papelería. Intenta de nuevo.')
+      setSaving(false)
+      return
+    }
+
+    // Servicios por defecto (B/N bond activado, el resto desactivado con precio sugerido)
+    await supabase.from('printshop_services').insert(
+      SERVICE_OPTIONS.map(s => ({
+        printshop_id: shop.id,
+        service_type: s.type,
+        price_per_sheet: s.defaultPrice,
+        enabled: s.type === 'bn_bond',
+      }))
+    )
+
+    onRegistered()
+  }
+
+  return (
+    <div className="page">
+      <div className="scroll-content" style={{ paddingTop: 48 }}>
+        <div className="card">
+          <p style={{ fontSize:16, fontWeight:800, marginBottom:4 }}>Registra tu negocio</p>
+          <p style={{ fontSize:13, color:'var(--text-secondary)', marginBottom:16 }}>
+            Toma 1 minuto. Solo necesitamos tu ubicación exacta.
+          </p>
+
+          <button onClick={getLocation} disabled={locating} className={coords ? 'btn-outline' : 'btn-primary'} style={{ marginBottom: 14 }}>
+            <i className={`ti ${coords ? 'ti-circle-check' : 'ti-current-location'}`} style={{ fontSize:16 }} />
+            {locating ? 'Buscando ubicación...' : coords ? 'Ubicación obtenida' : 'Usar mi ubicación actual'}
+          </button>
+
+          <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>NOMBRE DE TU PAPELERÍA</label>
+          <input type="text" placeholder="Ej. Papelería Lupita" value={name} onChange={e => setName(e.target.value)}
+            style={{ width:'100%', marginBottom:14, padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
+
+          <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>WHATSAPP PARA AVISOS DE PEDIDOS</label>
+          <input type="tel" placeholder="998 123 4567" value={whatsapp} onChange={e => setWhatsapp(e.target.value)}
+            style={{ width:'100%', marginBottom:14, padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
+
+          {error && (
+            <div style={{ background:'var(--red-light)', border:'1px solid #F09595', borderRadius:12, padding:'10px 14px', marginBottom:14, display:'flex', gap:8, alignItems:'center' }}>
+              <i className="ti ti-alert-circle" style={{ fontSize:16, color:'var(--red)', flexShrink:0 }} />
+              <p style={{ fontSize:13, color:'var(--red)', fontWeight:600 }}>{error}</p>
+            </div>
+          )}
+
+          <button onClick={submit} disabled={saving} className="btn-primary">
+            {saving ? 'Registrando...' : 'Registrar mi papelería'}
+            {!saving && <i className="ti ti-arrow-right" style={{ fontSize:16 }} />}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// TAB: PEDIDOS
+// ============================================================
+function OrdersTab({ shop, orders, onReload }) {
+  const [toggling, setToggling] = useState(false)
+
+  const pending = orders.filter(o => o.status === 'nuevo' || o.status === 'en_proceso')
+  const today = orders.filter(o => new Date(o.created_at).toDateString() === new Date().toDateString())
+  const cashToCollect = pending.reduce((sum, o) => sum + (o.estimated_cost ?? 0), 0)
+
+  const toggleAvailable = async () => {
+    setToggling(true)
+    await supabase.from('printshops').update({ is_available: !shop.is_available }).eq('id', shop.id)
+    await onReload()
+    setToggling(false)
+  }
+
+  const updateStatus = async (orderId, status) => {
+    await supabase.from('orders').update({ status }).eq('id', orderId)
+    await onReload()
+  }
+
+  const download = async (order) => {
+    const { data, error } = await supabase.storage.from('documents').createSignedUrl(order.file_url, 60)
+    if (!error && data?.signedUrl) window.open(data.signedUrl, '_blank')
+    else alert('No se pudo generar el enlace de descarga')
+  }
+
+  return (
+    <div className="scroll-content">
+      <div style={{ display:'flex', gap:8 }}>
+        <SummaryCard label="Pendientes" value={pending.length} />
+        <SummaryCard label="Hoy" value={today.length} />
+        <SummaryCard label="Por cobrar" value={`$${cashToCollect.toFixed(0)}`} highlight />
+      </div>
+
+      <div className="card" style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <span style={{ fontSize:14, fontWeight:700 }}>Recibiendo pedidos</span>
+        <ToggleSwitch checked={shop.is_available} onChange={toggleAvailable} disabled={toggling} />
+      </div>
+
+      <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)' }}>Pedidos</p>
+
+      {orders.length === 0 ? (
+        <div className="card" style={{ textAlign:'center', padding:32 }}>
+          <i className="ti ti-inbox" style={{ fontSize:40, color:'var(--text-muted)', display:'block', marginBottom:12 }} />
+          <p style={{ color:'var(--text-muted)', fontSize:14 }}>Todavía no te ha llegado ningún pedido</p>
+        </div>
+      ) : orders.map(o => (
+        <div key={o.id} className="card">
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+            <div>
+              <p style={{ fontSize:14, fontWeight:700 }}>{o.file_name ?? 'Documento'}</p>
+              <p style={{ fontSize:12, color:'var(--text-secondary)' }}>{new Date(o.created_at).toLocaleString('es-MX', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</p>
+            </div>
+            <span className={`badge ${STATUS_BADGE[o.status]}`}>{STATUS_LABEL[o.status]}</span>
+          </div>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:10 }}>
+            <Chip icon="ti-file-text" label={`${o.file_count} hoja${o.file_count > 1 ? 's' : ''}`} />
+            <Chip icon="ti-copy" label={`${o.copies} copia${o.copies > 1 ? 's' : ''}`} />
+            <Chip icon={o.color_mode === 'color' ? 'ti-palette' : 'ti-file-text'} label={`${o.color_mode === 'color' ? 'Color' : 'B/N'} · ${o.paper_size}`} />
+            {o.estimated_cost != null && <Chip label={`$${o.estimated_cost}`} bold />}
+          </div>
+          {(o.status === 'nuevo' || o.status === 'en_proceso') && (
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={() => download(o)} className="btn-outline" style={{ flex:1, padding:8, fontSize:13 }}>
+                <i className="ti ti-download" style={{ fontSize:15 }} /> Descargar
+              </button>
+              <button onClick={() => updateStatus(o.id, o.status === 'nuevo' ? 'en_proceso' : 'listo')}
+                style={{ flex:1, padding:8, fontSize:13, borderRadius:'var(--radius-md)', border:'1px solid var(--green)', background:'var(--green)', color:'#fff', fontWeight:700, cursor:'pointer' }}>
+                <i className="ti ti-check" style={{ fontSize:15 }} /> {o.status === 'nuevo' ? 'En proceso' : 'Listo'}
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ============================================================
+// TAB: CONFIGURACIÓN
+// ============================================================
+function ConfigTab({ shop, services, onSaved }) {
+  const [name, setName] = useState(shop.name)
+  const [opensAt, setOpensAt] = useState(shop.opens_at?.slice(0,5) ?? '09:00')
+  const [closesAt, setClosesAt] = useState(shop.closes_at?.slice(0,5) ?? '21:00')
+  const [svcState, setSvcState] = useState(() => {
+    const byType = {}
+    services.forEach(s => { byType[s.service_type] = { enabled: s.enabled, price: s.price_per_sheet } })
+    SERVICE_OPTIONS.forEach(opt => {
+      if (!byType[opt.type]) byType[opt.type] = { enabled: false, price: opt.defaultPrice }
+    })
+    return byType
+  })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const toggleService = (type) => {
+    setSvcState(prev => ({ ...prev, [type]: { ...prev[type], enabled: !prev[type].enabled } }))
+  }
+  const setPrice = (type, price) => {
+    setSvcState(prev => ({ ...prev, [type]: { ...prev[type], price } }))
+  }
+
+  const save = async () => {
+    setSaving(true)
+    setSaved(false)
+
+    await supabase.from('printshops').update({
+      name: name.trim(),
+      opens_at: opensAt,
+      closes_at: closesAt,
+    }).eq('id', shop.id)
+
+    for (const opt of SERVICE_OPTIONS) {
+      const s = svcState[opt.type]
+      await supabase.from('printshop_services').upsert({
+        printshop_id: shop.id,
+        service_type: opt.type,
+        price_per_sheet: Number(s.price) || 0,
+        enabled: s.enabled,
+      }, { onConflict: 'printshop_id,service_type' })
+    }
+
+    setSaving(false)
+    setSaved(true)
+    onSaved()
+  }
+
+  return (
+    <div className="scroll-content">
+      <div className="card">
+        <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>NOMBRE DEL NEGOCIO</label>
+        <input type="text" value={name} onChange={e => setName(e.target.value)}
+          style={{ width:'100%', marginBottom:14, padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
+
+        <div style={{ display:'flex', gap:10 }}>
+          <div style={{ flex:1 }}>
+            <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>ABRE</label>
+            <input type="time" value={opensAt} onChange={e => setOpensAt(e.target.value)}
+              style={{ width:'100%', padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
+          </div>
+          <div style={{ flex:1 }}>
+            <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>CIERRA</label>
+            <input type="time" value={closesAt} onChange={e => setClosesAt(e.target.value)}
+              style={{ width:'100%', padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <p style={{ fontSize:14, fontWeight:800, marginBottom:4 }}>Tipos de impresión disponibles</p>
+        <p style={{ fontSize:12, color:'var(--text-secondary)', marginBottom:12 }}>Selecciona y define el precio por hoja</p>
+
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {SERVICE_OPTIONS.map(opt => {
+            const s = svcState[opt.type]
+            return (
+              <label key={opt.type} style={{
+                display:'flex', alignItems:'center', gap:10,
+                border:'1px solid var(--border)', borderRadius:'var(--radius-md)',
+                padding:'10px 12px', cursor:'pointer',
+                opacity: s.enabled ? 1 : 0.55,
+              }}>
+                <input type="checkbox" checked={s.enabled} onChange={() => toggleService(opt.type)} style={{ width:'auto' }} />
+                <i className={`ti ${opt.icon}`} style={{ fontSize:18, color:'var(--text-secondary)' }} />
+                <span style={{ flex:1, fontSize:14 }}>{opt.label}</span>
+                <span style={{ fontSize:13, color:'var(--text-secondary)' }}>$</span>
+                <input type="number" min="0" step="0.5" value={s.price} disabled={!s.enabled}
+                  onChange={e => setPrice(opt.type, e.target.value)}
+                  style={{ width:56, padding:'6px 8px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)' }} />
+              </label>
+            )
+          })}
+        </div>
+      </div>
+
+      <button onClick={save} disabled={saving} className="btn-primary">
+        <i className="ti ti-check" style={{ fontSize:16 }} />
+        {saving ? 'Guardando...' : saved ? 'Guardado ✓' : 'Guardar configuración'}
+      </button>
+    </div>
+  )
+}
+
+// ============================================================
+// Componentes auxiliares
+// ============================================================
+function SummaryCard({ label, value, highlight }) {
+  return (
+    <div className="card" style={{ flex:1, textAlign:'center', padding:12, background: highlight ? 'var(--green-light)' : '#fff' }}>
+      <p style={{ fontSize:11, color:'var(--text-secondary)', marginBottom:2 }}>{label}</p>
+      <p style={{ fontSize:20, fontWeight:900 }}>{value}</p>
+    </div>
+  )
+}
+
+function Chip({ icon, label, bold }) {
+  return (
+    <span style={{
+      display:'flex', alignItems:'center', gap:4, fontSize:12,
+      background:'var(--bg)', color:'var(--text-secondary)',
+      padding:'3px 8px', borderRadius:'var(--radius-full)',
+      border:'1px solid var(--border-light)',
+      fontWeight: bold ? 700 : 400,
+    }}>
+      {icon && <i className={`ti ${icon}`} style={{ fontSize:13 }} />}
+      {label}
+    </span>
+  )
+}
+
+function ToggleSwitch({ checked, onChange, disabled }) {
+  return (
+    <label style={{ position:'relative', display:'inline-block', width:44, height:24, cursor: disabled ? 'default' : 'pointer' }}>
+      <input type="checkbox" checked={checked} onChange={onChange} disabled={disabled}
+        style={{ opacity:0, width:0, height:0 }} />
+      <span style={{
+        position:'absolute', inset:0, borderRadius:12,
+        background: checked ? 'var(--green)' : '#D9D9D6',
+        transition:'0.2s',
+      }}>
+        <span style={{
+          position:'absolute', top:3, left: checked ? 23 : 3,
+          width:18, height:18, borderRadius:'50%',
+          background:'#fff', transition:'0.2s',
+        }} />
+      </span>
+    </label>
+  )
+}
