@@ -1,19 +1,19 @@
 :root {
-  --green:          #1D9E75;
-  --green-dark:     #0F6E56;
-  --green-deeper:   #085041;
-  --green-light:    #E1F5EE;
-  --green-lighter:  #F0FAF6;
+  --green:          #1A1A1A;
+  --green-dark:     #000000;
+  --green-deeper:   #000000;
+  --green-light:    #EFEFEC;
+  --green-lighter:  #F7F7F5;
   --amber:          #EF9F27;
   --amber-light:    #FAEEDA;
-  --bg:             #F0FAF6;
+  --bg:             #F5F5F3;
   --white:          #ffffff;
-  --dark:           #04342C;
-  --text-primary:   #04342C;
+  --dark:           #0A0A0A;
+  --text-primary:   #1A1A1A;
   --text-secondary: #5F5E5A;
   --text-muted:     #B4B2A9;
-  --border:         #9FE1CB;
-  --border-light:   #C5EDE0;
+  --border:         #DEDDD8;
+  --border-light:   #EAE9E5;
   --red:            #E24B4A;
   --red-light:      #FCEBEB;
   --nav-height:     72px;
@@ -24,10 +24,10 @@
   --radius-lg:      20px;
   --radius-xl:      28px;
   --radius-full:    9999px;
-  --shadow-sm:      0 2px 8px rgba(29,158,117,0.08);
-  --shadow-md:      0 4px 20px rgba(29,158,117,0.12);
-  --gradient:       linear-gradient(135deg, #1D9E75, #0F6E56);
-  --gradient-dark:  linear-gradient(160deg, #085041 0%, #0F6E56 100%);
+  --shadow-sm:      0 2px 8px rgba(0,0,0,0.06);
+  --shadow-md:      0 4px 20px rgba(0,0,0,0.12);
+  --gradient:       linear-gradient(135deg, #2E2E2E, #000000);
+  --gradient-dark:  linear-gradient(160deg, #000000 0%, #1F1F1F 100%);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -49,7 +49,7 @@ input, select, textarea {
   justify-content: center;
   align-items: flex-start;
   min-height: 100vh;
-  background: #04342C;
+  background: #0A0A0A;
 }
 
 .phone-frame {
@@ -134,7 +134,7 @@ input, select, textarea {
   align-items: center;
   justify-content: center;
   margin-top: -20px;
-  box-shadow: 0 4px 16px rgba(29,158,117,0.4);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
   cursor: pointer;
   transition: transform 0.2s;
 }
@@ -160,7 +160,7 @@ input, select, textarea {
   font-size: 11px;
   font-weight: 600;
 }
-.badge-green  { background: var(--green-light);  color: #085041; }
+.badge-green  { background: var(--green-light);  color: #1A1A1A; }
 .badge-amber  { background: var(--amber-light);   color: #633806; }
 .badge-red    { background: var(--red-light);     color: #A32D2D; }
 
