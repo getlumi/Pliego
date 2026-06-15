@@ -4,13 +4,12 @@
 
 export function createEmptyDraft() {
   return {
-    files: [],          // [{ file: File, previewUrl: string|null }]
+    files: [],          // [{ file: File, previewUrl: string|null, pageCount: number, pageCountAuto: boolean }]
     shopId: null,        // papelería elegida para este pedido
+    serviceId: null,     // printshop_services.id elegido (define precio y tipo de hoja)
     orientation: 'vertical', // 'vertical' | 'horizontal'
     fit: 'fit',          // 'fit' | 'actual'
     copies: 1,
-    colorMode: 'bn',     // 'bn' | 'color'
-    paperType: 'bond',   // 'bond' | 'opalina' | 'doble_carta'
     instructions: '',
     activeIndex: 0,
   }
