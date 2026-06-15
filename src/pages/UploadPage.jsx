@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { serviceLabel, serviceIcon } from '../lib/services'
 
@@ -35,6 +35,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   const [shop, setShop] = useState(null)
   const [loadingShop, setLoadingShop] = useState(true)
   const [justSent, setJustSent] = useState(false)
+  const fileInputRef = useRef(null)
 
   const sendInstruction = () => {
     setJustSent(true)
@@ -139,23 +140,27 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
         )}
 
         {/* Caja grande clicable */}
-        <label htmlFor="file-upload-input" className="card" style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          textAlign: 'center', padding: 32, cursor: 'pointer',
-          border: '2px dashed var(--border)', position: 'relative',
-        }}>
+        <div
+          role="button" tabIndex={0}
+          onClick={() => fileInputRef.current?.click()}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
+          className="card" style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            textAlign: 'center', padding: 32, cursor: 'pointer',
+            border: '2px dashed var(--border)', position: 'relative',
+          }}>
           <i className="ti ti-upload" style={{ fontSize: 40, color: 'var(--green)', marginBottom: 8 }} />
           <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
             {files.length === 0 ? 'Toca para elegir tu archivo' : 'Toca para agregar más archivos'}
           </p>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>PDF, DOCX, JPG o PNG</p>
           <input
-            id="file-upload-input" type="file"
+            ref={fileInputRef} type="file"
             accept=".pdf,.docx,.jpg,.jpeg,.png" multiple
             onChange={handleFiles}
-            style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden' }}
+            style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }}
           />
-        </label>
+        </div>
 
         {files.length > 0 && (
           <>
