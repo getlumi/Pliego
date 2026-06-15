@@ -96,7 +96,7 @@ export default function App() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         border: '2px solid rgba(255,255,255,0.3)',
       }}>
-        <i className="ti ti-file-text" style={{ fontSize: 32, color: '#fff' }} />
+        <i className="ti ti-printer" style={{ fontSize: 32, color: '#fff' }} />
       </div>
       <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: 600 }}>
         Cargando Pliego...
