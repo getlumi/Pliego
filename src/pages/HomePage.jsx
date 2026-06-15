@@ -1,12 +1,18 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { isOpenNow, todayLabel } from '../lib/hours'
 
-export default function HomePage({ session, onNavigate, draft, onClearDraft }) {
+export default function HomePage({ session, onNavigate, draft, onUpdateDraft, onClearDraft, onShowTutorial }) {
   const [shops,    setShops]    = useState([])
   const [loading,  setLoading]  = useState(true)
   const [userPos,  setUserPos]  = useState(null)
   const [user,     setUser]     = useState(null)
+  const [showSelectPrompt, setShowSelectPrompt] = useState(false)
+  const shopsRef = useRef(null)
+
+  useEffect(() => {
+    if (draft.shopId) setShowSelectPrompt(false)
+  }, [draft.shopId])
 
   useEffect(() => {
     if (session) loadUser()
@@ -52,6 +58,17 @@ export default function HomePage({ session, onNavigate, draft, onClearDraft }) {
     const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180
     const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  }
+
+  const selectedShop = shops.find(s => s.id === draft.shopId)
+
+  const handleUploadTap = () => {
+    if (!draft.shopId) {
+      setShowSelectPrompt(true)
+      shopsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    onNavigate('upload')
   }
 
   const serviceIcons = {
@@ -104,9 +121,30 @@ export default function HomePage({ session, onNavigate, draft, onClearDraft }) {
         </div>
       </div>
 
+      {/* Papelería elegida */}
+      {selectedShop && (
+        <div style={{ padding: '0 16px', marginTop: -16, marginBottom: 10 }}>
+          <div className="card" style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '10px 14px', border: '1.5px solid var(--green)', background: 'var(--green-light)',
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <i className="ti ti-circle-check" style={{ fontSize: 16, color: 'var(--green)' }} />
+              Imprimirás en: {selectedShop.name}
+            </span>
+            <button
+              onClick={() => shopsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Cambiar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Upload zone */}
-      <div style={{ padding: '0 16px', marginTop: -16 }}>
-        <button onClick={() => onNavigate('upload')} style={{
+      <div style={{ padding: '0 16px', marginTop: selectedShop ? 0 : -16 }}>
+        <button onClick={handleUploadTap} style={{
           width: '100%', background: '#fff',
           border: '2px dashed var(--border)',
           borderRadius: 'var(--radius-lg)',
@@ -156,19 +194,35 @@ export default function HomePage({ session, onNavigate, draft, onClearDraft }) {
 
       {/* Shops list */}
       <div className="scroll-content">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div ref={shopsRef} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <i className="ti ti-map-pin" style={{ fontSize: 16, color: 'var(--green)' }} />
           <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
             Papelerías cerca de ti
           </p>
         </div>
 
+        {showSelectPrompt && (
+          <div style={{
+            display: 'flex', gap: 8, alignItems: 'center',
+            background: 'var(--green-light)', borderRadius: 'var(--radius-md)',
+            padding: '10px 12px',
+          }}>
+            <i className="ti ti-arrow-down" style={{ fontSize: 16, color: 'var(--green)', flexShrink: 0 }} />
+            <p style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
+              Selecciona primero tu papelería con "Elegir" para continuar
+            </p>
+          </div>
+        )}
+
         {loading ? (
           <p style={{ textAlign:'center', color:'var(--text-muted)', fontSize:14, padding:20 }}>Buscando...</p>
         ) : shops.length === 0 ? (
           <p style={{ textAlign:'center', color:'var(--text-muted)', fontSize:14, padding:20 }}>No hay papelerías disponibles en este momento</p>
         ) : shops.map(shop => (
-          <ShopCard key={shop.id} shop={shop} serviceIcons={serviceIcons} Stars={Stars} />
+          <ShopCard key={shop.id} shop={shop} serviceIcons={serviceIcons} Stars={Stars}
+            isSelected={draft.shopId === shop.id}
+            onSelect={() => onUpdateDraft({ shopId: shop.id })}
+          />
         ))}
       </div>
 
@@ -189,12 +243,15 @@ export default function HomePage({ session, onNavigate, draft, onClearDraft }) {
   )
 }
 
-function ShopCard({ shop, serviceIcons, Stars }) {
+function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect }) {
   const [expanded, setExpanded] = useState(false)
   const services = shop.printshop_services?.filter(s => s.enabled) ?? []
 
   return (
-    <div className="card" style={{ cursor: 'pointer' }} onClick={() => setExpanded(e => !e)}>
+    <div className="card" style={{
+      cursor: 'pointer',
+      border: isSelected ? '1.5px solid var(--green)' : '1px solid var(--border)',
+    }} onClick={() => setExpanded(e => !e)}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
         <div style={{ flex: 1 }}>
           <p style={{ fontSize:15, fontWeight:700 }}>{shop.name}</p>
@@ -235,6 +292,22 @@ function ShopCard({ shop, serviceIcons, Stars }) {
         })}
       </div>
 
+      {/* Elegir */}
+      <button
+        onClick={e => { e.stopPropagation(); onSelect() }}
+        style={{
+          width:'100%', marginTop:10, padding:10, fontSize:13, fontWeight:700,
+          borderRadius:'var(--radius-md)', cursor:'pointer',
+          border: isSelected ? 'none' : '1.5px solid var(--green)',
+          background: isSelected ? 'var(--green)' : '#fff',
+          color: isSelected ? '#fff' : 'var(--green)',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+        }}
+      >
+        <i className={`ti ${isSelected ? 'ti-circle-check-filled' : 'ti-circle-check'}`} style={{ fontSize:16 }} />
+        {isSelected ? 'Elegida' : 'Elegir'}
+      </button>
+
       {/* Expanded detail */}
       {expanded && (
         <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border-light)' }}>
@@ -246,7 +319,7 @@ function ShopCard({ shop, serviceIcons, Stars }) {
           <div style={{ display:'flex', gap:8 }}>
             <button
               onClick={e => { e.stopPropagation(); window.open(`https://www.google.com/maps/dir/?api=1&destination=${shop.latitude},${shop.longitude}`, '_blank') }}
-              className="btn-outline" style={{ fontSize:13, padding:'8px 12px' }}
+              className="btn-outline" style={{ flex:1, fontSize:13, padding:'8px 12px' }}
             >
               <i className="ti ti-map-pin" style={{ fontSize:15 }} /> Cómo llegar
             </button>
