@@ -223,7 +223,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
           <ShopCard key={shop.id} shop={shop} serviceIcons={serviceIcons} Stars={Stars}
             isSelected={draft.shopId === shop.id}
             onSelect={() => onUpdateDraft({ shopId: shop.id })}
-            draft={draft} session={session} onClearDraft={onClearDraft} onNavigate={onNavigate}
+            draft={draft} session={session} user={user} onClearDraft={onClearDraft} onNavigate={onNavigate}
           />
         ))}
       </div>
@@ -245,7 +245,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   )
 }
 
-function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, session, onClearDraft, onNavigate }) {
+function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, session, user, onClearDraft, onNavigate }) {
   const [expanded, setExpanded] = useState(false)
   const [sending, setSending] = useState(false)
   const services = shop.printshop_services?.filter(s => s.enabled) ?? []
@@ -265,7 +265,7 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
       alert(`¡Listo! Tu pedido se envió a ${shop.name}. Puedes ver su estado en Historial.`)
       onNavigate('history')
     } else if (result.error === 'INSUFFICIENT_BALANCE') {
-      alert('Necesitas al menos $2 de saldo para enviar un pedido. Recarga en la sección Wallet.')
+      alert('Parece que tu saldo cambió justo ahora. Te falta un poco para cubrir la cuota de $2 — recarga en Wallet y vuelve a intentar 🙂')
     } else {
       alert(result.error)
     }
@@ -333,15 +333,37 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
       </button>
 
       {isSelected && draft.files.length > 0 && (
-        selectedService ? (
+        !selectedService ? (
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8 }}>
+            Elige un tipo de impresión en "Subir documento" para enviar
+          </p>
+        ) : (user?.wallet_balance ?? 0) < 2 ? (
+          <div style={{
+            marginTop: 8, padding: '12px 14px', borderRadius: 'var(--radius-md)',
+            background: 'var(--amber-light)', border: '1px solid var(--amber)',
+            display: 'flex', gap: 10, alignItems: 'flex-start',
+          }}>
+            <i className="ti ti-wallet" style={{ fontSize: 18, color: 'var(--amber)', marginTop: 1, flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Te falta saldo para enviar</p>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.5 }}>
+                Cada pedido usa $2 de tu cuenta. Recarga desde $20 y sigue imprimiendo sin complicaciones.
+              </p>
+              <button onClick={e => { e.stopPropagation(); onNavigate('wallet') }} style={{
+                background: 'var(--green)', color: '#fff', border: 'none',
+                padding: '8px 14px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <i className="ti ti-wallet" style={{ fontSize: 14 }} />
+                Recargar saldo
+              </button>
+            </div>
+          </div>
+        ) : (
           <button onClick={handleSend} disabled={sending} className="btn-primary" style={{ marginTop: 8 }}>
             <i className="ti ti-send" style={{ fontSize: 16 }} />
             {sending ? 'Enviando...' : `Enviar pedido · $${total.toFixed(2)}`}
           </button>
-        ) : (
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8 }}>
-            Elige un tipo de impresión en "Subir documento" para enviar
-          </p>
         )
       )}
       {isSelected && draft.files.length === 0 && (
