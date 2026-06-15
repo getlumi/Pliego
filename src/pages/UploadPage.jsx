@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { serviceLabel, serviceIcon } from '../lib/services'
 
+// La caja de "ajustes especiales con IA" está temporalmente oculta:
+// por ahora la app solo soporta documentos ya listos para imprimir.
+// Cambiar a true cuando esté lista la función completa.
+const AI_INSTRUCTIONS_ENABLED = false
+
 function fileIcon(file) {
   if (file.type.startsWith('image/')) return null // se muestra preview real
   if (file.type === 'application/pdf') return 'ti-file-type-pdf'
@@ -344,7 +349,9 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
               </div>
             </div>
 
-            {/* Ajustes especiales con IA */}
+            {/* Ajustes especiales con IA — escondido por ahora: la app solo soporta
+                documentos listos para imprimir. Se reactivará con funciones completas. */}
+            {AI_INSTRUCTIONS_ENABLED && (
             <div className="card">
               <label style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                 <i className="ti ti-sparkles" style={{ fontSize: 15, color: 'var(--green)' }} />
@@ -387,6 +394,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                 </p>
               )}
             </div>
+            )}
 
             {/* Resumen de confirmación */}
             <div className="card" style={{ background: 'var(--green-light)' }}>
