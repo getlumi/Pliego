@@ -5,6 +5,7 @@
 export function createEmptyDraft() {
   return {
     files: [],          // [{ file: File, previewUrl: string|null }]
+    shopId: null,        // papelería elegida para este pedido
     orientation: 'vertical', // 'vertical' | 'horizontal'
     fit: 'fit',          // 'fit' | 'actual'
     copies: 1,
