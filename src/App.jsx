@@ -9,6 +9,7 @@ import HistoryPage     from './pages/HistoryPage'
 import ProfilePage     from './pages/ProfilePage'
 import PrintshopPage, { RegisterShop } from './pages/PrintshopPage'
 import Navbar          from './components/layout/Navbar'
+import { createEmptyDraft, revokeDraftUrls } from './lib/draft'
 
 export default function App() {
   const [session,  setSession]  = useState(null)
@@ -17,6 +18,13 @@ export default function App() {
   const [ownsShop, setOwnsShop] = useState(false)
   const [businessIntent, setBusinessIntent] = useState(false)
   const [page,     setPage]     = useState('home')
+  const [draft,    setDraft]    = useState(createEmptyDraft())
+
+  const updateDraft = (partial) => setDraft(d => ({ ...d, ...partial }))
+  const clearDraft = () => {
+    revokeDraftUrls(draft)
+    setDraft(createEmptyDraft())
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -27,7 +35,10 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setSession(session)
       if (session) checkOnboarding(session.user.id)
-      else { setOnboarded(false); setOwnsShop(false); setBusinessIntent(false); setLoading(false) }
+      else {
+        setOnboarded(false); setOwnsShop(false); setBusinessIntent(false); setLoading(false)
+        setDraft(d => { revokeDraftUrls(d); return createEmptyDraft() })
+      }
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -75,12 +86,12 @@ export default function App() {
 
   const renderPage = () => {
     switch (page) {
-      case 'home':    return <HomePage   session={session} onNavigate={navigate} />
-      case 'upload':  return <UploadPage session={session} onNavigate={navigate} />
+      case 'home':    return <HomePage   session={session} onNavigate={navigate} draft={draft} onClearDraft={clearDraft} />
+      case 'upload':  return <UploadPage session={session} onNavigate={navigate} draft={draft} onUpdateDraft={updateDraft} onClearDraft={clearDraft} />
       case 'wallet':  return <WalletPage session={session} onNavigate={navigate} />
       case 'history': return <HistoryPage session={session} onNavigate={navigate} />
       case 'profile': return <ProfilePage session={session} onNavigate={navigate} />
-      default:        return <HomePage   session={session} onNavigate={navigate} />
+      default:        return <HomePage   session={session} onNavigate={navigate} draft={draft} onClearDraft={clearDraft} />
     }
   }
 
