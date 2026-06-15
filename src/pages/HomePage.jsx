@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { isOpenNow, todayLabel } from '../lib/hours'
 
-export default function HomePage({ session, onNavigate }) {
+export default function HomePage({ session, onNavigate, draft, onClearDraft }) {
   const [shops,    setShops]    = useState([])
   const [loading,  setLoading]  = useState(true)
   const [userPos,  setUserPos]  = useState(null)
@@ -112,17 +112,45 @@ export default function HomePage({ session, onNavigate }) {
           borderRadius: 'var(--radius-lg)',
           padding: '24px 16px', textAlign: 'center',
           cursor: 'pointer', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', gap: 8,
+          alignItems: 'center', gap: 8, position: 'relative',
         }}>
+          {draft?.files?.length > 0 && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation()
+                if (window.confirm('¿Empezarás de cero? Se perderá el documento que estás editando.')) onClearDraft()
+              }}
+              role="button" aria-label="Cancelar documento en edición"
+              style={{
+                position: 'absolute', top: 10, right: 10,
+                width: 24, height: 24, borderRadius: '50%',
+                background: 'var(--bg)', border: '1px solid var(--border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+              }}
+            >
+              <i className="ti ti-x" style={{ fontSize: 13, color: 'var(--text-secondary)' }} />
+            </span>
+          )}
           <div style={{
             width: 48, height: 48, borderRadius: 14,
             background: 'var(--green-light)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <i className="ti ti-upload" style={{ fontSize: 24, color: 'var(--green)' }} />
+            <i className={`ti ${draft?.files?.length > 0 ? 'ti-file-check' : 'ti-upload'}`} style={{ fontSize: 24, color: 'var(--green)' }} />
           </div>
-          <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Sube tu documento</p>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>PDF, Word o fotos · Toca para empezar</p>
+          {draft?.files?.length > 0 ? (
+            <>
+              <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                Continuar con tu documento ({draft.files.length})
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Toca para seguir editando</p>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Sube tu documento</p>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>PDF, Word o fotos · Toca para empezar</p>
+            </>
+          )}
         </button>
       </div>
 
