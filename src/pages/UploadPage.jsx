@@ -29,6 +29,7 @@ export default function UploadPage({ session, onNavigate }) {
   const [colorMode, setColorMode] = useState('bn')
   const [paperType, setPaperType] = useState('bond')
   const [instructions, setInstructions] = useState('')
+  const [activeIndex, setActiveIndex] = useState(0)
 
   const filesRef = useRef(files)
   filesRef.current = files
@@ -55,6 +56,7 @@ export default function UploadPage({ session, onNavigate }) {
       copy.splice(idx, 1)
       return copy
     })
+    setActiveIndex(prev => Math.max(0, prev >= idx ? prev - 1 : prev))
   }
 
   const serviceType = deriveServiceType(paperType, colorMode)
@@ -98,49 +100,88 @@ export default function UploadPage({ session, onNavigate }) {
 
         {files.length > 0 && (
           <>
-            {/* Miniaturas */}
+            {/* Vista previa grande centrada */}
             <div className="card">
               <p style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <i className="ti ti-files" style={{ fontSize: 16, color: 'var(--green)' }} />
                 {files.length} archivo{files.length > 1 ? 's' : ''} seleccionado{files.length > 1 ? 's' : ''}
               </p>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {files.map((f, idx) => (
-                  <div key={idx} style={{ position: 'relative' }}>
-                    <div style={{
-                      width: 76, height: 96, borderRadius: 8,
-                      border: '1px solid var(--border)', background: '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      overflow: 'hidden',
-                      transform: orientation === 'horizontal' ? 'rotate(90deg) scale(0.75)' : 'none',
-                      transition: 'transform 0.2s',
-                    }}>
-                      {f.previewUrl ? (
-                        <img src={f.previewUrl} alt={f.file.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      ) : (
-                        <i className={`ti ${fileIcon(f.file)}`} style={{ fontSize: 28, color: 'var(--text-muted)' }} />
-                      )}
+
+              {/* Página grande */}
+              <div style={{
+                display: 'flex', justifyContent: 'center', alignItems: 'center',
+                background: 'var(--bg)', borderRadius: 'var(--radius-md)', padding: 20, marginBottom: 12,
+              }}>
+                <div style={{
+                  background: '#fff', border: '1px solid var(--border)', borderRadius: 6,
+                  boxShadow: 'var(--shadow-sm)',
+                  width: orientation === 'horizontal' ? 220 : 165,
+                  height: orientation === 'horizontal' ? 165 : 220,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden', transition: 'width 0.2s, height 0.2s',
+                }}>
+                  {files[activeIndex]?.previewUrl ? (
+                    <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
+                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                  ) : (
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <i className={`ti ${fileIcon(files[activeIndex]?.file)}`} style={{ fontSize: 40 }} />
+                      <p style={{ fontSize: 11, marginTop: 6, padding: '0 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {files[activeIndex]?.file.name}
+                      </p>
                     </div>
-                    <button onClick={() => removeFile(idx)} aria-label="Quitar archivo" style={{
-                      position: 'absolute', top: -6, right: -6,
-                      width: 20, height: 20, borderRadius: '50%',
-                      background: 'var(--red)', border: '2px solid #fff',
-                      color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      cursor: 'pointer', padding: 0,
-                    }}>
-                      <i className="ti ti-x" style={{ fontSize: 11 }} />
-                    </button>
-                    <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, maxWidth: 76, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {f.file.name}
-                    </p>
-                  </div>
-                ))}
+                  )}
+                </div>
               </div>
+
+              {/* Aviso sobre orientación */}
+              <div style={{
+                display: 'flex', gap: 8, alignItems: 'flex-start',
+                background: 'var(--green-light)', borderRadius: 'var(--radius-md)',
+                padding: '8px 10px', marginBottom: 14,
+              }}>
+                <i className="ti ti-info-circle" style={{ fontSize: 15, color: 'var(--green)', marginTop: 1, flexShrink: 0 }} />
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Para mejores resultados, intenta tener tu documento listo para imprimir antes de subirlo.
+                  Vertical/Horizontal define la orientación de la hoja en la impresora.
+                </p>
+              </div>
+
+              {/* Miniaturas para elegir cuál ver / quitar */}
+              {files.length > 1 && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                  {files.map((f, idx) => (
+                    <div key={idx} style={{ position: 'relative' }}>
+                      <button onClick={() => setActiveIndex(idx)} style={{
+                        width: 48, height: 60, borderRadius: 6, padding: 0,
+                        border: idx === activeIndex ? '2px solid var(--green)' : '1px solid var(--border)',
+                        background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        overflow: 'hidden', cursor: 'pointer',
+                      }}>
+                        {f.previewUrl ? (
+                          <img src={f.previewUrl} alt={f.file.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <i className={`ti ${fileIcon(f.file)}`} style={{ fontSize: 18, color: 'var(--text-muted)' }} />
+                        )}
+                      </button>
+                      <button onClick={() => removeFile(idx)} aria-label="Quitar archivo" style={{
+                        position: 'absolute', top: -5, right: -5,
+                        width: 16, height: 16, borderRadius: '50%',
+                        background: 'var(--red)', border: '2px solid #fff',
+                        color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', padding: 0,
+                      }}>
+                        <i className="ti ti-x" style={{ fontSize: 9 }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Orientación */}
               <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-                <ToggleButton active={orientation === 'vertical'} onClick={() => setOrientation('vertical')} icon="ti-rotate" label="Vertical" />
-                <ToggleButton active={orientation === 'horizontal'} onClick={() => setOrientation('horizontal')} icon="ti-rotate-2" label="Horizontal" />
+                <ToggleButton active={orientation === 'vertical'} onClick={() => setOrientation('vertical')} icon="ti-rectangle-vertical" label="Vertical" />
+                <ToggleButton active={orientation === 'horizontal'} onClick={() => setOrientation('horizontal')} icon="ti-rectangle" label="Horizontal" />
               </div>
 
               {/* Ajuste */}
