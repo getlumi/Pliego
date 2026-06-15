@@ -17,6 +17,7 @@ export default function App() {
   const [onboarded, setOnboarded] = useState(false)
   const [ownsShop, setOwnsShop] = useState(false)
   const [businessIntent, setBusinessIntent] = useState(false)
+  const [showTutorial, setShowTutorial] = useState(false)
   const [page,     setPage]     = useState('home')
   const [draft,    setDraft]    = useState(createEmptyDraft())
 
@@ -86,12 +87,12 @@ export default function App() {
 
   const renderPage = () => {
     switch (page) {
-      case 'home':    return <HomePage   session={session} onNavigate={navigate} draft={draft} onClearDraft={clearDraft} />
+      case 'home':    return <HomePage   session={session} onNavigate={navigate} draft={draft} onClearDraft={clearDraft} onShowTutorial={() => setShowTutorial(true)} />
       case 'upload':  return <UploadPage session={session} onNavigate={navigate} draft={draft} onUpdateDraft={updateDraft} onClearDraft={clearDraft} />
       case 'wallet':  return <WalletPage session={session} onNavigate={navigate} />
       case 'history': return <HistoryPage session={session} onNavigate={navigate} />
       case 'profile': return <ProfilePage session={session} onNavigate={navigate} />
-      default:        return <HomePage   session={session} onNavigate={navigate} draft={draft} onClearDraft={clearDraft} />
+      default:        return <HomePage   session={session} onNavigate={navigate} draft={draft} onClearDraft={clearDraft} onShowTutorial={() => setShowTutorial(true)} />
     }
   }
 
@@ -121,16 +122,16 @@ export default function App() {
     </div></div>
   )
 
-  if (!onboarded) return (
-    <div className="app-shell"><div className="phone-frame">
-      <OnboardingPage session={session} onComplete={() => setOnboarded(true)} />
-    </div></div>
-  )
-
-  // Cuenta de negocio: panel propio, sin la navegación de cliente
+  // Cuenta de negocio: panel propio, sin tutorial ni navegación de cliente
   if (ownsShop) return (
     <div className="app-shell"><div className="phone-frame">
       <PrintshopPage session={session} />
+    </div></div>
+  )
+
+  if (!onboarded || showTutorial) return (
+    <div className="app-shell"><div className="phone-frame">
+      <OnboardingPage session={session} onComplete={() => { setOnboarded(true); setShowTutorial(false) }} />
     </div></div>
   )
 
