@@ -29,6 +29,12 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   const { files, orientation, fit, copies, instructions, activeIndex, shopId, serviceId } = draft
   const [shop, setShop] = useState(null)
   const [loadingShop, setLoadingShop] = useState(true)
+  const [justSent, setJustSent] = useState(false)
+
+  const sendInstruction = () => {
+    setJustSent(true)
+    setTimeout(() => setJustSent(false), 2500)
+  }
 
   useEffect(() => {
     if (!shopId) { setLoadingShop(false); return }
@@ -353,6 +359,33 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                   borderRadius: 'var(--radius-md)', fontFamily: 'inherit',
                 }}
               />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <button
+                  onClick={sendInstruction}
+                  disabled={!instructions.trim()}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '8px 16px', fontSize: 13, fontWeight: 700,
+                    borderRadius: 'var(--radius-md)', border: 'none', cursor: instructions.trim() ? 'pointer' : 'default',
+                    background: instructions.trim() ? 'var(--green)' : 'var(--border)',
+                    color: instructions.trim() ? '#fff' : 'var(--text-muted)',
+                  }}
+                >
+                  <i className="ti ti-send" style={{ fontSize: 14 }} />
+                  Enviar a la IA
+                </button>
+              </div>
+              {justSent ? (
+                <p style={{ fontSize: 12, color: 'var(--green)', fontWeight: 700, marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="ti ti-circle-check-filled" style={{ fontSize: 14 }} />
+                  Instrucción enviada — se aplicará antes de imprimir
+                </p>
+              ) : instructions.trim() && (
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="ti ti-sparkles" style={{ fontSize: 13 }} />
+                  La IA aplicará esta instrucción antes de imprimir
+                </p>
+              )}
             </div>
 
             {/* Resumen de confirmación */}
