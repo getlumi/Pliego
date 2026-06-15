@@ -43,7 +43,7 @@ export default function PrintshopPage({ session }) {
   const loadOrders = async (shopId) => {
     const { data } = await supabase
       .from('orders')
-      .select('*')
+      .select('id, created_at, status, file_name, file_url, file_count, copies, orientation, color_mode, paper_size, service_type, estimated_cost, special_instructions, ready_at, delivered_at, user_name, expires_at')
       .eq('printshop_id', shopId)
       .order('created_at', { ascending: false })
     setOrders(data ?? [])
@@ -273,22 +273,41 @@ function OrdersTab({ shop, orders, setOrders, onReload }) {
           <p style={{ color:'var(--text-muted)', fontSize:14 }}>Todavía no te ha llegado ningún pedido</p>
         </div>
       ) : orders.map(o => (
-        <div key={o.id} className="card">
-          {/* Encabezado */}
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-            <div>
-              <p style={{ fontSize:14, fontWeight:700 }}>{o.file_name ?? 'Documento'}</p>
-              {o.user_name && (
-                <p style={{ fontSize:12, fontWeight:700, color:'var(--green)', marginTop:1 }}>
-                  <i className="ti ti-user" style={{ fontSize:12, verticalAlign:-1 }} /> {o.user_name}
-                </p>
-              )}
-              <p style={{ fontSize:11, color:'var(--text-secondary)' }}>{fmtTime(o.created_at)}</p>
+        <div key={o.id} className="card" style={{
+          border: o.status === 'nuevo' ? '1.5px solid var(--amber)' :
+                  o.status === 'en_proceso' ? '1.5px solid var(--green)' : undefined,
+        }}>
+
+          {/* Nombre del cliente — prominente arriba */}
+          <div style={{
+            display:'flex', alignItems:'center', gap:8,
+            background: o.status === 'nuevo' ? 'var(--amber-light)' : 'var(--green-light)',
+            borderRadius:'var(--radius-md)', padding:'8px 12px', marginBottom:10,
+          }}>
+            <div style={{
+              width:32, height:32, borderRadius:'50%',
+              background: o.status === 'nuevo' ? 'var(--amber)' : 'var(--green)',
+              display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0,
+            }}>
+              <i className="ti ti-user" style={{ fontSize:16, color:'#fff' }} />
             </div>
-            <span className={`badge ${STATUS_BADGE[o.status]}`}>{STATUS_LABEL[o.status]}</span>
+            <div>
+              <p style={{ fontSize:14, fontWeight:900 }}>{o.user_name ?? 'Cliente'}</p>
+              <p style={{ fontSize:11, color:'var(--text-secondary)' }}>
+                Llegó: {fmtTime(o.created_at)}
+              </p>
+            </div>
+            <span className={`badge ${STATUS_BADGE[o.status]}`} style={{ marginLeft:'auto' }}>
+              {STATUS_LABEL[o.status]}
+            </span>
           </div>
 
-          {/* Chips */}
+          {/* Nombre del archivo */}
+          <p style={{ fontSize:13, fontWeight:700, marginBottom:8, color:'var(--text-secondary)' }}>
+            <i className="ti ti-file-text" style={{ fontSize:14, verticalAlign:-2 }} /> {o.file_name ?? 'Documento'}
+          </p>
+
+          {/* Chips de detalle */}
           <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:10 }}>
             <Chip icon="ti-file-text" label={`${o.file_count} hoja${o.file_count > 1 ? 's' : ''}`} />
             <Chip icon="ti-copy" label={`${o.copies} copia${o.copies > 1 ? 's' : ''}`} />
@@ -299,37 +318,60 @@ function OrdersTab({ shop, orders, setOrders, onReload }) {
           {/* Tiempos discretos */}
           {(o.ready_at || o.delivered_at) && (
             <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:8, display:'flex', flexDirection:'column', gap:2 }}>
-              {o.ready_at && <span><i className="ti ti-clock" style={{ fontSize:11 }} /> Listo: {fmtTime(o.ready_at)}</span>}
+              {o.ready_at && <span><i className="ti ti-clock" style={{ fontSize:11 }} /> Listo a las {fmtTime(o.ready_at)}</span>}
               {o.delivered_at && <span><i className="ti ti-circle-check" style={{ fontSize:11 }} /> Entregado: {fmtTime(o.delivered_at)}</span>}
             </div>
           )}
 
-          {/* Botones */}
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            {/* Descargar — siempre visible */}
-            <button onClick={() => download(o)} className="btn-outline" style={{ flex:1, minWidth:100, padding:8, fontSize:13 }}>
-              <i className="ti ti-download" style={{ fontSize:15 }} /> Descargar
+          {/* 3 botones independientes, siempre visibles */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6 }}>
+
+            {/* Botón 1: Descargar — siempre activo */}
+            <button onClick={() => download(o)} style={{
+              padding:'8px 4px', fontSize:12, fontWeight:700, cursor:'pointer',
+              borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'#fff',
+              color:'var(--text-primary)', display:'flex', alignItems:'center', justifyContent:'center', gap:4,
+            }}>
+              <i className="ti ti-download" style={{ fontSize:14 }} /> Bajar
             </button>
 
-            {/* Avanzar estado */}
-            {o.status === 'nuevo' && (
-              <button onClick={() => updateStatus(o.id, 'en_proceso')}
-                style={{ flex:1, minWidth:100, padding:8, fontSize:13, borderRadius:'var(--radius-md)', border:'1px solid var(--amber)', background:'var(--amber-light)', color:'#92530a', fontWeight:700, cursor:'pointer' }}>
-                <i className="ti ti-printer" style={{ fontSize:15 }} /> Imprimir
-              </button>
-            )}
-            {o.status === 'en_proceso' && (
-              <button onClick={() => updateStatus(o.id, 'listo')}
-                style={{ flex:1, minWidth:100, padding:8, fontSize:13, borderRadius:'var(--radius-md)', border:'none', background:'var(--green)', color:'#fff', fontWeight:700, cursor:'pointer' }}>
-                <i className="ti ti-check" style={{ fontSize:15 }} /> Documento listo
-              </button>
-            )}
-            {o.status === 'listo' && (
-              <button onClick={() => updateStatus(o.id, 'entregado')}
-                style={{ flex:1, minWidth:100, padding:8, fontSize:13, borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--bg)', color:'var(--text-primary)', fontWeight:700, cursor:'pointer' }}>
-                <i className="ti ti-hand-stop" style={{ fontSize:15 }} /> Entregado
-              </button>
-            )}
+            {/* Botón 2: Imprimiendo — activo cuando es 'nuevo' */}
+            <button
+              onClick={() => o.status === 'nuevo' && updateStatus(o.id, 'en_proceso')}
+              style={{
+                padding:'8px 4px', fontSize:12, fontWeight:700,
+                borderRadius:'var(--radius-md)', border:'none',
+                cursor: o.status === 'nuevo' ? 'pointer' : 'default',
+                background: o.status === 'nuevo' ? 'var(--amber)' :
+                            ['en_proceso','listo','entregado'].includes(o.status) ? 'var(--green-light)' : 'var(--border)',
+                color: o.status === 'nuevo' ? '#fff' :
+                       ['en_proceso','listo','entregado'].includes(o.status) ? 'var(--green-dark)' : 'var(--text-muted)',
+                display:'flex', alignItems:'center', justifyContent:'center', gap:4,
+              }}>
+              <i className={`ti ${['en_proceso','listo','entregado'].includes(o.status) ? 'ti-circle-check-filled' : 'ti-printer'}`} style={{ fontSize:14 }} />
+              {o.status === 'nuevo' ? 'Imprimir' : 'Impreso ✓'}
+            </button>
+
+            {/* Botón 3: Listo / Entregado */}
+            <button
+              onClick={() => {
+                if (o.status === 'en_proceso') updateStatus(o.id, 'listo')
+                else if (o.status === 'listo') updateStatus(o.id, 'entregado')
+              }}
+              style={{
+                padding:'8px 4px', fontSize:12, fontWeight:700,
+                borderRadius:'var(--radius-md)', border:'none',
+                cursor: ['en_proceso','listo'].includes(o.status) ? 'pointer' : 'default',
+                background: o.status === 'entregado' ? 'var(--green-light)' :
+                            o.status === 'listo' ? '#2A2A2A' :
+                            o.status === 'en_proceso' ? 'var(--green)' : 'var(--border)',
+                color: o.status === 'entregado' ? 'var(--green-dark)' :
+                       ['listo','en_proceso'].includes(o.status) ? '#fff' : 'var(--text-muted)',
+                display:'flex', alignItems:'center', justifyContent:'center', gap:4,
+              }}>
+              <i className={`ti ${o.status === 'entregado' ? 'ti-circle-check-filled' : o.status === 'listo' ? 'ti-hand-stop' : 'ti-check'}`} style={{ fontSize:14 }} />
+              {o.status === 'entregado' ? 'Entregado ✓' : o.status === 'listo' ? 'Entregar' : 'Listo'}
+            </button>
           </div>
         </div>
       ))}
