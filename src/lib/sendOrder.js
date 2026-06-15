@@ -59,7 +59,7 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
   try {
     // 1) Verificar saldo para la cuota de servicio ($2)
     const { data: userRow, error: userError } = await supabase
-      .from('users').select('wallet_balance').eq('id', session.user.id).maybeSingle()
+      .from('users').select('wallet_balance, name').eq('id', session.user.id).maybeSingle()
     if (userError || !userRow) return { success: false, error: 'No se pudo verificar tu saldo. Intenta de nuevo.' }
 
     const SERVICE_FEE = 2.00
@@ -94,6 +94,7 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
       special_instructions: draft.instructions || null,
       service_fee: SERVICE_FEE,
       estimated_cost: total,
+      user_name: userRow.name ?? null,
     })
     if (orderError) {
       await supabase.storage.from('documents').remove([path])
