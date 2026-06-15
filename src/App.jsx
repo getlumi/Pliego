@@ -87,12 +87,12 @@ export default function App() {
 
   const renderPage = () => {
     switch (page) {
-      case 'home':    return <HomePage   session={session} onNavigate={navigate} draft={draft} onClearDraft={clearDraft} onShowTutorial={() => setShowTutorial(true)} />
+      case 'home':    return <HomePage   session={session} onNavigate={navigate} draft={draft} onUpdateDraft={updateDraft} onClearDraft={clearDraft} onShowTutorial={() => setShowTutorial(true)} />
       case 'upload':  return <UploadPage session={session} onNavigate={navigate} draft={draft} onUpdateDraft={updateDraft} onClearDraft={clearDraft} />
       case 'wallet':  return <WalletPage session={session} onNavigate={navigate} />
       case 'history': return <HistoryPage session={session} onNavigate={navigate} />
       case 'profile': return <ProfilePage session={session} onNavigate={navigate} />
-      default:        return <HomePage   session={session} onNavigate={navigate} draft={draft} onClearDraft={clearDraft} onShowTutorial={() => setShowTutorial(true)} />
+      default:        return <HomePage   session={session} onNavigate={navigate} draft={draft} onUpdateDraft={updateDraft} onClearDraft={clearDraft} onShowTutorial={() => setShowTutorial(true)} />
     }
   }
 
