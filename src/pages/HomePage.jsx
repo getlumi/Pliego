@@ -83,7 +83,7 @@ export default function HomePage({ session, onNavigate }) {
             background: 'rgba(255,255,255,0.15)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <i className="ti ti-file-text" style={{ fontSize: 18, color: '#fff' }} />
+            <i className="ti ti-printer" style={{ fontSize: 18, color: '#fff' }} />
           </div>
           <p style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>Pliego</p>
         </div>
@@ -165,6 +165,7 @@ function ShopCard({ shop, serviceIcons, Stars }) {
           <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}>
             <Stars rating={shop.rating_avg ?? 0} />
             <span style={{ fontSize:12, color:'var(--text-secondary)' }}>
+              <i className="ti ti-star-filled" style={{ fontSize:12, color:'#EF9F27', verticalAlign:-1, marginRight:3 }} />
               {(shop.rating_avg ?? 0).toFixed(1)} promedio · {shop.rating_count ?? 0} reseñas
             </span>
           </div>
