@@ -13,6 +13,12 @@ const SERVICE_OPTIONS = [
 const STATUS_LABEL = { nuevo: 'Nuevo', en_proceso: 'En proceso', listo: 'Listo', entregado: 'Entregado' }
 const STATUS_BADGE = { nuevo: 'badge-green', en_proceso: 'badge-amber', listo: 'badge-green', entregado: 'badge' }
 
+function deriveCustom(services) {
+  return services
+    .filter(s => !SERVICE_OPTIONS.some(opt => opt.type === s.service_type))
+    .map(s => ({ id: s.id, service_type: s.service_type, label: s.label ?? s.service_type, price: s.price_per_sheet, enabled: s.enabled }))
+}
+
 export default function PrintshopPage({ session }) {
   const [loading, setLoading] = useState(true)
   const [shop, setShop]       = useState(null)
@@ -300,6 +306,16 @@ function ConfigTab({ shop, services, onSaved }) {
     })
     return byType
   })
+
+  // Tipos personalizados (cualquier service_type que no sea de los 5 predefinidos)
+  const [customServices, setCustomServices] = useState(() => deriveCustom(services))
+  const [removedCustomIds, setRemovedCustomIds] = useState([])
+  const [newCustomLabel, setNewCustomLabel] = useState('')
+  const [newCustomPrice, setNewCustomPrice] = useState('')
+
+  // Re-sincroniza tras guardar (cuando el padre recarga `services` con los ids reales)
+  useEffect(() => { setCustomServices(deriveCustom(services)) }, [services])
+
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -308,6 +324,30 @@ function ConfigTab({ shop, services, onSaved }) {
   }
   const setPrice = (type, price) => {
     setSvcState(prev => ({ ...prev, [type]: { ...prev[type], price } }))
+  }
+
+  const toggleCustomService = (idx) => {
+    setCustomServices(prev => prev.map((s,i) => i===idx ? { ...s, enabled: !s.enabled } : s))
+  }
+  const setCustomPrice = (idx, price) => {
+    setCustomServices(prev => prev.map((s,i) => i===idx ? { ...s, price } : s))
+  }
+  const updateCustomLabel = (idx, label) => {
+    setCustomServices(prev => prev.map((s,i) => i===idx ? { ...s, label } : s))
+  }
+  const addCustomService = () => {
+    if (!newCustomLabel.trim()) return
+    setCustomServices(prev => [...prev, {
+      id: null, service_type: `custom_${Date.now()}`, label: newCustomLabel.trim(),
+      price: newCustomPrice || 0, enabled: true,
+    }])
+    setNewCustomLabel('')
+    setNewCustomPrice('')
+  }
+  const removeCustomService = (idx) => {
+    const item = customServices[idx]
+    if (item.id) setRemovedCustomIds(prev => [...prev, item.id])
+    setCustomServices(prev => prev.filter((_, i) => i !== idx))
   }
 
   const save = async () => {
@@ -328,6 +368,29 @@ function ConfigTab({ shop, services, onSaved }) {
         enabled: s.enabled,
       }, { onConflict: 'printshop_id,service_type' })
     }
+
+    for (const cs of customServices) {
+      if (cs.id) {
+        await supabase.from('printshop_services').update({
+          label: cs.label.trim(),
+          price_per_sheet: Number(cs.price) || 0,
+          enabled: cs.enabled,
+        }).eq('id', cs.id)
+      } else {
+        await supabase.from('printshop_services').insert({
+          printshop_id: shop.id,
+          service_type: cs.service_type,
+          label: cs.label.trim(),
+          price_per_sheet: Number(cs.price) || 0,
+          enabled: cs.enabled,
+        })
+      }
+    }
+
+    for (const id of removedCustomIds) {
+      await supabase.from('printshop_services').delete().eq('id', id)
+    }
+    setRemovedCustomIds([])
 
     setSaving(false)
     setSaved(true)
@@ -381,7 +444,52 @@ function ConfigTab({ shop, services, onSaved }) {
               </label>
             )
           })}
+
+          {customServices.map((s, idx) => (
+            <div key={s.id ?? `new-${idx}`} style={{
+              display:'flex', alignItems:'center', gap:10,
+              border:'1px solid var(--border)', borderRadius:'var(--radius-md)',
+              padding:'10px 12px', opacity: s.enabled ? 1 : 0.55,
+            }}>
+              <input type="checkbox" checked={s.enabled} onChange={() => toggleCustomService(idx)} style={{ width:'auto' }} />
+              <i className="ti ti-file" style={{ fontSize:18, color:'var(--text-secondary)' }} />
+              <input type="text" value={s.label} onChange={e => updateCustomLabel(idx, e.target.value)}
+                placeholder="Nombre del tipo"
+                style={{ flex:1, fontSize:14, border:'none', background:'transparent', padding:0, color:'var(--text-primary)' }} />
+              <span style={{ fontSize:13, color:'var(--text-secondary)' }}>$</span>
+              <input type="number" min="0" step="0.5" value={s.price} disabled={!s.enabled}
+                onChange={e => setCustomPrice(idx, e.target.value)}
+                style={{ width:56, padding:'6px 8px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)' }} />
+              <button onClick={() => removeCustomService(idx)} aria-label="Eliminar tipo" style={{
+                width:24, height:24, borderRadius:'50%', border:'none', background:'var(--red-light)',
+                color:'var(--red)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0,
+              }}>
+                <i className="ti ti-x" style={{ fontSize:13 }} />
+              </button>
+            </div>
+          ))}
         </div>
+
+        {/* Agregar tipo personalizado */}
+        <div style={{ display:'flex', gap:8, marginTop:12, alignItems:'center' }}>
+          <input type="text" placeholder="Ej. Cartulina, Adhesivo..." value={newCustomLabel}
+            onChange={e => setNewCustomLabel(e.target.value)}
+            style={{ flex:1, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:13 }} />
+          <span style={{ fontSize:13, color:'var(--text-secondary)' }}>$</span>
+          <input type="number" min="0" step="0.5" placeholder="0" value={newCustomPrice}
+            onChange={e => setNewCustomPrice(e.target.value)}
+            style={{ width:56, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:13 }} />
+          <button onClick={addCustomService} disabled={!newCustomLabel.trim()} aria-label="Agregar tipo" style={{
+            width:32, height:32, borderRadius:'var(--radius-sm)', border:'none', flexShrink:0,
+            background: newCustomLabel.trim() ? 'var(--green)' : 'var(--border)',
+            color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer',
+          }}>
+            <i className="ti ti-plus" style={{ fontSize:16 }} />
+          </button>
+        </div>
+        <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:6 }}>
+          Agrega aquí otros tipos de hoja que manejes (cartulina, adhesivo, fotográfico, etc.) con su precio por hoja.
+        </p>
       </div>
 
       <button onClick={save} disabled={saving} className="btn-primary">
