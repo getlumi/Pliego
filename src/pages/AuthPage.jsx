@@ -75,7 +75,7 @@ export default function AuthPage({ onAuth }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           border: '2px solid rgba(255,255,255,0.3)', marginBottom: 16,
         }}>
-          <i className="ti ti-file-text" style={{ fontSize: 38, color: '#fff' }} />
+          <i className="ti ti-printer" style={{ fontSize: 38, color: '#fff' }} />
         </div>
         <p style={{ fontSize: 32, fontWeight: 900, color: '#fff', letterSpacing: -0.5 }}>Pliego</p>
         <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>
