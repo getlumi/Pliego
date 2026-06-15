@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { isOpenNow, todayLabel } from '../lib/hours'
+import { sendOrder } from '../lib/sendOrder'
 
 export default function HomePage({ session, onNavigate, draft, onUpdateDraft, onClearDraft, onShowTutorial }) {
   const [shops,    setShops]    = useState([])
@@ -204,11 +205,11 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
         {showSelectPrompt && (
           <div style={{
             display: 'flex', gap: 8, alignItems: 'center',
-            background: 'var(--green-light)', borderRadius: 'var(--radius-md)',
-            padding: '10px 12px',
+            background: 'var(--amber-light)', border: '1px solid var(--amber)',
+            borderRadius: 'var(--radius-md)', padding: '10px 12px',
           }}>
-            <i className="ti ti-arrow-down" style={{ fontSize: 16, color: 'var(--green)', flexShrink: 0 }} />
-            <p style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
+            <i className="ti ti-arrow-down" style={{ fontSize: 16, color: 'var(--amber)', flexShrink: 0 }} />
+            <p style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 700 }}>
               Selecciona primero tu papelería con "Elegir" para continuar
             </p>
           </div>
@@ -222,6 +223,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
           <ShopCard key={shop.id} shop={shop} serviceIcons={serviceIcons} Stars={Stars}
             isSelected={draft.shopId === shop.id}
             onSelect={() => onUpdateDraft({ shopId: shop.id })}
+            draft={draft} session={session} onClearDraft={onClearDraft} onNavigate={onNavigate}
           />
         ))}
       </div>
@@ -243,9 +245,31 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   )
 }
 
-function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect }) {
+function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, session, onClearDraft, onNavigate }) {
   const [expanded, setExpanded] = useState(false)
+  const [sending, setSending] = useState(false)
   const services = shop.printshop_services?.filter(s => s.enabled) ?? []
+
+  const totalPages = draft.files.reduce((sum, f) => sum + (f.pageCount ?? 1), 0)
+  const selectedService = shop.printshop_services?.find(s => s.id === draft.serviceId)
+  const total = (selectedService?.price_per_sheet ?? 0) * totalPages * draft.copies
+
+  const handleSend = async (e) => {
+    e.stopPropagation()
+    if (!window.confirm(`¿Vas a enviar tu documento a ${shop.name}? Esto no se puede deshacer. Total estimado: $${total.toFixed(2)}.`)) return
+    setSending(true)
+    const result = await sendOrder({ session, draft, selectedService, totalPages, total })
+    setSending(false)
+    if (result.success) {
+      onClearDraft()
+      alert(`¡Listo! Tu pedido se envió a ${shop.name}. Puedes ver su estado en Historial.`)
+      onNavigate('history')
+    } else if (result.error === 'INSUFFICIENT_BALANCE') {
+      alert('Necesitas al menos $2 de saldo para enviar un pedido. Recarga en la sección Wallet.')
+    } else {
+      alert(result.error)
+    }
+  }
 
   return (
     <div className="card" style={{
@@ -307,6 +331,24 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect }) {
         <i className={`ti ${isSelected ? 'ti-circle-check-filled' : 'ti-circle-check'}`} style={{ fontSize:16 }} />
         {isSelected ? 'Elegida' : 'Elegir'}
       </button>
+
+      {isSelected && draft.files.length > 0 && (
+        selectedService ? (
+          <button onClick={handleSend} disabled={sending} className="btn-primary" style={{ marginTop: 8 }}>
+            <i className="ti ti-send" style={{ fontSize: 16 }} />
+            {sending ? 'Enviando...' : `Enviar pedido · $${total.toFixed(2)}`}
+          </button>
+        ) : (
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8 }}>
+            Elige un tipo de impresión en "Subir documento" para enviar
+          </p>
+        )
+      )}
+      {isSelected && draft.files.length === 0 && (
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8 }}>
+          Sube tu documento para poder enviarlo aquí
+        </p>
+      )}
 
       {/* Expanded detail */}
       {expanded && (
