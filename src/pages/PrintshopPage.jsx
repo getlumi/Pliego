@@ -63,12 +63,9 @@ export default function PrintshopPage({ session }) {
             </div>
             <p style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>Pliego · Negocio</p>
           </div>
-          <button onClick={() => supabase.auth.signOut()} aria-label="Cerrar sesión" style={{
-            width:32, height:32, borderRadius:'50%', background:'rgba(255,255,255,0.15)',
-            border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer',
-          }}>
-            <i className="ti ti-logout" style={{ fontSize:15, color:'#fff' }} />
-          </button>
+          <div style={{ width:32, height:32, borderRadius:'50%', background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#fff' }}>
+            {shop.name?.[0]?.toUpperCase() ?? 'P'}
+          </div>
         </div>
         <p style={{ fontSize:13, color:'rgba(255,255,255,0.6)' }}>{shop.name}</p>
       </div>
@@ -390,6 +387,19 @@ function ConfigTab({ shop, services, onSaved }) {
       <button onClick={save} disabled={saving} className="btn-primary">
         <i className="ti ti-check" style={{ fontSize:16 }} />
         {saving ? 'Guardando...' : saved ? 'Guardado ✓' : 'Guardar configuración'}
+      </button>
+
+      <button
+        onClick={() => { if (window.confirm('¿Seguro que quieres cerrar sesión?')) supabase.auth.signOut() }}
+        style={{
+          width:'100%', marginTop:6, padding:12, background:'none',
+          border:'1px solid var(--border)', borderRadius:'var(--radius-md)',
+          color:'var(--text-secondary)', fontSize:13, fontWeight:600, cursor:'pointer',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+        }}
+      >
+        <i className="ti ti-logout" style={{ fontSize:15 }} />
+        Cerrar sesión
       </button>
     </div>
   )
