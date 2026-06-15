@@ -92,7 +92,7 @@ export default function PrintshopPage({ session }) {
       </div>
 
       {tab === 'orders'
-        ? <OrdersTab shop={shop} orders={orders} onReload={loadShop} />
+        ? <OrdersTab shop={shop} orders={orders} setOrders={setOrders} onReload={loadShop} />
         : <ConfigTab shop={shop} services={services} onSaved={loadShop} />}
     </div>
   )
@@ -209,8 +209,20 @@ export function RegisterShop({ session, onRegistered, onCancel }) {
 // ============================================================
 // TAB: PEDIDOS
 // ============================================================
-function OrdersTab({ shop, orders, onReload }) {
+function OrdersTab({ shop, orders, setOrders, onReload }) {
   const [toggling, setToggling] = useState(false)
+
+  // Realtime: llegan pedidos nuevos sin refresh
+  useEffect(() => {
+    const channel = supabase
+      .channel(`orders:printshop:${shop.id}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'orders',
+        filter: `printshop_id=eq.${shop.id}`,
+      }, () => onReload())
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [shop.id])
 
   const pending = orders.filter(o => o.status === 'nuevo' || o.status === 'en_proceso')
   const today = orders.filter(o => new Date(o.created_at).toDateString() === new Date().toDateString())
@@ -224,7 +236,9 @@ function OrdersTab({ shop, orders, onReload }) {
   }
 
   const updateStatus = async (orderId, status) => {
-    await supabase.from('orders').update({ status }).eq('id', orderId)
+    const extra = status === 'listo' ? { ready_at: new Date().toISOString() }
+      : status === 'entregado' ? { delivered_at: new Date().toISOString() } : {}
+    await supabase.from('orders').update({ status, ...extra }).eq('id', orderId)
     await onReload()
   }
 
@@ -233,6 +247,10 @@ function OrdersTab({ shop, orders, onReload }) {
     if (!error && data?.signedUrl) window.open(data.signedUrl, '_blank')
     else alert('No se pudo generar el enlace de descarga')
   }
+
+  const fmtTime = (iso) => iso
+    ? new Date(iso).toLocaleString('es-MX', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
+    : null
 
   return (
     <div className="scroll-content">
@@ -256,30 +274,63 @@ function OrdersTab({ shop, orders, onReload }) {
         </div>
       ) : orders.map(o => (
         <div key={o.id} className="card">
+          {/* Encabezado */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
             <div>
               <p style={{ fontSize:14, fontWeight:700 }}>{o.file_name ?? 'Documento'}</p>
-              <p style={{ fontSize:12, color:'var(--text-secondary)' }}>{new Date(o.created_at).toLocaleString('es-MX', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</p>
+              {o.user_name && (
+                <p style={{ fontSize:12, fontWeight:700, color:'var(--green)', marginTop:1 }}>
+                  <i className="ti ti-user" style={{ fontSize:12, verticalAlign:-1 }} /> {o.user_name}
+                </p>
+              )}
+              <p style={{ fontSize:11, color:'var(--text-secondary)' }}>{fmtTime(o.created_at)}</p>
             </div>
             <span className={`badge ${STATUS_BADGE[o.status]}`}>{STATUS_LABEL[o.status]}</span>
           </div>
+
+          {/* Chips */}
           <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:10 }}>
             <Chip icon="ti-file-text" label={`${o.file_count} hoja${o.file_count > 1 ? 's' : ''}`} />
             <Chip icon="ti-copy" label={`${o.copies} copia${o.copies > 1 ? 's' : ''}`} />
             <Chip icon={o.color_mode === 'color' ? 'ti-palette' : 'ti-file-text'} label={`${o.color_mode === 'color' ? 'Color' : 'B/N'} · ${o.paper_size}`} />
             {o.estimated_cost != null && <Chip label={`$${o.estimated_cost}`} bold />}
           </div>
-          {(o.status === 'nuevo' || o.status === 'en_proceso') && (
-            <div style={{ display:'flex', gap:8 }}>
-              <button onClick={() => download(o)} className="btn-outline" style={{ flex:1, padding:8, fontSize:13 }}>
-                <i className="ti ti-download" style={{ fontSize:15 }} /> Descargar
-              </button>
-              <button onClick={() => updateStatus(o.id, o.status === 'nuevo' ? 'en_proceso' : 'listo')}
-                style={{ flex:1, padding:8, fontSize:13, borderRadius:'var(--radius-md)', border:'1px solid var(--green)', background:'var(--green)', color:'#fff', fontWeight:700, cursor:'pointer' }}>
-                <i className="ti ti-check" style={{ fontSize:15 }} /> {o.status === 'nuevo' ? 'En proceso' : 'Listo'}
-              </button>
+
+          {/* Tiempos discretos */}
+          {(o.ready_at || o.delivered_at) && (
+            <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:8, display:'flex', flexDirection:'column', gap:2 }}>
+              {o.ready_at && <span><i className="ti ti-clock" style={{ fontSize:11 }} /> Listo: {fmtTime(o.ready_at)}</span>}
+              {o.delivered_at && <span><i className="ti ti-circle-check" style={{ fontSize:11 }} /> Entregado: {fmtTime(o.delivered_at)}</span>}
             </div>
           )}
+
+          {/* Botones */}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            {/* Descargar — siempre visible */}
+            <button onClick={() => download(o)} className="btn-outline" style={{ flex:1, minWidth:100, padding:8, fontSize:13 }}>
+              <i className="ti ti-download" style={{ fontSize:15 }} /> Descargar
+            </button>
+
+            {/* Avanzar estado */}
+            {o.status === 'nuevo' && (
+              <button onClick={() => updateStatus(o.id, 'en_proceso')}
+                style={{ flex:1, minWidth:100, padding:8, fontSize:13, borderRadius:'var(--radius-md)', border:'1px solid var(--amber)', background:'var(--amber-light)', color:'#92530a', fontWeight:700, cursor:'pointer' }}>
+                <i className="ti ti-printer" style={{ fontSize:15 }} /> Imprimir
+              </button>
+            )}
+            {o.status === 'en_proceso' && (
+              <button onClick={() => updateStatus(o.id, 'listo')}
+                style={{ flex:1, minWidth:100, padding:8, fontSize:13, borderRadius:'var(--radius-md)', border:'none', background:'var(--green)', color:'#fff', fontWeight:700, cursor:'pointer' }}>
+                <i className="ti ti-check" style={{ fontSize:15 }} /> Documento listo
+              </button>
+            )}
+            {o.status === 'listo' && (
+              <button onClick={() => updateStatus(o.id, 'entregado')}
+                style={{ flex:1, minWidth:100, padding:8, fontSize:13, borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--bg)', color:'var(--text-primary)', fontWeight:700, cursor:'pointer' }}>
+                <i className="ti ti-hand-stop" style={{ fontSize:15 }} /> Entregado
+              </button>
+            )}
+          </div>
         </div>
       ))}
     </div>
