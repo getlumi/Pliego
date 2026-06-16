@@ -418,7 +418,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
             </div>
 
             <button onClick={continuar} className="btn-primary">
-              Listo, volver a inicio
+              Listo, continuar
               <i className="ti ti-arrow-right" style={{ fontSize: 16 }} />
             </button>
           </>
