@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     )
     if (authError || !user) return json({ error: 'No autorizado' }, 401)
 
-    const { package_id } = await req.json()
+    const { package_id, method } = await req.json()
 
     // Paquetes disponibles
     const packages: Record<string, { amount: number; prints: number; label: string }> = {
@@ -48,6 +48,15 @@ Deno.serve(async (req) => {
 
     const APP_URL = Deno.env.get('APP_URL') ?? 'https://pliego.live'
     const ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')!
+
+    // Métodos de pago según elección del usuario
+    const payment_methods = method === 'oxxo'
+      ? { excluded_payment_types: [
+            { id: 'credit_card' }, { id: 'debit_card' },
+            { id: 'prepaid_card' }, { id: 'bank_transfer' },
+          ]
+        }
+      : { excluded_payment_types: [{ id: 'ticket' }], installments: 1 }
 
     // Crear preferencia en Mercado Pago
     const preference = {
@@ -62,10 +71,7 @@ Deno.serve(async (req) => {
       payer: {
         email: user.email,
       },
-      payment_methods: {
-        excluded_payment_types: [],
-        installments: 1,
-      },
+      payment_methods,
       back_urls: {
         success: `${APP_URL}/payment/success`,
         failure: `${APP_URL}/payment/failure`,
