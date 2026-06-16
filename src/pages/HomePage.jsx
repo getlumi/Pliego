@@ -24,6 +24,18 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
       ()  => loadShops(null),
       { enableHighAccuracy: true, timeout: 8000 }
     )
+
+    // Realtime: actualiza saldo cuando cambia (ej. después de enviar pedido)
+    const channel = supabase
+      .channel(`users:${session?.user?.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'users',
+        filter: `id=eq.${session?.user?.id}`,
+      }, payload => {
+        setUser(prev => ({ ...prev, ...payload.new }))
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
   }, [session])
 
   const loadUser = async () => {
