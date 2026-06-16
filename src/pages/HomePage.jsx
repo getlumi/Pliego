@@ -248,7 +248,6 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
 }
 
 function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, session, user, onClearDraft, onNavigate }) {
-  const [expanded, setExpanded] = useState(false)
   const [sending, setSending] = useState(false)
   const services = shop.printshop_services?.filter(s => s.enabled) ?? []
 
@@ -280,9 +279,8 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
 
   return (
     <div className="card" style={{
-      cursor: 'pointer',
       border: isSelected ? '1.5px solid var(--green)' : '1px solid var(--border)',
-    }} onClick={() => setExpanded(e => !e)}>
+    }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
         <div style={{ flex: 1 }}>
           <p style={{ fontSize:15, fontWeight:700 }}>{shop.name}</p>
@@ -380,35 +378,28 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
       )}
 
       {/* Expanded detail */}
-      {expanded && (
-        <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border-light)' }}>
-          {shop.latest_comment && (
-            <p style={{ fontSize:12, color:'var(--text-secondary)', fontStyle:'italic', marginBottom:10 }}>
-              "{shop.latest_comment}"
-            </p>
-          )}
-          <div style={{ display:'flex', gap:8 }}>
-            <button
-              onClick={e => { e.stopPropagation(); window.open(`https://www.google.com/maps/dir/?api=1&destination=${shop.latitude},${shop.longitude}`, '_blank') }}
-              className="btn-outline" style={{ flex:1, fontSize:13, padding:'8px 12px' }}
-            >
-              <i className="ti ti-map-pin" style={{ fontSize:15 }} /> Cómo llegar
-            </button>
-            <button
-              onClick={e => { e.stopPropagation(); alert('Reporte enviado') }}
-              style={{
-                flex:1, fontSize:13, padding:'8px 12px',
-                background:'var(--red-light)', border:'1px solid #F09595',
-                borderRadius:'var(--radius-md)', color:'var(--red)',
-                fontWeight:700, cursor:'pointer',
-                display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-              }}
-            >
-              <i className="ti ti-flag" style={{ fontSize:15 }} /> Reportar
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Cómo llegar y Reportar — siempre visibles */}
+      <div style={{ display:'flex', gap:8, marginTop:10 }}>
+        <button
+          onClick={e => { e.stopPropagation(); window.open(`https://www.google.com/maps/dir/?api=1&destination=${shop.latitude},${shop.longitude}`, '_blank') }}
+          className="btn-outline" style={{ flex:1, fontSize:13, padding:'8px 12px' }}
+        >
+          <i className="ti ti-map-pin" style={{ fontSize:15 }} /> Cómo llegar
+        </button>
+        <button
+          onClick={e => { e.stopPropagation(); alert('Reporte enviado') }}
+          style={{
+            flex:1, fontSize:13, padding:'8px 12px',
+            background:'var(--red-light)', border:'1px solid #F09595',
+            borderRadius:'var(--radius-md)', color:'var(--red)',
+            fontWeight:700, cursor:'pointer',
+            display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+          }}
+        >
+          <i className="ti ti-flag" style={{ fontSize:15 }} /> Reportar
+        </button>
+      </div>
+
     </div>
   )
 }
