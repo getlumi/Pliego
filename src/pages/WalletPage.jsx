@@ -61,7 +61,7 @@ export default function WalletPage({ session }) {
     try {
       const { data: { session: currentSession } } = await supabase.auth.getSession()
       const { data, error: fnError } = await supabase.functions.invoke('create-payment', {
-        body: { package_id: selectedPkg },
+        body: { package_id: selectedPkg, method },
         headers: { Authorization: `Bearer ${currentSession.access_token}` },
       })
 
@@ -71,9 +71,14 @@ export default function WalletPage({ session }) {
         return
       }
 
-      // Con credenciales productivas usar init_point (no sandbox_init_point)
       const url = data.init_point
-      window.location.href = url
+      // Crear un <a> temporal para evitar el mensaje "dirección no válida" en iOS Safari
+      const a = document.createElement('a')
+      a.href = url
+      a.style.display = 'none'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
 
     } catch (e) {
       setError('Error al conectar con el servidor de pagos.')
