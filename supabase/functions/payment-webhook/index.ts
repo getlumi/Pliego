@@ -45,15 +45,6 @@ Deno.serve(async (req) => {
       return json({ ok: true, status: payment.status })
     }
 
-    // Evitar procesar el mismo pago dos veces
-    const { data: existing } = await supabase
-      .from('wallet_transactions')
-      .select('id')
-      .eq('payment_id', String(payment.id))
-      .maybeSingle()
-
-    if (existing) return json({ ok: true, already_processed: true })
-
     // Extraer datos del external_reference
     let ref: { user_id: string; package_id: string; prints: number; amount: number }
     try {
@@ -62,31 +53,25 @@ Deno.serve(async (req) => {
       return json({ error: 'external_reference inválido' }, 400)
     }
 
-    // Acreditar saldo
-    const { data: userRow, error: userError } = await supabase
-      .from('users')
-      .select('wallet_balance')
-      .eq('id', ref.user_id)
-      .maybeSingle()
+    // Acreditar saldo de forma atómica (evita duplicados por condición de carrera)
+    const { data: credited, error: creditError } = await supabase
+      .rpc('credit_wallet', {
+        p_user_id:     ref.user_id,
+        p_amount:      ref.amount,
+        p_payment_id:  String(payment.id),
+        p_description: `Recarga ${ref.prints} impresiones · MP #${payment.id}`,
+        p_method:      payment.payment_type_id === 'ticket' ? 'oxxo' : 'tarjeta',
+      })
 
-    if (userError || !userRow) return json({ error: 'Usuario no encontrado' }, 400)
+    if (creditError) {
+      console.error('Error acreditando saldo:', creditError)
+      return json({ error: 'Error al acreditar saldo' }, 500)
+    }
 
-    const newBalance = (userRow.wallet_balance ?? 0) + ref.amount
-
-    await supabase
-      .from('users')
-      .update({ wallet_balance: newBalance })
-      .eq('id', ref.user_id)
-
-    // Registrar la transacción
-    await supabase.from('wallet_transactions').insert({
-      user_id: ref.user_id,
-      type: 'recarga',
-      amount: ref.amount,
-      payment_method: payment.payment_type_id === 'ticket' ? 'oxxo' : 'tarjeta',
-      payment_id: String(payment.id),
-      description: `Recarga ${ref.prints} impresiones · MP #${payment.id}`,
-    })
+    if (!credited) {
+      console.log(`⚠️ Pago ${payment.id} ya fue procesado anteriormente`)
+      return json({ ok: true, already_processed: true })
+    }
 
     console.log(`✅ Saldo acreditado: $${ref.amount} a usuario ${ref.user_id}`)
     return json({ ok: true, credited: ref.amount })
