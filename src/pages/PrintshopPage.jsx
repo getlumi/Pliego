@@ -78,21 +78,27 @@ export default function PrintshopPage({ session }) {
 
       {/* Tabs */}
       <div style={{ display:'flex', gap:8, padding:'14px 16px 0' }}>
-        {[{id:'orders', label:'Pedidos', icon:'ti-list-details'}, {id:'config', label:'Configuración', icon:'ti-settings'}].map(t => (
+        {[
+          {id:'orders',   label:'Pedidos',     icon:'ti-list-details'},
+          {id:'earnings', label:'Ganancias',   icon:'ti-cash'},
+          {id:'config',   label:'Config',      icon:'ti-settings'},
+        ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             flex:1, padding:'10px 0', borderRadius:'var(--radius-md)',
             border: tab === t.id ? 'none' : '1px solid var(--border)',
             background: tab === t.id ? 'var(--gradient)' : '#fff',
             color: tab === t.id ? '#fff' : 'var(--text-secondary)',
-            fontSize:13, fontWeight:700, cursor:'pointer',
+            fontSize:12, fontWeight:700, cursor:'pointer',
           }}>
-            <i className={`ti ${t.icon}`} style={{ fontSize:14, verticalAlign:-2, marginRight:6 }} />{t.label}
+            <i className={`ti ${t.icon}`} style={{ fontSize:14, verticalAlign:-2, marginRight:4 }} />{t.label}
           </button>
         ))}
       </div>
 
       {tab === 'orders'
         ? <OrdersTab shop={shop} orders={orders} setOrders={setOrders} onReload={loadShop} />
+        : tab === 'earnings'
+        ? <EarningsTab shop={shop} />
         : <ConfigTab shop={shop} services={services} onSaved={loadShop} />}
     </div>
   )
@@ -380,8 +386,140 @@ function OrdersTab({ shop, orders, setOrders, onReload }) {
 }
 
 // ============================================================
-// TAB: CONFIGURACIÓN
+// TAB: GANANCIAS
 // ============================================================
+function EarningsTab({ shop }) {
+  const [orders, setOrders] = useState([])
+  const [period, setPeriod] = useState('week') // 'today' | 'week' | 'month' | 'all'
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadEarnings()
+  }, [period])
+
+  const loadEarnings = async () => {
+    setLoading(true)
+    let query = supabase
+      .from('orders')
+      .select('id, created_at, delivered_at, status, estimated_cost, file_name, file_count, copies, color_mode, user_name, service_fee')
+      .eq('printshop_id', shop.id)
+      .eq('status', 'entregado')
+      .order('delivered_at', { ascending: false })
+
+    const now = new Date()
+    if (period === 'today') {
+      const start = new Date(now); start.setHours(0,0,0,0)
+      query = query.gte('delivered_at', start.toISOString())
+    } else if (period === 'week') {
+      const start = new Date(now); start.setDate(now.getDate() - 7)
+      query = query.gte('delivered_at', start.toISOString())
+    } else if (period === 'month') {
+      const start = new Date(now); start.setDate(1); start.setHours(0,0,0,0)
+      query = query.gte('delivered_at', start.toISOString())
+    }
+
+    const { data } = await query
+    setOrders(data ?? [])
+    setLoading(false)
+  }
+
+  const SERVICE_FEE = 2 // cuota de Pliego por pedido
+  const totalBruto = orders.reduce((sum, o) => sum + (o.estimated_cost ?? 0), 0)
+  const totalCuotas = orders.length * SERVICE_FEE
+  const totalNeto = totalBruto - totalCuotas
+
+  const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('es-MX', { day:'numeric', month:'short' }) : '-'
+  const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' }) : '-'
+
+  const PERIODS = [
+    { id:'today', label:'Hoy' },
+    { id:'week',  label:'7 días' },
+    { id:'month', label:'Este mes' },
+    { id:'all',   label:'Todo' },
+  ]
+
+  return (
+    <div className="scroll-content">
+
+      {/* Selector de periodo */}
+      <div style={{ display:'flex', gap:6 }}>
+        {PERIODS.map(p => (
+          <button key={p.id} onClick={() => setPeriod(p.id)} style={{
+            flex:1, padding:'8px 0', fontSize:12, fontWeight:700, borderRadius:'var(--radius-md)',
+            border: period === p.id ? 'none' : '1px solid var(--border)',
+            background: period === p.id ? 'var(--green)' : '#fff',
+            color: period === p.id ? '#fff' : 'var(--text-secondary)',
+            cursor:'pointer',
+          }}>{p.label}</button>
+        ))}
+      </div>
+
+      {/* Resumen */}
+      <div className="card" style={{ background:'var(--gradient-dark)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:12 }}>
+          <div>
+            <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)', marginBottom:2 }}>Pedidos entregados</p>
+            <p style={{ fontSize:28, fontWeight:900, color:'#fff' }}>{orders.length}</p>
+          </div>
+          <div style={{ textAlign:'right' }}>
+            <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)', marginBottom:2 }}>Total cobrado</p>
+            <p style={{ fontSize:28, fontWeight:900, color:'#fff' }}>${totalBruto.toFixed(2)}</p>
+          </div>
+        </div>
+        <div style={{ borderTop:'1px solid rgba(255,255,255,0.15)', paddingTop:12, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <p style={{ fontSize:11, color:'rgba(255,255,255,0.5)' }}>Cuota Pliego ({orders.length} × $2)</p>
+            <p style={{ fontSize:14, color:'rgba(255,255,255,0.7)', fontWeight:700 }}>-${totalCuotas.toFixed(2)}</p>
+          </div>
+          <div style={{ textAlign:'right' }}>
+            <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)' }}>Tus ganancias netas</p>
+            <p style={{ fontSize:22, fontWeight:900, color:'#fff' }}>${totalNeto.toFixed(2)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Lista de pedidos entregados */}
+      <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)' }}>
+        Detalle de pedidos
+      </p>
+
+      {loading ? (
+        <div className="card" style={{ textAlign:'center', padding:24 }}>
+          <p style={{ color:'var(--text-muted)', fontSize:14 }}>Cargando...</p>
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="card" style={{ textAlign:'center', padding:32 }}>
+          <i className="ti ti-cash" style={{ fontSize:40, color:'var(--text-muted)', display:'block', marginBottom:12 }} />
+          <p style={{ color:'var(--text-muted)', fontSize:14 }}>No hay pedidos entregados en este periodo</p>
+        </div>
+      ) : orders.map(o => (
+        <div key={o.id} className="card" style={{ padding:'12px 14px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
+            <div>
+              <p style={{ fontSize:13, fontWeight:700 }}>{o.user_name ?? 'Cliente'}</p>
+              <p style={{ fontSize:11, color:'var(--text-muted)' }}>
+                {fmtDate(o.delivered_at)} · {fmtTime(o.delivered_at)}
+              </p>
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <p style={{ fontSize:15, fontWeight:900, color:'var(--green)' }}>${(o.estimated_cost ?? 0).toFixed(2)}</p>
+              <p style={{ fontSize:10, color:'var(--text-muted)' }}>-$2.00 cuota</p>
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            <Chip icon="ti-file-text" label={`${o.file_count} hoja${o.file_count > 1 ? 's' : ''}`} />
+            <Chip icon="ti-copy" label={`${o.copies} copia${o.copies > 1 ? 's' : ''}`} />
+            <Chip icon={o.color_mode === 'color' ? 'ti-palette' : 'ti-file-text'} label={o.color_mode === 'color' ? 'Color' : 'B/N'} />
+            <Chip label={`Neto: $${((o.estimated_cost ?? 0) - SERVICE_FEE).toFixed(2)}`} bold />
+          </div>
+        </div>
+      ))}
+
+    </div>
+  )
+}
+
+
 function ConfigTab({ shop, services, onSaved }) {
   const [name, setName] = useState(shop.name)
   const [hours, setHours] = useState(() => {
