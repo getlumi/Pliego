@@ -58,13 +58,6 @@ export default function WalletPage({ session }) {
   const handlePay = async (method) => {
     setError('')
     setLoading(true)
-
-    // Safari bloquea window.open() dentro de async — abrimos primero y redirigimos después
-    const payWindow = window.open('', '_blank')
-    if (payWindow) {
-      payWindow.document.write('<p style="font-family:sans-serif;padding:40px;color:#555">Conectando con Mercado Pago...</p>')
-    }
-
     try {
       const { data: { session: currentSession } } = await supabase.auth.getSession()
       const { data, error: fnError } = await supabase.functions.invoke('create-payment', {
@@ -73,25 +66,19 @@ export default function WalletPage({ session }) {
       })
 
       if (fnError || data?.error) {
-        payWindow?.close()
         setError(data?.error ?? 'No se pudo iniciar el pago. Intenta de nuevo.')
         setLoading(false)
         return
       }
 
+      // Redirigir en la misma pestaña — funciona en iOS y Android sin bloqueos
       const url = data.sandbox_init_point ?? data.init_point
-      if (payWindow) {
-        payWindow.location.href = url
-      } else {
-        // Fallback si Safari bloqueó la ventana
-        window.location.href = url
-      }
+      window.location.href = url
 
     } catch (e) {
-      payWindow?.close()
       setError('Error al conectar con el servidor de pagos.')
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const fmtDate = (iso) => new Date(iso).toLocaleString('es-MX', {
