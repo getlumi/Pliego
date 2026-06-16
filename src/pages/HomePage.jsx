@@ -11,9 +11,11 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   const [showSelectPrompt, setShowSelectPrompt] = useState(false)
   const shopsRef = useRef(null)
 
-  useEffect(() => {
-    if (draft.shopId) setShowSelectPrompt(false)
-  }, [draft.shopId])
+  // Cuando el usuario elige papelería, ocultamos el aviso
+  const handleSelectShop = (shopId) => {
+    onUpdateDraft({ shopId })
+    setShowSelectPrompt(false)
+  }
 
   useEffect(() => {
     if (session) loadUser()
@@ -222,7 +224,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
         ) : shops.map(shop => (
           <ShopCard key={shop.id} shop={shop} serviceIcons={serviceIcons} Stars={Stars}
             isSelected={draft.shopId === shop.id}
-            onSelect={() => onUpdateDraft({ shopId: shop.id })}
+            onSelect={() => handleSelectShop(shop.id)}
             draft={draft} session={session} user={user} onClearDraft={onClearDraft} onNavigate={onNavigate}
           />
         ))}
@@ -251,7 +253,12 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
   const services = shop.printshop_services?.filter(s => s.enabled) ?? []
 
   const totalPages = draft.files.reduce((sum, f) => sum + (f.pageCount ?? 1), 0)
+
+  // Usa el servicio elegido en UploadPage, o el primero disponible si aún no eligió
   const selectedService = shop.printshop_services?.find(s => s.id === draft.serviceId)
+    ?? services[0]
+    ?? null
+
   const total = (selectedService?.price_per_sheet ?? 0) * totalPages * draft.copies
 
   const handleSend = async (e) => {
