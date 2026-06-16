@@ -71,8 +71,8 @@ export default function WalletPage({ session }) {
         return
       }
 
-      // Redirigir en la misma pestaña — funciona en iOS y Android sin bloqueos
-      const url = data.sandbox_init_point ?? data.init_point
+      // Con credenciales productivas usar init_point (no sandbox_init_point)
+      const url = data.init_point
       window.location.href = url
 
     } catch (e) {
