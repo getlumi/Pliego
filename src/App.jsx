@@ -18,7 +18,14 @@ export default function App() {
   const [ownsShop, setOwnsShop] = useState(false)
   const [businessIntent, setBusinessIntent] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
-  const [page,     setPage]     = useState('home')
+  const [page,     setPage]     = useState(() => {
+    // Detectar si Mercado Pago nos redirigió de vuelta
+    const path = window.location.pathname
+    if (path === '/payment/success') return 'payment_success'
+    if (path === '/payment/failure') return 'payment_failure'
+    if (path === '/payment/pending') return 'payment_pending'
+    return 'home'
+  })
   const [draft,    setDraft]    = useState(createEmptyDraft())
 
   const updateDraft = (partial) => setDraft(d => ({ ...d, ...partial }))
@@ -92,6 +99,9 @@ export default function App() {
       case 'wallet':  return <WalletPage session={session} onNavigate={navigate} />
       case 'history': return <HistoryPage session={session} onNavigate={navigate} />
       case 'profile': return <ProfilePage session={session} onNavigate={navigate} />
+      case 'payment_success': return <PaymentResult status="success" onNavigate={navigate} />
+      case 'payment_failure': return <PaymentResult status="failure" onNavigate={navigate} />
+      case 'payment_pending': return <PaymentResult status="pending" onNavigate={navigate} />
       default:        return <HomePage   session={session} onNavigate={navigate} draft={draft} onUpdateDraft={updateDraft} onClearDraft={clearDraft} onShowTutorial={() => setShowTutorial(true)} />
     }
   }
@@ -151,6 +161,54 @@ export default function App() {
       <div className="phone-frame">
         {renderPage()}
         <Navbar active={page} onNavigate={navigate} session={session} />
+      </div>
+    </div>
+  )
+}
+
+function PaymentResult({ status, onNavigate }) {
+  const config = {
+    success: {
+      icon: 'ti-circle-check-filled',
+      color: '#22c55e',
+      title: '¡Pago exitoso!',
+      msg: 'Tu saldo fue acreditado. Ya puedes enviar tus documentos a imprimir.',
+      btn: 'Ir a inicio',
+      page: 'home',
+    },
+    failure: {
+      icon: 'ti-circle-x-filled',
+      color: 'var(--red)',
+      title: 'Pago no completado',
+      msg: 'No se pudo procesar tu pago. Puedes intentarlo de nuevo cuando quieras.',
+      btn: 'Intentar de nuevo',
+      page: 'wallet',
+    },
+    pending: {
+      icon: 'ti-clock-filled',
+      color: 'var(--amber)',
+      title: 'Pago en proceso',
+      msg: 'Tu pago está siendo procesado. Te avisaremos cuando se acredite tu saldo — puede tardar unos minutos.',
+      btn: 'Ver mi saldo',
+      page: 'wallet',
+    },
+  }
+  const c = config[status] ?? config.pending
+
+  // Limpiar la URL del navegador
+  useEffect(() => {
+    window.history.replaceState({}, '', '/')
+  }, [])
+
+  return (
+    <div className="page" style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ textAlign:'center', padding: 32 }}>
+        <i className={`ti ${c.icon}`} style={{ fontSize: 64, color: c.color, display:'block', marginBottom: 20 }} />
+        <p style={{ fontSize: 22, fontWeight: 900, marginBottom: 8 }}>{c.title}</p>
+        <p style={{ fontSize: 14, color:'var(--text-secondary)', lineHeight: 1.6, marginBottom: 28, maxWidth: 280 }}>{c.msg}</p>
+        <button onClick={() => onNavigate(c.page)} className="btn-primary">
+          {c.btn}
+        </button>
       </div>
     </div>
   )
