@@ -1,4 +1,4 @@
-// Pliego · Edge Function: create-payment
+// Pliego · Edge Function: create-payment v2
 // Crea una preferencia de Checkout Pro en Mercado Pago y devuelve
 // la URL de pago. El frontend redirige al usuario a esa URL.
 // Variables de entorno requeridas (Supabase Secrets):
