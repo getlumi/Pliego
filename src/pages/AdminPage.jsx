@@ -551,13 +551,24 @@ function FinancesTab() {
       byDayRecargas[day] = (byDayRecargas[day] ?? 0) + (t.amount ?? 0)
     })
 
+    // Registros por día (usuarios nuevos)
+    const usersRes = await supabase
+      .from('users')
+      .select('created_at')
+      .gte('created_at', since.toISOString())
+    const byDayUsers = {}
+    ;(usersRes.data ?? []).forEach(u => {
+      const day = new Date(u.created_at).toLocaleDateString('es-MX', { weekday:'short', day:'numeric', month:'short' })
+      byDayUsers[day] = (byDayUsers[day] ?? 0) + 1
+    })
+
     // Comisión Stripe estimada (3.6% + $3 MXN por transacción)
     const stripeCommission = txs.reduce((s, t) => s + ((t.amount ?? 0) * 0.036 + 3), 0)
     const netRevenue = totalRecargas - stripeCommission
 
     setData({
       totalFees, totalRecargas, totalPedidos: orders.length, totalImpresiones,
-      byDay, byDayRecargas, byHour, peakHour, byMethod, totalMethods,
+      byDay, byDayRecargas, byDayUsers, byHour, peakHour, byMethod, totalMethods,
       stripeCommission, netRevenue,
       byShop: Object.values(byShop).sort((a, b) => b.total - a.total),
     })
@@ -626,10 +637,10 @@ function FinancesTab() {
           ))}
         </div>
 
-        {/* Ingresos por día (cuotas) */}
+        {/* Solicitudes por día */}
         {Object.keys(data.byDay).length > 0 && (
           <div className="card">
-            <p style={{ fontSize:13, fontWeight:800, marginBottom:12 }}>Cuotas por día</p>
+            <p style={{ fontSize:13, fontWeight:800, marginBottom:12 }}>Solicitudes por día</p>
             <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
               {Object.entries(data.byDay).slice(-7).map(([day, amount]) => (
                 <div key={day}>
@@ -642,6 +653,29 @@ function FinancesTab() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Registros por día */}
+        {Object.keys(data.byDayUsers).length > 0 && (
+          <div className="card">
+            <p style={{ fontSize:13, fontWeight:800, marginBottom:12 }}>Registros por día</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {(() => {
+                const maxU = Math.max(...Object.values(data.byDayUsers), 1)
+                return Object.entries(data.byDayUsers).slice(-7).map(([day, count]) => (
+                  <div key={day}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                      <span style={{ fontSize:11, color:'var(--text-secondary)' }}>{day}</span>
+                      <span style={{ fontSize:11, fontWeight:700 }}>{count} usuario{count > 1 ? 's' : ''}</span>
+                    </div>
+                    <div style={{ height:6, borderRadius:3, background:'var(--border-light)' }}>
+                      <div style={{ height:'100%', width:`${count / maxU * 100}%`, background:'#6366f1', borderRadius:3 }} />
+                    </div>
+                  </div>
+                ))
+              })()}
             </div>
           </div>
         )}
