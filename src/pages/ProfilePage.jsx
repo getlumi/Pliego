@@ -1,8 +1,20 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import SupportPage from './SupportPage'
+
 export default function ProfilePage({ session, onNavigate }) {
-  const name = session?.user?.user_metadata?.name ?? 'Usuario'
+  const [showSupport, setShowSupport] = useState(false)
+  const name    = session?.user?.user_metadata?.name ?? 'Usuario'
   const initial = name[0]?.toUpperCase()
+
+  if (showSupport) return (
+    <SupportPage
+      session={session}
+      fromType="user"
+      onBack={() => setShowSupport(false)}
+    />
+  )
+
   return (
     <div className="page">
       <div style={{ background:'var(--gradient-dark)', padding:'48px 20px 32px', textAlign:'center' }}>
@@ -12,7 +24,10 @@ export default function ProfilePage({ session, onNavigate }) {
         <p style={{ fontSize:20, fontWeight:800, color:'#fff' }}>{name}</p>
       </div>
       <div className="scroll-content">
-        <button className="btn-outline" onClick={() => supabase.auth.signOut()}>
+        <button className="btn-primary" onClick={() => setShowSupport(true)}>
+          <i className="ti ti-headset" style={{ fontSize:18 }} /> Soporte
+        </button>
+        <button className="btn-outline" onClick={() => supabase.auth.signOut()} style={{ marginTop:8 }}>
           <i className="ti ti-logout" style={{ fontSize:18 }} /> Cerrar sesión
         </button>
         <a href="#" style={{ display:'block', textAlign:'center', fontSize:13, color:'var(--text-muted)', marginTop:8 }}>
