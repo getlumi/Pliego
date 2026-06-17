@@ -1,12 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-// Temas predefinidos para categorizar el ticket
-const SUBJECTS = [
-  'Problema con un pedido',
-  'Mi saldo no se acreditó',
-  'Problema con el pago',
-  'Una papelería no entregó',
+// Temas según perfil
+const SUBJECTS_USER = [
+  'No puedo enviar mi documento',
+  'Mi saldo no se acreditó después de pagar',
+  'Problema con mi pago (tarjeta u OXXO)',
+  'La papelería no me entregó mi documento',
+  'El documento llegó mal impreso',
+  'No puedo registrarme o iniciar sesión',
+  'Quiero eliminar mi cuenta',
+  'Sugerencia o mejora',
+  'Otro',
+]
+
+const SUBJECTS_PRINTSHOP = [
+  'No me llegan pedidos',
+  'El botón de pedidos no funciona',
+  'No puedo descargar un documento',
+  'Problema con mi verificación de documentos',
+  'Quiero actualizar mis datos o servicios',
+  'No aparezco en la lista de papelerías',
   'Problema con mi cuenta',
   'Sugerencia o mejora',
   'Otro',
@@ -45,6 +59,7 @@ export default function SupportPage({ session, fromType = 'user', printshopId = 
       session={session}
       fromType={fromType}
       printshopId={printshopId}
+      subjects={fromType === 'printshop' ? SUBJECTS_PRINTSHOP : SUBJECTS_USER}
       onCreated={(ticket) => { setActiveTicket(ticket); setView('chat'); loadTickets() }}
       onBack={() => setView('list')}
     />
@@ -111,7 +126,7 @@ export default function SupportPage({ session, fromType = 'user', printshopId = 
   )
 }
 
-function NewTicket({ session, fromType, printshopId, onCreated, onBack }) {
+function NewTicket({ session, fromType, printshopId, subjects, onCreated, onBack }) {
   const [subject, setSubject] = useState('')
   const [body, setBody]       = useState('')
   const [saving, setSaving]   = useState(false)
@@ -160,7 +175,7 @@ function NewTicket({ session, fromType, printshopId, onCreated, onBack }) {
         <div className="card">
           <p style={{ fontSize:13, fontWeight:700, marginBottom:10 }}>¿Sobre qué necesitas ayuda?</p>
           <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
-            {SUBJECTS.map(s => (
+            {subjects.map(s => (
               <button key={s} onClick={() => setSubject(s)} style={{
                 padding:'10px 14px', textAlign:'left', fontSize:13, fontWeight:600,
                 borderRadius:'var(--radius-md)', cursor:'pointer',
@@ -180,7 +195,7 @@ function NewTicket({ session, fromType, printshopId, onCreated, onBack }) {
             onChange={e => setBody(e.target.value)}
             placeholder="Describe tu situación con el mayor detalle posible..."
             style={{
-              width:'100%', minHeight:100, resize:'none', fontSize:14,
+              width:'100%', minHeight:100, resize:'none',
               padding:'10px 12px', border:'1.5px solid var(--border)',
               borderRadius:'var(--radius-md)', fontFamily:'inherit',
               marginBottom:14, boxSizing:'border-box',
@@ -306,7 +321,7 @@ function TicketChat({ session, ticket, onBack }) {
             placeholder="Escribe tu mensaje..."
             rows={1}
             style={{
-              flex:1, resize:'none', fontSize:14, padding:'10px 12px',
+              flex:1, resize:'none', padding:'10px 12px',
               border:'1.5px solid var(--border)', borderRadius:20,
               fontFamily:'inherit', maxHeight:100, overflow:'auto',
             }}
