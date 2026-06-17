@@ -21,7 +21,12 @@ export async function registerPush(userId) {
   try {
     // Registrar Service Worker
     const reg = await navigator.serviceWorker.register('/sw.js')
-    await navigator.serviceWorker.ready
+
+    // Timeout de 5s para que serviceWorker.ready no se cuelgue
+    await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 5000))
+    ])
 
     // Solicitar permiso
     const permission = await Notification.requestPermission()
