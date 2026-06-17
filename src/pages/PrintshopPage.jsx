@@ -423,10 +423,7 @@ function EarningsTab({ shop }) {
     setLoading(false)
   }
 
-  const SERVICE_FEE = 2 // cuota de Pliego por pedido
   const totalBruto = orders.reduce((sum, o) => sum + (o.estimated_cost ?? 0), 0)
-  const totalCuotas = orders.length * SERVICE_FEE
-  const totalNeto = totalBruto - totalCuotas
 
   const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('es-MX', { day:'numeric', month:'short' }) : '-'
   const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' }) : '-'
@@ -456,26 +453,19 @@ function EarningsTab({ shop }) {
 
       {/* Resumen */}
       <div className="card" style={{ background:'var(--gradient-dark)' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:12 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
           <div>
             <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)', marginBottom:2 }}>Pedidos entregados</p>
             <p style={{ fontSize:28, fontWeight:900, color:'#fff' }}>{orders.length}</p>
           </div>
           <div style={{ textAlign:'right' }}>
-            <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)', marginBottom:2 }}>Total cobrado</p>
+            <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)', marginBottom:2 }}>Total cobrado en efectivo</p>
             <p style={{ fontSize:28, fontWeight:900, color:'#fff' }}>${totalBruto.toFixed(2)}</p>
           </div>
         </div>
-        <div style={{ borderTop:'1px solid rgba(255,255,255,0.15)', paddingTop:12, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <div>
-            <p style={{ fontSize:11, color:'rgba(255,255,255,0.5)' }}>Cuota Pliego ({orders.length} × $2)</p>
-            <p style={{ fontSize:14, color:'rgba(255,255,255,0.7)', fontWeight:700 }}>-${totalCuotas.toFixed(2)}</p>
-          </div>
-          <div style={{ textAlign:'right' }}>
-            <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)' }}>Tus ganancias netas</p>
-            <p style={{ fontSize:22, fontWeight:900, color:'#fff' }}>${totalNeto.toFixed(2)}</p>
-          </div>
-        </div>
+        <p style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginTop:8 }}>
+          El cliente paga directamente en tu mostrador. Este total es tuyo al 100%.
+        </p>
       </div>
 
       {/* Lista de pedidos entregados */}
@@ -510,7 +500,7 @@ function EarningsTab({ shop }) {
             <Chip icon="ti-file-text" label={`${o.file_count} hoja${o.file_count > 1 ? 's' : ''}`} />
             <Chip icon="ti-copy" label={`${o.copies} copia${o.copies > 1 ? 's' : ''}`} />
             <Chip icon={o.color_mode === 'color' ? 'ti-palette' : 'ti-file-text'} label={o.color_mode === 'color' ? 'Color' : 'B/N'} />
-            <Chip label={`Neto: $${((o.estimated_cost ?? 0) - SERVICE_FEE).toFixed(2)}`} bold />
+            <Chip label={`$${(o.estimated_cost ?? 0).toFixed(2)}`} bold />
           </div>
         </div>
       ))}
