@@ -91,9 +91,9 @@ export default function App() {
       .maybeSingle()
     setOwnsShop(!!shop)
 
-    // Registrar push si el usuario ya pasó el onboarding y dio permiso antes
+    // Registrar push en segundo plano, SIN bloquear la carga de la app
     if (data?.onboarding_seen && Notification.permission === 'granted') {
-      registerPush(userId).catch(() => {})
+      setTimeout(() => registerPush(userId).catch(() => {}), 3000)
     }
 
     setLoading(false)
