@@ -60,7 +60,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   const loadShops = async (coords) => {
     const { data } = await supabase.from('printshops').select('*, printshop_services(*)').order('rating_avg', { ascending: false })
     if (!data) { setLoading(false); return }
-    let shops = data.filter(s => isOpenNow(s.hours))
+    let shops = data.filter(s => isOpenNow(s.hours) && s.verified === true)
     if (coords) {
       shops = shops.map(s => ({ ...s, dist: distKm(coords.latitude, coords.longitude, s.latitude, s.longitude) }))
       shops.sort((a, b) => a.dist - b.dist)
