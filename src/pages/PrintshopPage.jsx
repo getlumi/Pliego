@@ -63,6 +63,20 @@ export default function PrintshopPage({ session }) {
     setShop(data)
     setServices(data?.printshop_services ?? [])
     if (data) await loadOrders(data.id)
+
+    // Si recién fue aprobada y aún no vio el mensaje, mostrarlo
+    if (data?.verified && !sessionStorage.getItem(`welcome_shown_${data.id}`)) {
+      // Solo mostrar si submitted_at existe (pasó por KYC) y fue aprobada recientemente
+      if (data.reviewed_at) {
+        const reviewedAt = new Date(data.reviewed_at)
+        const hoursSinceReview = (Date.now() - reviewedAt.getTime()) / 1000 / 3600
+        if (hoursSinceReview < 48) { // solo en las primeras 48h post-aprobación
+          setShowWelcome(true)
+          sessionStorage.setItem(`welcome_shown_${data.id}`, '1')
+        }
+      }
+    }
+
     setLoading(false)
   }
 
