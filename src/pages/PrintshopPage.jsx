@@ -433,6 +433,42 @@ function DocUpload({ icon, label, hint, file, onChange }) {
 function OrdersTab({ shop, orders, setOrders, onReload }) {
   const [toggling, setToggling] = useState(false)
 
+  // Solicitar permiso de notificaciones al montar
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
+
+  const playAlert = () => {
+    try {
+      // Sonido corto generado con Web Audio API — sin archivo externo
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.setValueAtTime(880, ctx.currentTime)
+      osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1)
+      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
+      osc.start(ctx.currentTime)
+      osc.stop(ctx.currentTime + 0.4)
+    } catch {}
+  }
+
+  const notifyNewOrder = (payload) => {
+    // Solo notificar si es un pedido NUEVO (INSERT)
+    if (payload.eventType !== 'INSERT') return
+    playAlert()
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Nuevo pedido en Pliego 🖨️', {
+        body: `Llegó un documento para imprimir`,
+        icon: '/icon-192.png',
+      })
+    }
+  }
+
   // Realtime: llegan pedidos nuevos sin refresh
   useEffect(() => {
     const channel = supabase
@@ -440,7 +476,7 @@ function OrdersTab({ shop, orders, setOrders, onReload }) {
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'orders',
         filter: `printshop_id=eq.${shop.id}`,
-      }, () => onReload())
+      }, (payload) => { notifyNewOrder(payload); onReload() })
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [shop.id])
