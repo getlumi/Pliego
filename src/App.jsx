@@ -8,6 +8,7 @@ import WalletPage      from './pages/WalletPage'
 import HistoryPage     from './pages/HistoryPage'
 import ProfilePage     from './pages/ProfilePage'
 import PrintshopPage, { RegisterShop } from './pages/PrintshopPage'
+import AdminPage       from './pages/AdminPage'
 import Navbar          from './components/layout/Navbar'
 import { createEmptyDraft, revokeDraftUrls } from './lib/draft'
 
@@ -16,6 +17,7 @@ export default function App() {
   const [loading,  setLoading]  = useState(true)
   const [onboarded, setOnboarded] = useState(false)
   const [ownsShop, setOwnsShop] = useState(false)
+  const [isAdmin,  setIsAdmin]  = useState(false)
   const [businessIntent, setBusinessIntent] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
   const [page,     setPage]     = useState(() => {
@@ -44,7 +46,7 @@ export default function App() {
       setSession(session)
       if (session) checkOnboarding(session.user.id)
       else {
-        setOnboarded(false); setOwnsShop(false); setBusinessIntent(false); setLoading(false)
+        setOnboarded(false); setOwnsShop(false); setIsAdmin(false); setBusinessIntent(false); setLoading(false)
         setDraft(d => { revokeDraftUrls(d); return createEmptyDraft() })
       }
     })
@@ -79,6 +81,7 @@ export default function App() {
     }
 
     setOnboarded(data?.onboarding_seen ?? false)
+    setIsAdmin(data?.is_admin ?? false)
 
     const { data: shop } = await supabase
       .from('printshops')
@@ -129,6 +132,13 @@ export default function App() {
   if (!session) return (
     <div className="app-shell"><div className="phone-frame">
       <AuthPage onAuth={(intent) => setBusinessIntent(intent === 'business')} />
+    </div></div>
+  )
+
+  // Admin: panel de administración de Pliego
+  if (isAdmin) return (
+    <div className="app-shell"><div className="phone-frame">
+      <AdminPage session={session} onSignOut={() => supabase.auth.signOut()} />
     </div></div>
   )
 
