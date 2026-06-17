@@ -199,7 +199,7 @@ export default function PrintshopPage({ session }) {
       </div>
 
       {tab === 'orders'
-        ? <OrdersTab shop={shop} orders={orders} setOrders={setOrders} onReload={loadShop} />
+        ? <OrdersTab shop={shop} orders={orders} setOrders={setOrders} onReload={loadShop} onReloadOrders={() => loadOrders(shop.id)} />
         : tab === 'earnings'
         ? <EarningsTab shop={shop} />
         : <ConfigTab shop={shop} services={services} onSaved={loadShop} onSupport={() => setShowSupport(true)} />}
@@ -465,7 +465,7 @@ function DocUpload({ icon, label, hint, file, onChange }) {
 // ============================================================
 // TAB: PEDIDOS
 // ============================================================
-function OrdersTab({ shop, orders, setOrders, onReload }) {
+function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
   const [toggling, setToggling] = useState(false)
 
   // Solicitar permiso de notificaciones al montar
@@ -511,7 +511,7 @@ function OrdersTab({ shop, orders, setOrders, onReload }) {
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'orders',
         filter: `printshop_id=eq.${shop.id}`,
-      }, (payload) => { notifyNewOrder(payload); onReload() })
+      }, (payload) => { notifyNewOrder(payload); onReloadOrders() })
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [shop.id])
