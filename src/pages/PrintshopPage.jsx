@@ -76,6 +76,29 @@ export default function PrintshopPage({ session }) {
         <p style={{ fontSize:13, color:'rgba(255,255,255,0.6)' }}>{shop.name}</p>
       </div>
 
+      {/* Banner de verificación pendiente */}
+      {!shop.verified && (
+        <div style={{ margin:'0 16px', marginTop: 8 }}>
+          {shop.verification_status === 'rejected' ? (
+            <div style={{ background:'var(--red-light)', border:'1px solid #F09595', borderRadius:'var(--radius-md)', padding:'12px 14px' }}>
+              <p style={{ fontSize:13, fontWeight:700, color:'var(--red)', marginBottom:4 }}>
+                <i className="ti ti-x" style={{ fontSize:14, verticalAlign:-1 }} /> Verificación rechazada
+              </p>
+              <p style={{ fontSize:12, color:'var(--text-secondary)' }}>{shop.rejection_reason ?? 'Contacta a soporte para más información.'}</p>
+            </div>
+          ) : (
+            <div style={{ background:'var(--amber-light)', border:'1px solid var(--amber)', borderRadius:'var(--radius-md)', padding:'12px 14px' }}>
+              <p style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>
+                <i className="ti ti-clock" style={{ fontSize:14, verticalAlign:-1 }} /> Verificación en proceso
+              </p>
+              <p style={{ fontSize:12, color:'var(--text-secondary)' }}>
+                Estamos revisando tus documentos. Te avisaremos por WhatsApp en menos de 24 horas. Mientras tanto puedes configurar tu papelería.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ display:'flex', gap:8, padding:'14px 16px 0' }}>
         {[
@@ -108,12 +131,20 @@ export default function PrintshopPage({ session }) {
 // REGISTRO
 // ============================================================
 export function RegisterShop({ session, onRegistered, onCancel }) {
-  const [name, setName]   = useState('')
+  const [step, setStep]         = useState(1) // 1=datos, 2=documentos
+  const [shopId, setShopId]     = useState(null)
+  const [name, setName]         = useState('')
   const [whatsapp, setWhatsapp] = useState('')
-  const [coords, setCoords] = useState(null)
+  const [coords, setCoords]     = useState(null)
   const [locating, setLocating] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState('')
+
+  // Documentos KYC
+  const [ineFile, setIneFile]           = useState(null)
+  const [selfieFile, setSelfieFile]     = useState(null)
+  const [addressFile, setAddressFile]   = useState(null)
+  const [uploading, setUploading]       = useState(false)
 
   const getLocation = () => {
     setError('')
@@ -125,7 +156,7 @@ export function RegisterShop({ session, onRegistered, onCancel }) {
     )
   }
 
-  const submit = async () => {
+  const submitStep1 = async () => {
     setError('')
     if (!name.trim())     return setError('Escribe el nombre de tu negocio')
     if (!whatsapp.trim()) return setError('Escribe tu número de WhatsApp')
@@ -141,6 +172,8 @@ export function RegisterShop({ session, onRegistered, onCancel }) {
         whatsapp: whatsapp.replace(/\s/g,''),
         owner_id: session.user.id,
         hours: DEFAULT_HOURS,
+        verified: false,
+        verification_status: 'pending',
       })
       .select()
       .single()
@@ -151,7 +184,6 @@ export function RegisterShop({ session, onRegistered, onCancel }) {
       return
     }
 
-    // Servicios por defecto (B/N bond activado, el resto desactivado con precio sugerido)
     await supabase.from('printshop_services').insert(
       SERVICE_OPTIONS.map(s => ({
         printshop_id: shop.id,
@@ -161,21 +193,123 @@ export function RegisterShop({ session, onRegistered, onCancel }) {
       }))
     )
 
-    onRegistered()
+    setShopId(shop.id)
+    setSaving(false)
+    setStep(2)
   }
+
+  const uploadDoc = async (file, type) => {
+    const ext = file.name.split('.').pop()
+    const path = `${session.user.id}/${type}.${ext}`
+    const { error } = await supabase.storage
+      .from('verification-docs')
+      .upload(path, file, { upsert: true })
+    if (error) throw error
+    return path
+  }
+
+  const submitStep2 = async () => {
+    setError('')
+    if (!ineFile)     return setError('Sube tu identificación oficial (INE o pasaporte)')
+    if (!selfieFile)  return setError('Sube tu selfie sosteniendo tu identificación')
+    if (!addressFile) return setError('Sube tu comprobante de domicilio')
+
+    setUploading(true)
+    try {
+      const [ineUrl, selfieUrl, addressUrl] = await Promise.all([
+        uploadDoc(ineFile, 'ine'),
+        uploadDoc(selfieFile, 'selfie'),
+        uploadDoc(addressFile, 'domicilio'),
+      ])
+
+      await supabase.from('printshops').update({
+        ine_url:          ineUrl,
+        selfie_url:       selfieUrl,
+        address_proof_url: addressUrl,
+        submitted_at:     new Date().toISOString(),
+      }).eq('id', shopId)
+
+      onRegistered()
+    } catch (e) {
+      setError('Error al subir documentos. Verifica tu conexión e intenta de nuevo.')
+    }
+    setUploading(false)
+  }
+
+  if (step === 2) return (
+    <div className="page" style={{ paddingBottom: 0 }}>
+      <div style={{ background: 'var(--gradient-dark)', padding: '48px 20px 24px' }}>
+        <p style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>Verificación de identidad</p>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>Paso 2 de 2 — Documentos</p>
+      </div>
+      <div className="scroll-content">
+        <div className="card" style={{ background: 'var(--green-light)', border: '1px solid var(--green)' }}>
+          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+            <i className="ti ti-shield-check" style={{ fontSize: 15, verticalAlign: -2, marginRight: 6 }} />
+            ¿Por qué pedimos esto?
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            Verificamos la identidad de cada papelería para proteger a nuestros usuarios. Tus documentos se guardan de forma segura y solo el equipo de Pliego puede verlos.
+          </p>
+        </div>
+
+        {/* INE */}
+        <DocUpload
+          icon="ti-id-badge"
+          label="Identificación oficial"
+          hint="INE o pasaporte vigente · Foto clara del frente"
+          file={ineFile}
+          onChange={setIneFile}
+        />
+
+        {/* Selfie */}
+        <DocUpload
+          icon="ti-camera-selfie"
+          label="Selfie con tu identificación"
+          hint="Tómate una foto sosteniendo tu INE o pasaporte"
+          file={selfieFile}
+          onChange={setSelfieFile}
+        />
+
+        {/* Comprobante */}
+        <DocUpload
+          icon="ti-home"
+          label="Comprobante de domicilio"
+          hint="Recibo de luz, agua o teléfono — máx. 3 meses de antigüedad"
+          file={addressFile}
+          onChange={setAddressFile}
+        />
+
+        {error && (
+          <div style={{ background:'var(--red-light)', border:'1px solid #F09595', borderRadius:12, padding:'10px 14px', display:'flex', gap:8, alignItems:'center' }}>
+            <i className="ti ti-alert-circle" style={{ fontSize:16, color:'var(--red)', flexShrink:0 }} />
+            <p style={{ fontSize:13, color:'var(--red)', fontWeight:600 }}>{error}</p>
+          </div>
+        )}
+
+        <button onClick={submitStep2} disabled={uploading} className="btn-primary">
+          <i className="ti ti-send" style={{ fontSize:16 }} />
+          {uploading ? 'Subiendo documentos...' : 'Enviar para revisión'}
+        </button>
+
+        <p style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center' }}>
+          Tu solicitud será revisada en menos de 24 horas. Te avisaremos por WhatsApp.
+        </p>
+      </div>
+    </div>
+  )
 
   return (
     <div className="page" style={{ paddingBottom: 0 }}>
-      <div className="scroll-content" style={{ paddingTop: 48 }}>
+      <div style={{ background: 'var(--gradient-dark)', padding: '48px 20px 24px' }}>
+        <p style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>Registra tu papelería</p>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>Paso 1 de 2 — Datos del negocio</p>
+      </div>
+      <div className="scroll-content">
         <div className="card">
-          <p style={{ fontSize:16, fontWeight:800, marginBottom:4 }}>Registra tu negocio</p>
-          <p style={{ fontSize:13, color:'var(--text-secondary)', marginBottom:16 }}>
-            Toma 1 minuto. Solo necesitamos tu ubicación exacta.
-          </p>
-
           <button onClick={getLocation} disabled={locating} className={coords ? 'btn-outline' : 'btn-primary'} style={{ marginBottom: 14 }}>
             <i className={`ti ${coords ? 'ti-circle-check' : 'ti-current-location'}`} style={{ fontSize:16 }} />
-            {locating ? 'Buscando ubicación...' : coords ? 'Ubicación obtenida' : 'Usar mi ubicación actual'}
+            {locating ? 'Buscando ubicación...' : coords ? 'Ubicación obtenida ✓' : 'Usar mi ubicación actual'}
           </button>
 
           <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>NOMBRE DE TU PAPELERÍA</label>
@@ -193,16 +327,13 @@ export function RegisterShop({ session, onRegistered, onCancel }) {
             </div>
           )}
 
-          <button onClick={submit} disabled={saving} className="btn-primary">
-            {saving ? 'Registrando...' : 'Registrar mi papelería'}
+          <button onClick={submitStep1} disabled={saving} className="btn-primary">
+            {saving ? 'Guardando...' : 'Continuar'}
             {!saving && <i className="ti ti-arrow-right" style={{ fontSize:16 }} />}
           </button>
 
           {onCancel && (
-            <button onClick={onCancel} style={{
-              width:'100%', marginTop:10, background:'none', border:'none',
-              color:'var(--text-muted)', fontSize:13, cursor:'pointer', textAlign:'center',
-            }}>
+            <button onClick={onCancel} style={{ width:'100%', marginTop:10, background:'none', border:'none', color:'var(--text-muted)', fontSize:13, cursor:'pointer', textAlign:'center' }}>
               No tengo papelería, soy cliente
             </button>
           )}
@@ -211,6 +342,45 @@ export function RegisterShop({ session, onRegistered, onCancel }) {
     </div>
   )
 }
+
+function DocUpload({ icon, label, hint, file, onChange }) {
+  const inputRef = React.useRef(null)
+  return (
+    <div className="card">
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+        <i className={`ti ${icon}`} style={{ fontSize:22, color:'var(--green)' }} />
+        <div>
+          <p style={{ fontSize:14, fontWeight:700 }}>{label}</p>
+          <p style={{ fontSize:11, color:'var(--text-secondary)' }}>{hint}</p>
+        </div>
+      </div>
+      {file ? (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--green-light)', borderRadius:'var(--radius-md)', padding:'10px 12px' }}>
+          <span style={{ fontSize:13, fontWeight:600, color:'var(--green)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
+            <i className="ti ti-circle-check-filled" style={{ fontSize:15, verticalAlign:-2, marginRight:6 }} />
+            {file.name}
+          </span>
+          <button onClick={() => onChange(null)} style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', flexShrink:0 }}>
+            <i className="ti ti-x" style={{ fontSize:14 }} />
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => inputRef.current?.click()} style={{
+          width:'100%', padding:'12px', border:'1.5px dashed var(--border)', borderRadius:'var(--radius-md)',
+          background:'#fff', cursor:'pointer', fontSize:13, color:'var(--text-secondary)',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+        }}>
+          <i className="ti ti-upload" style={{ fontSize:16 }} />
+          Elegir archivo
+        </button>
+      )}
+      <input ref={inputRef} type="file" accept="image/*,.pdf"
+        onChange={e => { if (e.target.files[0]) onChange(e.target.files[0]); e.target.value = '' }}
+        style={{ display:'none' }} />
+    </div>
+  )
+}
+
 
 // ============================================================
 // TAB: PEDIDOS
