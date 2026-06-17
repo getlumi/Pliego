@@ -19,13 +19,15 @@ Deno.serve(async (req) => {
 
     const body = await req.text()
 
-    // Parsear el evento de Stripe
+    // Parsear el evento — Stripe lo envía como JSON plano
     let event: { type: string; data: { object: Record<string, unknown> } }
     try {
       event = JSON.parse(body)
     } catch {
       return json({ error: 'Body inválido' }, 400)
     }
+
+    console.log('Stripe event received:', event.type)
 
     // Solo procesamos pagos confirmados
     if (event.type !== 'payment_intent.succeeded') {
@@ -34,14 +36,17 @@ Deno.serve(async (req) => {
 
     const intent = event.data.object as {
       id: string
-      metadata: { user_id: string; amount: string; prints: string; package_id: string; user_email: string }
+      metadata: Record<string, string>
       payment_method_types: string[]
       amount: number
     }
 
-    const { user_id, amount, prints, package_id } = intent.metadata
+    console.log('PaymentIntent metadata:', JSON.stringify(intent.metadata))
+
+    const { user_id, amount, prints } = intent.metadata
+
     if (!user_id || !amount) {
-      console.error('Metadata incompleta:', intent.metadata)
+      console.error('Metadata incompleta:', JSON.stringify(intent.metadata))
       return json({ error: 'Metadata incompleta' }, 400)
     }
 
@@ -53,21 +58,21 @@ Deno.serve(async (req) => {
       p_user_id:     user_id,
       p_amount:      amountMXN,
       p_payment_id:  intent.id,
-      p_description: `Recarga ${prints} impresiones · Stripe #${intent.id.slice(-6)}`,
+      p_description: `Recarga ${prints} impresiones · Stripe`,
       p_method:      method,
     })
 
     if (creditError) {
-      console.error('Error acreditando saldo:', creditError)
+      console.error('Error acreditando saldo:', JSON.stringify(creditError))
       return json({ error: 'Error al acreditar saldo' }, 500)
     }
 
     if (!credited) {
-      console.log(`⚠️ Pago ${intent.id} ya procesado`)
+      console.log('Pago ya procesado:', intent.id)
       return json({ ok: true, already_processed: true })
     }
 
-    console.log(`✅ Saldo acreditado: $${amountMXN} MXN a usuario ${user_id}`)
+    console.log(`Saldo acreditado: $${amountMXN} MXN a usuario ${user_id}`)
     return json({ ok: true, credited: amountMXN })
 
   } catch (e) {
