@@ -155,6 +155,10 @@ function RatingModal({ order, onClose, onDone }) {
   const [stars, setStars]     = useState(0)
   const [comment, setComment] = useState('')
   const [saving, setSaving]   = useState(false)
+  const [done, setDone]       = useState(false)
+
+  const EMOJIS = ['', '😞', '😐', '🙂', '😊', '🤩']
+  const LABELS = ['', 'Muy malo', 'Regular', 'Bueno', 'Muy bueno', '¡Excelente!']
 
   const submit = async () => {
     if (stars === 0) return
@@ -163,66 +167,93 @@ function RatingModal({ order, onClose, onDone }) {
       order_id:     order.id,
       printshop_id: order.printshop_id,
       user_id:      order.user_id,
-      rating:       stars,
+      stars,                              // fix: era 'rating' antes, debe ser 'stars'
       comment:      comment.trim() || null,
     })
-    // Marcar pedido como calificado
     await supabase.from('orders').update({ rated: true }).eq('id', order.id)
     setSaving(false)
-    onDone()
+    setDone(true)
+    setTimeout(() => onDone(), 1800)
   }
 
   return (
     <div style={{
-      position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:1000,
-      display:'flex', alignItems:'center', justifyContent:'center', padding:20,
+      position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', zIndex:1000,
+      display:'flex', alignItems:'center', justifyContent:'center', padding:24,
     }}>
-      <div style={{ background:'#fff', borderRadius:20, padding:28, width:'100%', maxWidth:360 }}>
-        <p style={{ fontSize:18, fontWeight:900, marginBottom:4, textAlign:'center' }}>
-          ¿Cómo estuvo tu impresión?
-        </p>
-        <p style={{ fontSize:13, color:'var(--text-secondary)', textAlign:'center', marginBottom:20 }}>
-          {order.printshops?.name}
-        </p>
+      <div style={{ background:'#fff', borderRadius:24, padding:28, width:'100%', maxWidth:340 }}>
 
-        {/* Estrellas */}
-        <div style={{ display:'flex', justifyContent:'center', gap:10, marginBottom:20 }}>
-          {[1,2,3,4,5].map(s => (
-            <button key={s} onClick={() => setStars(s)} style={{
-              background:'none', border:'none', cursor:'pointer', padding:4,
-              fontSize:36, color: s <= stars ? '#F59E0B' : 'var(--border)',
-              transition:'color 0.1s',
-            }}>★</button>
-          ))}
-        </div>
+        {done ? (
+          /* Pantalla de gracias */
+          <div style={{ textAlign:'center', padding:'12px 0' }}>
+            <p style={{ fontSize:52, marginBottom:12 }}>🎉</p>
+            <p style={{ fontSize:18, fontWeight:900, marginBottom:6 }}>¡Gracias por tu reseña!</p>
+            <p style={{ fontSize:13, color:'var(--text-secondary)' }}>
+              Tu opinión ayuda a mejorar el servicio de {order.printshops?.name}
+            </p>
+          </div>
+        ) : (
+          <>
+            <p style={{ fontSize:18, fontWeight:900, textAlign:'center', marginBottom:4 }}>
+              ¿Cómo estuvo tu impresión?
+            </p>
+            <p style={{ fontSize:13, color:'var(--text-secondary)', textAlign:'center', marginBottom:20 }}>
+              {order.printshops?.name}
+            </p>
 
-        {/* Comentario */}
-        <textarea
-          value={comment}
-          onChange={e => setComment(e.target.value)}
-          placeholder="Cuéntanos cómo fue tu experiencia (opcional)"
-          style={{
-            width:'100%', minHeight:72, resize:'none', fontSize:14,
-            padding:'10px 12px', border:'1.5px solid var(--border)',
-            borderRadius:'var(--radius-md)', fontFamily:'inherit', marginBottom:14,
-          }}
-        />
+            {/* Emoji según estrellas */}
+            <div style={{ textAlign:'center', marginBottom:12, minHeight:52 }}>
+              {stars > 0 && (
+                <>
+                  <p style={{ fontSize:40 }}>{EMOJIS[stars]}</p>
+                  <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)' }}>{LABELS[stars]}</p>
+                </>
+              )}
+            </div>
 
-        <button
-          onClick={submit}
-          disabled={stars === 0 || saving}
-          className="btn-primary"
-          style={{ marginBottom:10, opacity: stars === 0 ? 0.5 : 1 }}
-        >
-          {saving ? 'Enviando...' : 'Enviar calificación'}
-        </button>
+            {/* Estrellas */}
+            <div style={{ display:'flex', justifyContent:'center', gap:8, marginBottom:20 }}>
+              {[1,2,3,4,5].map(s => (
+                <button key={s} onClick={() => setStars(s)} style={{
+                  background:'none', border:'none', cursor:'pointer', padding:4,
+                  fontSize:40, lineHeight:1,
+                  color: s <= stars ? '#F59E0B' : '#E5E7EB',
+                  transform: s === stars ? 'scale(1.2)' : 'scale(1)',
+                  transition:'all 0.1s',
+                }}>★</button>
+              ))}
+            </div>
 
-        <button onClick={onClose} style={{
-          width:'100%', background:'none', border:'none',
-          color:'var(--text-muted)', fontSize:13, cursor:'pointer',
-        }}>
-          Ahora no
-        </button>
+            {/* Comentario */}
+            <textarea
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder="Cuéntanos tu experiencia (opcional)"
+              style={{
+                width:'100%', minHeight:72, resize:'none', fontSize:14,
+                padding:'10px 12px', border:'1.5px solid var(--border)',
+                borderRadius:'var(--radius-md)', fontFamily:'inherit', marginBottom:14,
+                boxSizing:'border-box',
+              }}
+            />
+
+            <button
+              onClick={submit}
+              disabled={stars === 0 || saving}
+              className="btn-primary"
+              style={{ marginBottom:10, opacity: stars === 0 ? 0.4 : 1 }}
+            >
+              {saving ? 'Enviando...' : 'Enviar reseña'}
+            </button>
+
+            <button onClick={onClose} style={{
+              width:'100%', background:'none', border:'none',
+              color:'var(--text-muted)', fontSize:13, cursor:'pointer', padding:6,
+            }}>
+              Ahora no
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
