@@ -79,7 +79,14 @@ Deno.serve(async (req) => {
         .select('name')
         .eq('id', user.id)
         .maybeSingle()
-      const userName = userRow?.name ?? 'Cliente Pliego'
+      const rawName = userRow?.name ?? ''
+      // Stripe requiere nombre y apellido, min 2 chars cada uno
+      const nameParts = rawName.trim().split(' ').filter(p => p.length >= 2)
+      const userName = nameParts.length >= 2
+        ? rawName.trim()
+        : nameParts.length === 1
+          ? `${nameParts[0]} Cliente`
+          : 'Cliente Pliego'
 
       const params = new URLSearchParams({
         'amount':                                          String(pkg.amount * 100),
