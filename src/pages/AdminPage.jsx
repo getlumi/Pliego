@@ -389,41 +389,87 @@ function OrdersTab() {
 function UsersTab() {
   const [users, setUsers]     = useState([])
   const [loading, setLoading] = useState(true)
+  const [toggling, setToggling] = useState(null)
 
-  useEffect(() => {
+  const load = () => {
     setLoading(true)
     supabase.from('users').select('*').order('created_at', { ascending: false })
       .then(({ data }) => { setUsers(data ?? []); setLoading(false) })
-  }, [])
+  }
+
+  useEffect(() => { load() }, [])
+
+  const toggleActive = async (user) => {
+    if (user.is_admin) return // no desactivar admins
+    setToggling(user.id)
+    await supabase.from('users')
+      .update({ is_active: !user.is_active })
+      .eq('id', user.id)
+    await load()
+    setToggling(null)
+  }
 
   const totalBalance = users.reduce((sum, u) => sum + (u.wallet_balance ?? 0), 0)
+  const activeUsers  = users.filter(u => u.is_active !== false)
 
   return (
     <div className="scroll-content">
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
         <div className="card" style={{ textAlign:'center' }}>
-          <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Usuarios</p>
-          <p style={{ fontSize:24, fontWeight:900 }}>{users.length}</p>
+          <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Total</p>
+          <p style={{ fontSize:22, fontWeight:900 }}>{users.length}</p>
         </div>
         <div className="card" style={{ textAlign:'center', background:'var(--green-light)' }}>
+          <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Activos</p>
+          <p style={{ fontSize:22, fontWeight:900 }}>{activeUsers.length}</p>
+        </div>
+        <div className="card" style={{ textAlign:'center' }}>
           <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Saldo total</p>
-          <p style={{ fontSize:24, fontWeight:900 }}>${totalBalance.toFixed(2)}</p>
+          <p style={{ fontSize:22, fontWeight:900 }}>${totalBalance.toFixed(0)}</p>
         </div>
       </div>
+
       {loading ? <p style={{ textAlign:'center', color:'var(--text-muted)', padding:32 }}>Cargando...</p> :
-        users.map(u => (
-          <div key={u.id} className="card" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <div>
-              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <p style={{ fontSize:13, fontWeight:700 }}>{u.name || '—'}</p>
-                {u.is_admin && <span style={{ fontSize:10, background:'var(--green)', color:'#fff', padding:'1px 6px', borderRadius:'var(--radius-full)' }}>Admin</span>}
+        users.map(u => {
+          const isActive = u.is_active !== false
+          return (
+            <div key={u.id} className="card" style={{
+              opacity: isActive ? 1 : 0.6,
+              border: !isActive ? '1px solid var(--red)' : undefined,
+            }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
+                    <p style={{ fontSize:13, fontWeight:700 }}>{u.name || '—'}</p>
+                    {u.is_admin && (
+                      <span style={{ fontSize:10, background:'var(--green)', color:'#fff', padding:'1px 6px', borderRadius:'var(--radius-full)' }}>Admin</span>
+                    )}
+                    {!isActive && (
+                      <span style={{ fontSize:10, background:'var(--red-light)', color:'var(--red)', padding:'1px 6px', borderRadius:'var(--radius-full)', fontWeight:700 }}>Desactivada</span>
+                    )}
+                  </div>
+                  <p style={{ fontSize:12, color:'var(--text-secondary)' }}>{u.phone}</p>
+                  <p style={{ fontSize:11, color:'var(--text-muted)' }}>{new Date(u.created_at).toLocaleDateString('es-MX')} · ${(u.wallet_balance ?? 0).toFixed(2)}</p>
+                </div>
+                {!u.is_admin && (
+                  <button
+                    onClick={() => toggleActive(u)}
+                    disabled={toggling === u.id}
+                    style={{
+                      flexShrink:0, padding:'7px 12px', fontSize:12, fontWeight:700,
+                      borderRadius:'var(--radius-md)', cursor:'pointer',
+                      border: isActive ? '1px solid var(--red)' : '1px solid var(--green)',
+                      background: isActive ? 'var(--red-light)' : 'var(--green-light)',
+                      color: isActive ? 'var(--red)' : 'var(--green-dark)',
+                    }}
+                  >
+                    {toggling === u.id ? '...' : isActive ? 'Desactivar' : 'Activar'}
+                  </button>
+                )}
               </div>
-              <p style={{ fontSize:12, color:'var(--text-secondary)' }}>{u.phone}</p>
-              <p style={{ fontSize:11, color:'var(--text-muted)' }}>{new Date(u.created_at).toLocaleDateString('es-MX')}</p>
             </div>
-            <p style={{ fontSize:16, fontWeight:900 }}>${(u.wallet_balance ?? 0).toFixed(2)}</p>
-          </div>
-        ))
+          )
+        })
       }
     </div>
   )
@@ -498,9 +544,21 @@ function FinancesTab() {
       byShop[id].count += 1
     })
 
+    // Recargas por día
+    const byDayRecargas = {}
+    txs.forEach(t => {
+      const day = new Date(t.created_at).toLocaleDateString('es-MX', { weekday:'short', day:'numeric', month:'short' })
+      byDayRecargas[day] = (byDayRecargas[day] ?? 0) + (t.amount ?? 0)
+    })
+
+    // Comisión Stripe estimada (3.6% + $3 MXN por transacción)
+    const stripeCommission = txs.reduce((s, t) => s + ((t.amount ?? 0) * 0.036 + 3), 0)
+    const netRevenue = totalRecargas - stripeCommission
+
     setData({
       totalFees, totalRecargas, totalPedidos: orders.length, totalImpresiones,
-      byDay, byHour, peakHour, byMethod, totalMethods,
+      byDay, byDayRecargas, byHour, peakHour, byMethod, totalMethods,
+      stripeCommission, netRevenue,
       byShop: Object.values(byShop).sort((a, b) => b.total - a.total),
     })
     setLoading(false)
@@ -527,20 +585,23 @@ function FinancesTab() {
         {/* KPIs */}
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
           <div className="card" style={{ background:'var(--gradient-dark)', textAlign:'center' }}>
-            <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)' }}>Ingresos Pliego</p>
-            <p style={{ fontSize:26, fontWeight:900, color:'#fff' }}>${data.totalFees.toFixed(2)}</p>
+            <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)' }}>Recargas brutas</p>
+            <p style={{ fontSize:26, fontWeight:900, color:'#fff' }}>${data.totalRecargas.toFixed(2)}</p>
           </div>
           <div className="card" style={{ background:'var(--gradient-dark)', textAlign:'center' }}>
-            <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)' }}>Recargas</p>
-            <p style={{ fontSize:26, fontWeight:900, color:'#fff' }}>${data.totalRecargas.toFixed(2)}</p>
+            <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)' }}>Ganancia neta</p>
+            <p style={{ fontSize:26, fontWeight:900, color:'#fff' }}>${data.netRevenue.toFixed(2)}</p>
+            <p style={{ fontSize:10, color:'rgba(255,255,255,0.4)' }}>después de Stripe</p>
+          </div>
+          <div className="card" style={{ textAlign:'center' }}>
+            <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Comisión Stripe est.</p>
+            <p style={{ fontSize:22, fontWeight:900, color:'var(--red)' }}>-${data.stripeCommission.toFixed(2)}</p>
+            <p style={{ fontSize:10, color:'var(--text-muted)' }}>3.6% + $3 por tx</p>
           </div>
           <div className="card" style={{ textAlign:'center' }}>
             <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Pedidos</p>
-            <p style={{ fontSize:26, fontWeight:900 }}>{data.totalPedidos}</p>
-          </div>
-          <div className="card" style={{ textAlign:'center' }}>
-            <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Facturado impresiones</p>
-            <p style={{ fontSize:26, fontWeight:900 }}>${data.totalImpresiones.toFixed(2)}</p>
+            <p style={{ fontSize:22, fontWeight:900 }}>{data.totalPedidos}</p>
+            <p style={{ fontSize:10, color:'var(--text-muted)' }}>cuotas: ${data.totalFees.toFixed(2)}</p>
           </div>
         </div>
 
@@ -565,10 +626,10 @@ function FinancesTab() {
           ))}
         </div>
 
-        {/* Ingresos por día */}
+        {/* Ingresos por día (cuotas) */}
         {Object.keys(data.byDay).length > 0 && (
           <div className="card">
-            <p style={{ fontSize:13, fontWeight:800, marginBottom:12 }}>Ingresos por día</p>
+            <p style={{ fontSize:13, fontWeight:800, marginBottom:12 }}>Cuotas por día</p>
             <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
               {Object.entries(data.byDay).slice(-7).map(([day, amount]) => (
                 <div key={day}>
@@ -581,6 +642,29 @@ function FinancesTab() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recargas por día */}
+        {Object.keys(data.byDayRecargas).length > 0 && (
+          <div className="card">
+            <p style={{ fontSize:13, fontWeight:800, marginBottom:12 }}>Recargas por día</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {(() => {
+                const maxR = Math.max(...Object.values(data.byDayRecargas), 1)
+                return Object.entries(data.byDayRecargas).slice(-7).map(([day, amount]) => (
+                  <div key={day}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                      <span style={{ fontSize:11, color:'var(--text-secondary)' }}>{day}</span>
+                      <span style={{ fontSize:11, fontWeight:700 }}>${amount.toFixed(2)}</span>
+                    </div>
+                    <div style={{ height:6, borderRadius:3, background:'var(--border-light)' }}>
+                      <div style={{ height:'100%', width:`${amount / maxR * 100}%`, background:'var(--amber)', borderRadius:3 }} />
+                    </div>
+                  </div>
+                ))
+              })()}
             </div>
           </div>
         )}
