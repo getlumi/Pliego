@@ -56,7 +56,7 @@ export default function App() {
   const checkOnboarding = async (userId) => {
     let { data } = await supabase
       .from('users')
-      .select('onboarding_seen')
+      .select('onboarding_seen, is_admin')
       .eq('id', userId)
       .maybeSingle()
 
@@ -75,7 +75,7 @@ export default function App() {
           privacy_accepted_at: new Date().toISOString(),
           onboarding_seen: false,
         })
-        .select('onboarding_seen')
+        .select('onboarding_seen, is_admin')
         .maybeSingle()
       data = inserted
     }
