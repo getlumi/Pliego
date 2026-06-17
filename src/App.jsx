@@ -11,6 +11,7 @@ import PrintshopPage, { RegisterShop } from './pages/PrintshopPage'
 import AdminPage       from './pages/AdminPage'
 import Navbar          from './components/layout/Navbar'
 import { createEmptyDraft, revokeDraftUrls } from './lib/draft'
+import { registerPush } from './lib/push'
 
 export default function App() {
   const [session,  setSession]  = useState(null)
@@ -89,6 +90,11 @@ export default function App() {
       .eq('owner_id', userId)
       .maybeSingle()
     setOwnsShop(!!shop)
+
+    // Registrar push si el usuario ya pasó el onboarding y dio permiso antes
+    if (data?.onboarding_seen && Notification.permission === 'granted') {
+      registerPush(userId).catch(() => {})
+    }
 
     setLoading(false)
   }
