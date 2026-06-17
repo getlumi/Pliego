@@ -15,7 +15,8 @@ const STATUS_COLOR = {
 }
 
 export default function HistoryPage({ session }) {
-  const [orders, setOrders] = useState([])
+  const [orders, setOrders]         = useState([])
+  const [ratingOrder, setRatingOrder] = useState(null) // pedido para calificar
 
   const load = () => {
     if (!session) return
@@ -29,17 +30,20 @@ export default function HistoryPage({ session }) {
 
   useEffect(() => {
     load()
-    // Realtime: actualiza cuando la papelería cambia el estado
     const channel = supabase
       .channel(`orders:user:${session?.user?.id}`)
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'orders',
         filter: `user_id=eq.${session?.user?.id}`,
       }, payload => {
-        setOrders(prev => prev.map(o => o.id === payload.new.id
-          ? { ...o, ...payload.new }
-          : o
-        ))
+        setOrders(prev => prev.map(o => {
+          if (o.id !== payload.new.id) return o
+          // Si acaba de ser marcado como entregado, mostrar encuesta
+          if (payload.new.status === 'entregado' && o.status !== 'entregado' && !payload.new.rated) {
+            setRatingOrder({ ...o, ...payload.new })
+          }
+          return { ...o, ...payload.new }
+        }))
       })
       .subscribe()
     return () => supabase.removeChannel(channel)
@@ -47,6 +51,15 @@ export default function HistoryPage({ session }) {
 
   return (
     <div className="page">
+      {/* Modal de encuesta */}
+      {ratingOrder && (
+        <RatingModal
+          order={ratingOrder}
+          onClose={() => setRatingOrder(null)}
+          onDone={() => { setRatingOrder(null); load() }}
+        />
+      )}
+
       <div style={{ background:'var(--gradient-dark)', padding:'48px 20px 24px' }}>
         <p style={{ fontSize:22, fontWeight:900, color:'#fff' }}>Mis impresiones</p>
         <p style={{ fontSize:13, color:'rgba(255,255,255,0.6)' }}>Últimos 3 días</p>
@@ -58,14 +71,14 @@ export default function HistoryPage({ session }) {
             <p style={{ color:'var(--text-muted)', fontSize:14 }}>No tienes impresiones recientes</p>
           </div>
         ) : orders.map(o => (
-          <OrderRow key={o.id} order={o} />
+          <OrderRow key={o.id} order={o} onRate={setRatingOrder} />
         ))}
       </div>
     </div>
   )
 }
 
-function OrderRow({ order: o }) {
+function OrderRow({ order: o, onRate }) {
   const [open, setOpen] = useState(false)
   const sc = STATUS_COLOR[o.status] ?? { bg:'var(--bg)', text:'var(--text-primary)' }
   const fmtTime = iso => iso
@@ -121,6 +134,96 @@ function OrderRow({ order: o }) {
           {o.special_instructions && <p><strong>Instrucciones:</strong> {o.special_instructions}</p>}
         </div>
       )}
+
+      {/* Botón de calificar si ya fue entregado y no ha sido calificado */}
+      {o.status === 'entregado' && !o.rated && (
+        <button onClick={e => { e.stopPropagation(); onRate(o) }} style={{
+          marginTop:10, width:'100%', padding:'9px', borderRadius:'var(--radius-md)',
+          border:'1.5px solid var(--green)', background:'var(--green-light)',
+          color:'var(--green-dark)', fontWeight:700, fontSize:13, cursor:'pointer',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+        }}>
+          <i className="ti ti-star" style={{ fontSize:15 }} /> Calificar esta impresión
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Modal de calificación
+function RatingModal({ order, onClose, onDone }) {
+  const [stars, setStars]     = useState(0)
+  const [comment, setComment] = useState('')
+  const [saving, setSaving]   = useState(false)
+
+  const submit = async () => {
+    if (stars === 0) return
+    setSaving(true)
+    await supabase.from('ratings').insert({
+      order_id:     order.id,
+      printshop_id: order.printshop_id,
+      user_id:      order.user_id,
+      rating:       stars,
+      comment:      comment.trim() || null,
+    })
+    // Marcar pedido como calificado
+    await supabase.from('orders').update({ rated: true }).eq('id', order.id)
+    setSaving(false)
+    onDone()
+  }
+
+  return (
+    <div style={{
+      position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:1000,
+      display:'flex', alignItems:'center', justifyContent:'center', padding:20,
+    }}>
+      <div style={{ background:'#fff', borderRadius:20, padding:28, width:'100%', maxWidth:360 }}>
+        <p style={{ fontSize:18, fontWeight:900, marginBottom:4, textAlign:'center' }}>
+          ¿Cómo estuvo tu impresión?
+        </p>
+        <p style={{ fontSize:13, color:'var(--text-secondary)', textAlign:'center', marginBottom:20 }}>
+          {order.printshops?.name}
+        </p>
+
+        {/* Estrellas */}
+        <div style={{ display:'flex', justifyContent:'center', gap:10, marginBottom:20 }}>
+          {[1,2,3,4,5].map(s => (
+            <button key={s} onClick={() => setStars(s)} style={{
+              background:'none', border:'none', cursor:'pointer', padding:4,
+              fontSize:36, color: s <= stars ? '#F59E0B' : 'var(--border)',
+              transition:'color 0.1s',
+            }}>★</button>
+          ))}
+        </div>
+
+        {/* Comentario */}
+        <textarea
+          value={comment}
+          onChange={e => setComment(e.target.value)}
+          placeholder="Cuéntanos cómo fue tu experiencia (opcional)"
+          style={{
+            width:'100%', minHeight:72, resize:'none', fontSize:14,
+            padding:'10px 12px', border:'1.5px solid var(--border)',
+            borderRadius:'var(--radius-md)', fontFamily:'inherit', marginBottom:14,
+          }}
+        />
+
+        <button
+          onClick={submit}
+          disabled={stars === 0 || saving}
+          className="btn-primary"
+          style={{ marginBottom:10, opacity: stars === 0 ? 0.5 : 1 }}
+        >
+          {saving ? 'Enviando...' : 'Enviar calificación'}
+        </button>
+
+        <button onClick={onClose} style={{
+          width:'100%', background:'none', border:'none',
+          color:'var(--text-muted)', fontSize:13, cursor:'pointer',
+        }}>
+          Ahora no
+        </button>
+      </div>
     </div>
   )
 }
