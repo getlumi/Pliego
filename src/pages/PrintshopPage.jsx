@@ -25,8 +25,32 @@ export default function PrintshopPage({ session }) {
   const [services, setServices] = useState([])
   const [orders, setOrders]   = useState([])
   const [tab, setTab]         = useState('orders')
+  const [showWelcome, setShowWelcome] = useState(false)
 
-  useEffect(() => { loadShop() }, [])
+  useEffect(() => {
+    loadShop()
+  }, [])
+
+  useEffect(() => {
+    if (!shop?.id) return
+    // Realtime: detectar cuando el admin aprueba los documentos
+    const channel = supabase
+      .channel(`shop:${shop.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'printshops',
+        filter: `id=eq.${shop.id}`,
+      }, payload => {
+        const wasNotVerified = !shop.verified
+        const nowVerified = payload.new.verified === true
+        setShop(prev => ({ ...prev, ...payload.new }))
+        // Si acaba de ser aprobada, mostrar bienvenida
+        if (wasNotVerified && nowVerified) {
+          setShowWelcome(true)
+        }
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [shop?.id, shop?.verified])
 
   const loadShop = async () => {
     const { data } = await supabase
@@ -61,6 +85,27 @@ export default function PrintshopPage({ session }) {
 
   return (
     <div className="page" style={{ paddingBottom: 0 }}>
+
+      {/* Modal de bienvenida cuando es aprobada */}
+      {showWelcome && (
+        <div style={{
+          position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', zIndex:1000,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:24,
+        }}>
+          <div style={{ background:'#fff', borderRadius:24, padding:32, width:'100%', maxWidth:340, textAlign:'center' }}>
+            <p style={{ fontSize:52, marginBottom:12 }}>🎉</p>
+            <p style={{ fontSize:20, fontWeight:900, marginBottom:8 }}>¡Felicidades!</p>
+            <p style={{ fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:24 }}>
+              Tu documentación fue verificada y tu papelería <strong>{shop?.name}</strong> ya está activa en Pliego. ¡Mucho éxito!
+            </p>
+            <button onClick={() => setShowWelcome(false)} className="btn-primary">
+              <i className="ti ti-rocket" style={{ fontSize:16 }} />
+              ¡Vamos!
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={{ background: 'var(--gradient-dark)', padding: '48px 20px 20px' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 4 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
