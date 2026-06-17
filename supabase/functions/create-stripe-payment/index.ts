@@ -73,21 +73,31 @@ Deno.serve(async (req) => {
       })
       const customer = await customerRes.json()
 
+      // Obtener nombre del usuario para billing_details
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('name')
+        .eq('id', user.id)
+        .maybeSingle()
+      const userName = userRow?.name ?? 'Cliente Pliego'
+
       const params = new URLSearchParams({
-        'amount':                          String(pkg.amount * 100),
-        'currency':                        'mxn',
-        'payment_method_types[]':          'oxxo',
-        'payment_method_data[type]':       'oxxo',
-        'confirm':                         'true',
-        'customer':                        customer.id,
+        'amount':                                          String(pkg.amount * 100),
+        'currency':                                        'mxn',
+        'payment_method_types[]':                          'oxxo',
+        'payment_method_data[type]':                       'oxxo',
+        'payment_method_data[billing_details][name]':      userName,
+        'payment_method_data[billing_details][email]':     user.email ?? '',
+        'confirm':                                         'true',
+        'customer':                                        customer.id,
         'payment_method_options[oxxo][expires_after_days]': '3',
-        'metadata[user_id]':               metadata.user_id,
-        'metadata[package_id]':            metadata.package_id,
-        'metadata[prints]':                metadata.prints,
-        'metadata[amount]':                metadata.amount,
-        'metadata[user_email]':            metadata.user_email,
-        'description':                     `Pliego · ${pkg.label}`,
-        'receipt_email':                   user.email ?? '',
+        'metadata[user_id]':                               metadata.user_id,
+        'metadata[package_id]':                            metadata.package_id,
+        'metadata[prints]':                                metadata.prints,
+        'metadata[amount]':                                metadata.amount,
+        'metadata[user_email]':                            metadata.user_email,
+        'description':                                     `Pliego · ${pkg.label}`,
+        'receipt_email':                                   user.email ?? '',
       })
       body = params.toString()
     } else {
