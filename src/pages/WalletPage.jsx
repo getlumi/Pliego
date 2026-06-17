@@ -134,7 +134,7 @@ export default function WalletPage({ session }) {
 
             <div style={{ background:'var(--bg)', borderRadius:'var(--radius-md)', padding:20, marginBottom:16 }}>
               <p style={{ fontSize:12, color:'var(--text-secondary)', marginBottom:8 }}>NÚMERO DE REFERENCIA</p>
-              <p style={{ fontSize:22, fontWeight:900, letterSpacing:2, color:'var(--text-primary)', marginBottom:8 }}>
+              <p style={{ fontSize:15, fontWeight:900, letterSpacing:1, color:'var(--text-primary)', marginBottom:8, wordBreak:'break-all', fontFamily:'monospace' }}>
                 {oxxoData.number}
               </p>
               <p style={{ fontSize:13, color:'var(--text-secondary)' }}>
