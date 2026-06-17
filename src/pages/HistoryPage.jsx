@@ -230,7 +230,7 @@ function RatingModal({ order, onClose, onDone }) {
               onChange={e => setComment(e.target.value)}
               placeholder="Cuéntanos tu experiencia (opcional)"
               style={{
-                width:'100%', minHeight:72, resize:'none', fontSize:14,
+                width:'100%', minHeight:72, resize:'none',
                 padding:'10px 12px', border:'1.5px solid var(--border)',
                 borderRadius:'var(--radius-md)', fontFamily:'inherit', marginBottom:14,
                 boxSizing:'border-box',
