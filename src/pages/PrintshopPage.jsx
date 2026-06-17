@@ -502,6 +502,16 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
         icon: '/icon-192.png',
       })
     }
+    // Push al dueño de la papelería (para cuando no tiene la app abierta)
+    supabase.functions.invoke('send-push', {
+      body: {
+        user_id: shop.owner_id,
+        title:   '🖨️ Nuevo pedido',
+        body:    'Tienes un documento listo para imprimir en Pliego',
+        tag:     'new-order',
+        url:     '/',
+      }
+    }).catch(() => {})
   }
 
   // Realtime: llegan pedidos nuevos sin refresh
@@ -527,10 +537,24 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
     setToggling(false)
   }
 
-  const updateStatus = async (orderId, status) => {
+  const updateStatus = async (orderId, status, order) => {
     const extra = status === 'listo' ? { ready_at: new Date().toISOString() }
       : status === 'entregado' ? { delivered_at: new Date().toISOString() } : {}
     await supabase.from('orders').update({ status, ...extra }).eq('id', orderId)
+
+    // Push al usuario cuando su impresión está lista
+    if (status === 'listo' && order?.user_id) {
+      supabase.functions.invoke('send-push', {
+        body: {
+          user_id: order.user_id,
+          title:   '✅ Tu impresión está lista',
+          body:    `Pasa a recogerla en ${shop.name}`,
+          tag:     'order-ready',
+          url:     '/',
+        }
+      }).catch(() => {})
+    }
+
     await onReload()
   }
 
@@ -629,7 +653,7 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
 
             {/* Botón 2: Imprimiendo — activo cuando es 'nuevo' */}
             <button
-              onClick={() => o.status === 'nuevo' && updateStatus(o.id, 'en_proceso')}
+              onClick={() => o.status === 'nuevo' && updateStatus(o.id, 'en_proceso', o)}
               style={{
                 padding:'8px 4px', fontSize:12, fontWeight:700,
                 borderRadius:'var(--radius-md)', border:'none',
@@ -647,8 +671,8 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
             {/* Botón 3: Listo / Entregado */}
             <button
               onClick={() => {
-                if (o.status === 'en_proceso') updateStatus(o.id, 'listo')
-                else if (o.status === 'listo') updateStatus(o.id, 'entregado')
+                if (o.status === 'en_proceso') updateStatus(o.id, 'listo', o)
+                else if (o.status === 'listo') updateStatus(o.id, 'entregado', o)
               }}
               style={{
                 padding:'8px 4px', fontSize:12, fontWeight:700,
