@@ -59,14 +59,27 @@ Deno.serve(async (req) => {
     let body: string
 
     if (method === 'oxxo') {
-      // OXXO: PaymentIntent con método oxxo
-      // Stripe genera el voucher con código de barras
+      // OXXO requiere crear un customer con email primero
+      const customerRes = await fetch('https://api.stripe.com/v1/customers', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${STRIPE_SK}`,
+          'Content-Type':  'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          'email': user.email ?? `${user.id}@pliego.com`,
+          'metadata[user_id]': user.id,
+        }).toString(),
+      })
+      const customer = await customerRes.json()
+
       const params = new URLSearchParams({
-        'amount':                          String(pkg.amount * 100), // centavos
+        'amount':                          String(pkg.amount * 100),
         'currency':                        'mxn',
         'payment_method_types[]':          'oxxo',
         'payment_method_data[type]':       'oxxo',
         'confirm':                         'true',
+        'customer':                        customer.id,
         'payment_method_options[oxxo][expires_after_days]': '3',
         'metadata[user_id]':               metadata.user_id,
         'metadata[package_id]':            metadata.package_id,
