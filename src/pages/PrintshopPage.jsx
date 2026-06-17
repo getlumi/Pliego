@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import SupportPage from './SupportPage'
 import { DAY_KEYS, DAY_LABELS, DEFAULT_HOURS } from '../lib/hours'
 
 const SERVICE_OPTIONS = [
@@ -26,6 +27,7 @@ export default function PrintshopPage({ session }) {
   const [orders, setOrders]   = useState([])
   const [tab, setTab]         = useState('orders')
   const [showWelcome, setShowWelcome] = useState(false)
+  const [showSupport, setShowSupport] = useState(false)
 
   useEffect(() => {
     loadShop()
@@ -82,6 +84,25 @@ export default function PrintshopPage({ session }) {
   }
 
   if (!shop) return <RegisterShop session={session} onRegistered={loadShop} />
+
+  // Si ya tiene datos pero nunca subió documentos, mostrar paso 2
+  if (!shop.submitted_at) return (
+    <RegisterShop
+      session={session}
+      existingShopId={shop.id}
+      onRegistered={loadShop}
+    />
+  )
+
+
+  if (showSupport) return (
+    <SupportPage
+      session={session}
+      fromType="printshop"
+      printshopId={shop?.id}
+      onBack={() => setShowSupport(false)}
+    />
+  )
 
   return (
     <div className="page" style={{ paddingBottom: 0 }}>
@@ -167,7 +188,7 @@ export default function PrintshopPage({ session }) {
         ? <OrdersTab shop={shop} orders={orders} setOrders={setOrders} onReload={loadShop} />
         : tab === 'earnings'
         ? <EarningsTab shop={shop} />
-        : <ConfigTab shop={shop} services={services} onSaved={loadShop} />}
+        : <ConfigTab shop={shop} services={services} onSaved={loadShop} onSupport={() => setShowSupport(true)} />}
     </div>
   )
 }
@@ -175,9 +196,9 @@ export default function PrintshopPage({ session }) {
 // ============================================================
 // REGISTRO
 // ============================================================
-export function RegisterShop({ session, onRegistered, onCancel }) {
-  const [step, setStep]         = useState(1) // 1=datos, 2=documentos
-  const [shopId, setShopId]     = useState(null)
+export function RegisterShop({ session, onRegistered, onCancel, existingShopId }) {
+  const [step, setStep]         = useState(existingShopId ? 2 : 1)
+  const [shopId, setShopId]     = useState(existingShopId ?? null)
   const [name, setName]         = useState('')
   const [whatsapp, setWhatsapp] = useState('')
   const [coords, setCoords]     = useState(null)
@@ -761,7 +782,7 @@ function EarningsTab({ shop }) {
 }
 
 
-function ConfigTab({ shop, services, onSaved }) {
+function ConfigTab({ shop, services, onSaved, onSupport }) {
   const [name, setName] = useState(shop.name)
   const [hours, setHours] = useState(() => {
     const h = shop.hours ?? DEFAULT_HOURS
@@ -967,6 +988,19 @@ function ConfigTab({ shop, services, onSaved }) {
       <button onClick={save} disabled={saving} className="btn-primary">
         <i className="ti ti-check" style={{ fontSize:16 }} />
         {saving ? 'Guardando...' : saved ? 'Guardado ✓' : 'Guardar configuración'}
+      </button>
+
+      <button
+        onClick={() => onSupport()}
+        style={{
+          width:'100%', marginTop:12, padding:12, background:'var(--green)',
+          border:'none', borderRadius:'var(--radius-md)',
+          color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+        }}
+      >
+        <i className="ti ti-headset" style={{ fontSize:15 }} />
+        Soporte
       </button>
 
       <button
