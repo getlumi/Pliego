@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 const TABS = [
@@ -7,6 +7,7 @@ const TABS = [
   { id: 'orders',       label: 'Pedidos',         icon: 'ti-list-details' },
   { id: 'users',        label: 'Usuarios',        icon: 'ti-users' },
   { id: 'finances',     label: 'Finanzas',        icon: 'ti-cash' },
+  { id: 'support',      label: 'Soporte',         icon: 'ti-headset' },
 ]
 
 export default function AdminPage({ session, onSignOut }) {
@@ -46,6 +47,7 @@ export default function AdminPage({ session, onSignOut }) {
       {tab === 'orders'       && <OrdersTab />}
       {tab === 'users'        && <UsersTab />}
       {tab === 'finances'     && <FinancesTab />}
+      {tab === 'support'      && <AdminSupportTab />}
     </div>
   )
 }
@@ -758,5 +760,177 @@ function Chip({ label, bold }) {
       padding:'2px 8px', borderRadius:'var(--radius-full)',
       border:'1px solid var(--border-light)', fontWeight: bold ? 700 : 400,
     }}>{label}</span>
+  )
+}
+
+// ============================================================
+// SOPORTE — panel de admin
+// ============================================================
+function AdminSupportTab() {
+  const [tickets, setTickets]       = useState([])
+  const [selected, setSelected]     = useState(null)
+  const [messages, setMessages]     = useState([])
+  const [reply, setReply]           = useState('')
+  const [loading, setLoading]       = useState(true)
+  const [sending, setSending]       = useState(false)
+  const bottomRef                   = useRef(null)
+
+  useEffect(() => { load() }, [])
+
+  const load = async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('support_tickets')
+      .select('*, users(name, phone), support_messages(id)')
+      .order('updated_at', { ascending: false })
+    setTickets(data ?? [])
+    setLoading(false)
+  }
+
+  const openTicket = async (ticket) => {
+    setSelected(ticket)
+    const { data } = await supabase
+      .from('support_messages')
+      .select('*')
+      .eq('ticket_id', ticket.id)
+      .order('created_at', { ascending: true })
+    setMessages(data ?? [])
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior:'smooth' }), 100)
+
+    // Suscribir a mensajes nuevos
+    supabase.channel(`admin:support:${ticket.id}`)
+      .on('postgres_changes', { event:'INSERT', schema:'public', table:'support_messages', filter:`ticket_id=eq.${ticket.id}` },
+        payload => { setMessages(prev => [...prev, payload.new]); setTimeout(() => bottomRef.current?.scrollIntoView({ behavior:'smooth' }), 100) })
+      .subscribe()
+  }
+
+  const sendReply = async () => {
+    if (!reply.trim() || sending || !selected) return
+    setSending(true)
+    await supabase.from('support_messages').insert({
+      ticket_id: selected.id, sender: 'admin', body: reply.trim(),
+    })
+    await supabase.from('support_tickets').update({
+      status: 'in_review', updated_at: new Date().toISOString(),
+    }).eq('id', selected.id)
+    setReply('')
+    setSending(false)
+  }
+
+  const setStatus = async (status) => {
+    await supabase.from('support_tickets').update({ status, updated_at: new Date().toISOString() }).eq('id', selected.id)
+    setSelected(prev => ({ ...prev, status }))
+    load()
+  }
+
+  const STATUS_LABEL = { open: 'Abierto', in_review: 'En revisión', resolved: 'Resuelto' }
+  const STATUS_COLOR = {
+    open:      { bg:'var(--amber-light)', color:'#92530a' },
+    in_review: { bg:'#dbeafe', color:'#1d4ed8' },
+    resolved:  { bg:'var(--green-light)', color:'var(--green-dark)' },
+  }
+
+  const openCount = tickets.filter(t => t.status !== 'resolved').length
+
+  if (selected) return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+      <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <button onClick={() => { setSelected(null); load() }} style={{ background:'none', border:'none', color:'var(--green)', fontWeight:700, cursor:'pointer', fontSize:13 }}>
+          ← Tickets
+        </button>
+        <div style={{ display:'flex', gap:6 }}>
+          {['open','in_review','resolved'].map(s => (
+            <button key={s} onClick={() => setStatus(s)} style={{
+              padding:'4px 8px', fontSize:11, fontWeight:700, borderRadius:'var(--radius-full)',
+              border: selected.status === s ? 'none' : '1px solid var(--border)',
+              background: selected.status === s ? (STATUS_COLOR[s]?.bg ?? '#fff') : '#fff',
+              color: selected.status === s ? (STATUS_COLOR[s]?.color ?? 'inherit') : 'var(--text-muted)',
+              cursor:'pointer',
+            }}>{STATUS_LABEL[s]}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding:'8px 16px', borderBottom:'1px solid var(--border)', background:'var(--bg)' }}>
+        <p style={{ fontSize:13, fontWeight:700 }}>{selected.subject}</p>
+        <p style={{ fontSize:11, color:'var(--text-muted)' }}>{selected.users?.name} · {selected.users?.phone} · {selected.from_type === 'printshop' ? 'Papelería' : 'Usuario'}</p>
+      </div>
+
+      <div style={{ flex:1, overflowY:'auto', padding:16, display:'flex', flexDirection:'column', gap:10, paddingBottom:80 }}>
+        {messages.map(m => {
+          const isAdmin = m.sender === 'admin'
+          return (
+            <div key={m.id} style={{ display:'flex', justifyContent: isAdmin ? 'flex-end' : 'flex-start' }}>
+              <div style={{
+                maxWidth:'80%', padding:'10px 14px', borderRadius:16,
+                borderBottomRightRadius: isAdmin ? 4 : 16,
+                borderBottomLeftRadius: isAdmin ? 16 : 4,
+                background: isAdmin ? 'var(--green)' : '#F3F4F6',
+                color: isAdmin ? '#fff' : 'var(--text-primary)',
+              }}>
+                {!isAdmin && <p style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', marginBottom:4 }}>Cliente</p>}
+                <p style={{ fontSize:14, lineHeight:1.5 }}>{m.body}</p>
+                <p style={{ fontSize:10, marginTop:4, opacity:0.7, textAlign:'right' }}>
+                  {new Date(m.created_at).toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' })}
+                </p>
+              </div>
+            </div>
+          )
+        })}
+        <div ref={bottomRef} />
+      </div>
+
+      <div style={{ position:'sticky', bottom:0, background:'#fff', borderTop:'1px solid var(--border)', padding:'12px 16px', display:'flex', gap:8, alignItems:'flex-end' }}>
+        <textarea value={reply} onChange={e => setReply(e.target.value)} placeholder="Responder..." rows={1}
+          style={{ flex:1, resize:'none', fontSize:14, padding:'10px 12px', border:'1.5px solid var(--border)', borderRadius:20, fontFamily:'inherit', maxHeight:100 }}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
+        />
+        <button onClick={sendReply} disabled={!reply.trim() || sending} style={{
+          width:40, height:40, borderRadius:'50%', border:'none', flexShrink:0,
+          background: reply.trim() ? 'var(--green)' : 'var(--border)', cursor: reply.trim() ? 'pointer' : 'default',
+          display:'flex', alignItems:'center', justifyContent:'center',
+        }}>
+          <i className="ti ti-send" style={{ fontSize:18, color:'#fff' }} />
+        </button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="scroll-content">
+      <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)' }}>
+        {openCount} ticket{openCount !== 1 ? 's' : ''} abierto{openCount !== 1 ? 's' : ''}
+      </p>
+      {loading ? <p style={{ textAlign:'center', color:'var(--text-muted)', padding:32 }}>Cargando...</p> :
+        tickets.length === 0 ? (
+          <div className="card" style={{ textAlign:'center', padding:32 }}>
+            <i className="ti ti-headset" style={{ fontSize:40, color:'var(--text-muted)', display:'block', marginBottom:12 }} />
+            <p style={{ color:'var(--text-muted)', fontSize:14 }}>No hay tickets de soporte</p>
+          </div>
+        ) : tickets.map(t => {
+          const sc = STATUS_COLOR[t.status] ?? STATUS_COLOR.open
+          return (
+            <div key={t.id} className="card" style={{ cursor:'pointer', border: t.status === 'open' ? '1.5px solid var(--amber)' : undefined }}
+              onClick={() => openTicket(t)}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
+                <div>
+                  <p style={{ fontSize:13, fontWeight:700 }}>{t.subject}</p>
+                  <p style={{ fontSize:11, color:'var(--text-secondary)' }}>
+                    {t.users?.name} · {t.from_type === 'printshop' ? 'Papelería' : 'Usuario'}
+                  </p>
+                  <p style={{ fontSize:11, color:'var(--text-muted)' }}>
+                    {new Date(t.updated_at).toLocaleString('es-MX', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
+                    {' · '}{t.support_messages?.length ?? 0} msj
+                  </p>
+                </div>
+                <span style={{ fontSize:11, padding:'3px 8px', borderRadius:'var(--radius-full)', fontWeight:700, background:sc.bg, color:sc.color, whiteSpace:'nowrap' }}>
+                  {STATUS_LABEL[t.status]}
+                </span>
+              </div>
+            </div>
+          )
+        })
+      }
+    </div>
   )
 }
