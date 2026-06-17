@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 const TABS = [
-  { id: 'verifications', label: 'Verificaciones', icon: 'ti-shield-check' },
-  { id: 'printshops',   label: 'Papelerías',     icon: 'ti-building-store' },
-  { id: 'orders',       label: 'Pedidos',         icon: 'ti-list-details' },
-  { id: 'users',        label: 'Usuarios',        icon: 'ti-users' },
-  { id: 'finances',     label: 'Finanzas',        icon: 'ti-cash' },
-  { id: 'support',      label: 'Soporte',         icon: 'ti-headset' },
+  { id: 'verifications', label: 'KYC',       icon: 'ti-shield-check' },
+  { id: 'printshops',   label: 'Imprentas',  icon: 'ti-building-store' },
+  { id: 'orders',       label: 'Pedidos',    icon: 'ti-list-details' },
+  { id: 'users',        label: 'Usuarios',   icon: 'ti-users' },
+  { id: 'finances',     label: 'Finanzas',   icon: 'ti-cash' },
+  { id: 'support',      label: 'Soporte',    icon: 'ti-headset' },
 ]
 
 export default function AdminPage({ session, onSignOut }) {
