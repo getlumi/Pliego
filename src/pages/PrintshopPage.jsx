@@ -65,14 +65,16 @@ export default function PrintshopPage({ session }) {
     if (data) await loadOrders(data.id)
 
     // Si recién fue aprobada y aún no vio el mensaje, mostrarlo
-    if (data?.verified && !sessionStorage.getItem(`welcome_shown_${data.id}`)) {
-      // Solo mostrar si submitted_at existe (pasó por KYC) y fue aprobada recientemente
+    if (data?.verified && !data?.welcome_shown) {
       if (data.reviewed_at) {
         const reviewedAt = new Date(data.reviewed_at)
         const hoursSinceReview = (Date.now() - reviewedAt.getTime()) / 1000 / 3600
-        if (hoursSinceReview < 48) { // solo en las primeras 48h post-aprobación
+        if (hoursSinceReview < 48) {
           setShowWelcome(true)
-          sessionStorage.setItem(`welcome_shown_${data.id}`, '1')
+          // Marcar como visto en DB para no volver a mostrar
+          await supabase.from('printshops')
+            .update({ welcome_shown: true })
+            .eq('id', data.id)
         }
       }
     }
