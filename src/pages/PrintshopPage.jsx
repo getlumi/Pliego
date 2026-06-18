@@ -184,9 +184,10 @@ export default function PrintshopPage({ session }) {
       {/* Tabs */}
       <div style={{ display:'flex', gap:8, padding:'14px 16px 0' }}>
         {[
-          {id:'orders',   label:'Pedidos',     icon:'ti-list-details'},
-          {id:'earnings', label:'Ganancias',   icon:'ti-cash'},
-          {id:'config',   label:'Config',      icon:'ti-settings'},
+          {id:'orders',   label:'Pedidos',   icon:'ti-list-details'},
+          {id:'earnings', label:'Ganancias', icon:'ti-cash'},
+          {id:'reviews',  label:'Reseñas',   icon:'ti-star'},
+          {id:'config',   label:'Config',    icon:'ti-settings'},
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             flex:1, padding:'10px 0', borderRadius:'var(--radius-md)',
@@ -204,6 +205,8 @@ export default function PrintshopPage({ session }) {
         ? <OrdersTab shop={shop} orders={orders} setOrders={setOrders} onReload={loadShop} onReloadOrders={() => loadOrders(shop.id)} />
         : tab === 'earnings'
         ? <EarningsTab shop={shop} />
+        : tab === 'reviews'
+        ? <ReviewsTab shop={shop} />
         : <ConfigTab shop={shop} services={services} onSaved={loadShop} onSupport={() => setShowSupport(true)} />}
     </div>
   )
@@ -693,6 +696,95 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ============================================================
+// TAB: RESEÑAS
+// ============================================================
+function ReviewsTab({ shop }) {
+  const [ratings, setRatings] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    supabase
+      .from('ratings')
+      .select('*, users(name)')
+      .eq('printshop_id', shop.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { setRatings(data ?? []); setLoading(false) })
+  }, [shop.id])
+
+  const avg   = shop.rating_avg   ?? 0
+  const count = shop.rating_count ?? 0
+
+  const stars = (n, size = 16) => Array.from({ length: 5 }, (_, i) => (
+    <span key={i} style={{ fontSize: size, color: i < n ? '#F59E0B' : '#E5E7EB' }}>★</span>
+  ))
+
+  const dist = [5, 4, 3, 2, 1].map(s => ({
+    s, count: ratings.filter(r => r.stars === s).length,
+    pct: count > 0 ? Math.round(ratings.filter(r => r.stars === s).length / count * 100) : 0,
+  }))
+
+  const fmtDate = iso => new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })
+
+  return (
+    <div className="scroll-content">
+      {/* Resumen */}
+      <div className="card" style={{ textAlign: 'center' }}>
+        <p style={{ fontSize: 48, fontWeight: 900, lineHeight: 1 }}>{avg > 0 ? Number(avg).toFixed(1) : '—'}</p>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 2, margin: '6px 0' }}>
+          {stars(Math.round(avg), 22)}
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+          {count === 0 ? 'Sin reseñas aún' : `${count} reseña${count !== 1 ? 's' : ''}`}
+        </p>
+
+        {/* Distribución */}
+        {count > 0 && (
+          <div style={{ marginTop: 16, textAlign: 'left' }}>
+            {dist.map(d => (
+              <div key={d.s} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', width: 16, textAlign: 'right' }}>{d.s}</span>
+                <span style={{ fontSize: 13, color: '#F59E0B' }}>★</span>
+                <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--border-light)' }}>
+                  <div style={{ height: '100%', width: `${d.pct}%`, background: '#F59E0B', borderRadius: 3, transition: 'width 0.3s' }} />
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 24 }}>{d.count}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Lista de reseñas */}
+      {loading ? (
+        <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>Cargando...</p>
+      ) : count === 0 ? (
+        <div className="card" style={{ textAlign: 'center', padding: 32 }}>
+          <i className="ti ti-star" style={{ fontSize: 40, color: 'var(--text-muted)', display: 'block', marginBottom: 12 }} />
+          <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Cuando entregues pedidos, aquí verás las calificaciones de tus clientes</p>
+        </div>
+      ) : (
+        ratings.map(r => (
+          <div key={r.id} className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700 }}>{r.users?.name ?? 'Cliente'}</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{fmtDate(r.created_at)}</p>
+              </div>
+              <div style={{ display: 'flex', gap: 1 }}>{stars(r.stars, 14)}</div>
+            </div>
+            {r.comment && (
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, fontStyle: 'italic' }}>
+                "{r.comment}"
+              </p>
+            )}
+          </div>
+        ))
+      )}
     </div>
   )
 }
