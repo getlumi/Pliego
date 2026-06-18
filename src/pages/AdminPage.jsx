@@ -86,7 +86,7 @@ function VerificationsTab() {
 
   const openDetail = (shop) => {
     setSelected(shop)
-    // Inicializar estados de documentos
+    setDocUrls({})
     const statuses = {}
     DOC_FIELDS.forEach(d => { statuses[d.statusKey] = shop[d.statusKey] ?? 'pending' })
     setDocStatuses(statuses)
@@ -94,9 +94,12 @@ function VerificationsTab() {
     setGlobalReason('')
   }
 
-  const getDocUrl = async (path) => {
-    const { data } = await supabase.storage.from('verification-docs').createSignedUrl(path, 120)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  const [docUrls, setDocUrls] = useState({})
+
+  const getDocUrl = async (path, key) => {
+    if (docUrls[key]) return // ya generado
+    const { data } = await supabase.storage.from('verification-docs').createSignedUrl(path, 300)
+    if (data?.signedUrl) setDocUrls(prev => ({ ...prev, [key]: data.signedUrl }))
   }
 
   const setDocStatus = (statusKey, value) => {
@@ -160,9 +163,16 @@ function VerificationsTab() {
                 <p style={{ fontSize:13, fontWeight:700 }}>{doc.label}</p>
               </div>
               {selected[doc.key] ? (
-                <button onClick={() => getDocUrl(selected[doc.key])} className="btn-outline" style={{ padding:'6px 12px', fontSize:12 }}>
-                  <i className="ti ti-eye" style={{ fontSize:13 }} /> Ver
-                </button>
+                docUrls[doc.key] ? (
+                  <a href={docUrls[doc.key]} target="_blank" rel="noopener noreferrer"
+                    style={{ padding:'6px 12px', fontSize:12, fontWeight:700, borderRadius:'var(--radius-md)', border:'1px solid var(--green)', background:'var(--green)', color:'#fff', textDecoration:'none', display:'flex', alignItems:'center', gap:4 }}>
+                    <i className="ti ti-external-link" style={{ fontSize:13 }} /> Abrir
+                  </a>
+                ) : (
+                  <button onClick={() => getDocUrl(selected[doc.key], doc.key)} className="btn-outline" style={{ padding:'6px 12px', fontSize:12 }}>
+                    <i className="ti ti-eye" style={{ fontSize:13 }} /> Ver
+                  </button>
+                )
               ) : (
                 <span style={{ fontSize:12, color:'var(--text-muted)' }}>No subido</span>
               )}
