@@ -194,7 +194,7 @@ function VerificationsTab() {
           <p style={{ fontSize:13, fontWeight:700, marginBottom:8, color:'var(--red)' }}>Mensaje al solicitante (opcional)</p>
           <textarea value={globalReason} onChange={e => setGlobalReason(e.target.value)}
             placeholder="Agrega instrucciones adicionales si lo necesitas..."
-            style={{ width:'100%', minHeight:70, resize:'none', fontSize:13, padding:'10px 12px', border:'1px solid var(--border)', borderRadius:'var(--radius-md)', fontFamily:'inherit' }}
+            style={{ width:'100%', minHeight:70, resize:'none', padding:'10px 12px', border:'1px solid var(--border)', borderRadius:'var(--radius-md)', fontFamily:'inherit' }}
           />
         </div>
       )}
@@ -882,7 +882,7 @@ function AdminSupportTab() {
 
       <div style={{ position:'sticky', bottom:0, background:'#fff', borderTop:'1px solid var(--border)', padding:'12px 16px', display:'flex', gap:8, alignItems:'flex-end' }}>
         <textarea value={reply} onChange={e => setReply(e.target.value)} placeholder="Responder..." rows={1}
-          style={{ flex:1, resize:'none', fontSize:14, padding:'10px 12px', border:'1.5px solid var(--border)', borderRadius:20, fontFamily:'inherit', maxHeight:100 }}
+          style={{ flex:1, resize:'none', padding:'10px 12px', border:'1.5px solid var(--border)', borderRadius:20, fontFamily:'inherit', maxHeight:100 }}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
         />
         <button onClick={sendReply} disabled={!reply.trim() || sending} style={{
