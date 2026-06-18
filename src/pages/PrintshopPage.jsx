@@ -172,7 +172,23 @@ export default function PrintshopPage({ session }) {
               <p style={{ fontSize:13, fontWeight:700, color:'var(--red)', marginBottom:4 }}>
                 <i className="ti ti-x" style={{ fontSize:14, verticalAlign:-1 }} /> Verificación rechazada
               </p>
-              <p style={{ fontSize:12, color:'var(--text-secondary)' }}>{shop.rejection_reason ?? 'Contacta a soporte para más información.'}</p>
+              <p style={{ fontSize:12, color:'var(--text-secondary)', marginBottom:10 }}>{shop.rejection_reason ?? 'Uno o más documentos no fueron aceptados.'}</p>
+              <button
+                onClick={async () => {
+                  // Limpiar submitted_at para que vuelva al paso 2
+                  await supabase.from('printshops').update({
+                    submitted_at: null,
+                    verification_status: 'pending',
+                    ine_url: null, selfie_url: null, address_proof_url: null,
+                    doc_ine_status: 'pending', doc_selfie_status: 'pending', doc_address_status: 'pending',
+                  }).eq('id', shop.id)
+                  loadShop()
+                }}
+                style={{ fontSize:12, fontWeight:700, color:'var(--red)', background:'none', border:'1px solid var(--red)', borderRadius:'var(--radius-md)', padding:'6px 12px', cursor:'pointer' }}
+              >
+                <i className="ti ti-upload" style={{ fontSize:12, marginRight:4 }} />
+                Volver a subir documentos
+              </button>
             </div>
           ) : (
             <div style={{ background:'var(--amber-light)', border:'1px solid var(--amber)', borderRadius:'var(--radius-md)', padding:'12px 14px' }}>
