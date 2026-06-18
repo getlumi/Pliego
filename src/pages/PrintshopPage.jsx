@@ -540,6 +540,8 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
   const pending = orders.filter(o => o.status === 'nuevo' || o.status === 'en_proceso')
   const today = orders.filter(o => new Date(o.created_at).toDateString() === new Date().toDateString())
   const cashToCollect = pending.reduce((sum, o) => sum + (o.estimated_cost ?? 0), 0)
+  const delivered = orders.filter(o => o.status === 'entregado')
+  const activeOrders = orders.filter(o => o.status !== 'entregado')
 
   const toggleAvailable = async () => {
     setToggling(true)
@@ -608,7 +610,22 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
           <i className="ti ti-inbox" style={{ fontSize:40, color:'var(--text-muted)', display:'block', marginBottom:12 }} />
           <p style={{ color:'var(--text-muted)', fontSize:14 }}>Todavía no te ha llegado ningún pedido</p>
         </div>
-      ) : orders.map(o => (
+      ) : (
+        <>
+          {activeOrders.length === 0 && delivered.length > 0 && (
+            <div className="card" style={{ textAlign:'center', padding:16, background:'var(--green-light)' }}>
+              <p style={{ fontSize:13, fontWeight:700, color:'var(--green-dark)' }}>
+                <i className="ti ti-circle-check" style={{ fontSize:14, marginRight:6 }} />
+                ¡Todo al día! · {delivered.length} pedido{delivered.length>1?'s':''} entregado{delivered.length>1?'s':''}
+              </p>
+            </div>
+          )}
+          {delivered.length > 0 && activeOrders.length > 0 && (
+            <p style={{ fontSize:11, color:'var(--text-muted)', textAlign:'right' }}>
+              {delivered.length} entregado{delivered.length>1?'s':''} oculto{delivered.length>1?'s':''}
+            </p>
+          )}
+          {activeOrders.map(o => (
         <div key={o.id} className="card" style={{
           border: o.status === 'nuevo' ? '1.5px solid var(--amber)' :
                   o.status === 'en_proceso' ? '1.5px solid var(--green)' : undefined,
@@ -722,7 +739,8 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
             </button>
           </div>
         </div>
-      ))}
+      ))}</>
+      )}
     </div>
   )
 }
@@ -743,8 +761,8 @@ function ReviewsTab({ shop }) {
       .then(({ data }) => { setRatings(data ?? []); setLoading(false) })
   }, [shop.id])
 
-  const avg   = shop.rating_avg   ?? 0
-  const count = shop.rating_count ?? 0
+  const avg   = ratings.length > 0 ? ratings.reduce((s, r) => s + r.stars, 0) / ratings.length : 0
+  const count = ratings.length
 
   const stars = (n, size = 16) => Array.from({ length: 5 }, (_, i) => (
     <span key={i} style={{ fontSize: size, color: i < n ? '#F59E0B' : '#E5E7EB' }}>★</span>
