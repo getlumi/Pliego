@@ -565,8 +565,18 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
 
   const download = async (order) => {
     const { data, error } = await supabase.storage.from('documents').createSignedUrl(order.file_url, 60)
-    if (!error && data?.signedUrl) window.open(data.signedUrl, '_blank')
-    else alert('No se pudo generar el enlace de descarga')
+    if (!error && data?.signedUrl) {
+      // Usar <a> programático para evitar bloqueo de Safari en async
+      const a = document.createElement('a')
+      a.href = data.signedUrl
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } else {
+      alert('No se pudo generar el enlace de descarga')
+    }
   }
 
   const fmtTime = (iso) => iso
@@ -653,7 +663,7 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
               borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'#fff',
               color:'var(--text-primary)', display:'flex', alignItems:'center', justifyContent:'center', gap:4,
             }}>
-              <i className="ti ti-download" style={{ fontSize:14 }} /> Bajar
+              <i className="ti ti-download" style={{ fontSize:14 }} /> Descargar
             </button>
 
             {/* Botón 2: Imprimiendo — activo cuando es 'nuevo' */}
