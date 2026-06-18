@@ -1,18 +1,20 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import SupportPage from './SupportPage'
+import SupportPage  from './SupportPage'
+import TutorialPage from './TutorialPage'
 
 export default function ProfilePage({ session, onNavigate }) {
-  const [showSupport, setShowSupport] = useState(false)
+  const [showSupport,  setShowSupport]  = useState(false)
+  const [showTutorial, setShowTutorial] = useState(false)
   const name    = session?.user?.user_metadata?.name ?? 'Usuario'
   const initial = name[0]?.toUpperCase()
 
   if (showSupport) return (
-    <SupportPage
-      session={session}
-      fromType="user"
-      onBack={() => setShowSupport(false)}
-    />
+    <SupportPage session={session} fromType="user" onBack={() => setShowSupport(false)} />
+  )
+
+  if (showTutorial) return (
+    <TutorialPage type="user" onClose={() => setShowTutorial(false)} />
   )
 
   return (
@@ -24,7 +26,10 @@ export default function ProfilePage({ session, onNavigate }) {
         <p style={{ fontSize:20, fontWeight:800, color:'#fff' }}>{name}</p>
       </div>
       <div className="scroll-content">
-        <button className="btn-primary" onClick={() => setShowSupport(true)}>
+        <button className="btn-primary" onClick={() => setShowTutorial(true)}>
+          <i className="ti ti-help" style={{ fontSize:18 }} /> Ver tutorial
+        </button>
+        <button className="btn-primary" onClick={() => setShowSupport(true)} style={{ marginTop:8 }}>
           <i className="ti ti-headset" style={{ fontSize:18 }} /> Soporte
         </button>
         <button className="btn-outline" onClick={() => supabase.auth.signOut()} style={{ marginTop:8 }}>
