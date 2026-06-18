@@ -194,6 +194,7 @@ export default function PrintshopPage({ session }) {
           {id:'earnings', label:'Ganancias', icon:'ti-cash'},
           {id:'reviews',  label:'Reseñas',   icon:'ti-star'},
           {id:'config',   label:'Config',    icon:'ti-settings'},
+          {id:'profile',  label:'Perfil',    icon:'ti-user'},
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             flex:1, padding:'10px 0', borderRadius:'var(--radius-md)',
@@ -213,7 +214,9 @@ export default function PrintshopPage({ session }) {
         ? <EarningsTab shop={shop} />
         : tab === 'reviews'
         ? <ReviewsTab shop={shop} />
-        : <ConfigTab shop={shop} services={services} onSaved={loadShop} onSupport={() => setShowSupport(true)} onTutorial={() => setShowTutorial(true)} />}
+        : tab === 'profile'
+        ? <PrintshopProfileTab shop={shop} onSupport={() => setShowSupport(true)} onTutorial={() => setShowTutorial(true)} />
+        : <ConfigTab shop={shop} services={services} onSaved={loadShop} />}
     </div>
   )
 }
@@ -967,7 +970,34 @@ function EarningsTab({ shop }) {
 }
 
 
-function ConfigTab({ shop, services, onSaved, onSupport, onTutorial }) {
+// ============================================================
+// TAB: PERFIL (papelería)
+// ============================================================
+function PrintshopProfileTab({ shop, onSupport, onTutorial }) {
+  const initial = shop?.name?.[0]?.toUpperCase() ?? 'P'
+  return (
+    <div className="scroll-content">
+      <div style={{ textAlign:'center', padding:'24px 0 8px' }}>
+        <div style={{ width:72, height:72, borderRadius:'50%', background:'var(--green)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px', fontSize:28, fontWeight:900, color:'#fff' }}>
+          {initial}
+        </div>
+        <p style={{ fontSize:18, fontWeight:800 }}>{shop?.name}</p>
+        <p style={{ fontSize:13, color:'var(--text-secondary)' }}>Panel de papelería</p>
+      </div>
+      <button className="btn-primary" onClick={onTutorial}>
+        <i className="ti ti-help" style={{ fontSize:18 }} /> Ver tutorial
+      </button>
+      <button className="btn-primary" onClick={onSupport} style={{ marginTop:8 }}>
+        <i className="ti ti-headset" style={{ fontSize:18 }} /> Soporte
+      </button>
+      <button className="btn-outline" onClick={() => { if (window.confirm('¿Seguro que quieres cerrar sesión?')) supabase.auth.signOut() }} style={{ marginTop:8 }}>
+        <i className="ti ti-logout" style={{ fontSize:18 }} /> Cerrar sesión
+      </button>
+    </div>
+  )
+}
+
+function ConfigTab({ shop, services, onSaved }) {
   const [name, setName] = useState(shop.name)
   const [hours, setHours] = useState(() => {
     const h = shop.hours ?? DEFAULT_HOURS
@@ -1173,45 +1203,6 @@ function ConfigTab({ shop, services, onSaved, onSupport, onTutorial }) {
       <button onClick={save} disabled={saving} className="btn-primary">
         <i className="ti ti-check" style={{ fontSize:16 }} />
         {saving ? 'Guardando...' : saved ? 'Guardado ✓' : 'Guardar configuración'}
-      </button>
-
-      <button
-        onClick={() => onTutorial()}
-        style={{
-          width:'100%', marginTop:12, padding:12, background:'var(--green-light)',
-          border:'1px solid var(--green)', borderRadius:'var(--radius-md)',
-          color:'var(--green-dark)', fontSize:13, fontWeight:700, cursor:'pointer',
-          display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-        }}
-      >
-        <i className="ti ti-help" style={{ fontSize:15 }} />
-        Ver tutorial
-      </button>
-
-      <button
-        onClick={() => onSupport()}
-        style={{
-          width:'100%', marginTop:12, padding:12, background:'var(--green)',
-          border:'none', borderRadius:'var(--radius-md)',
-          color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer',
-          display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-        }}
-      >
-        <i className="ti ti-headset" style={{ fontSize:15 }} />
-        Soporte
-      </button>
-
-      <button
-        onClick={() => { if (window.confirm('¿Seguro que quieres cerrar sesión?')) supabase.auth.signOut() }}
-        style={{
-          width:'100%', marginTop:6, padding:12, background:'none',
-          border:'1px solid var(--border)', borderRadius:'var(--radius-md)',
-          color:'var(--text-secondary)', fontSize:13, fontWeight:600, cursor:'pointer',
-          display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-        }}
-      >
-        <i className="ti ti-logout" style={{ fontSize:15 }} />
-        Cerrar sesión
       </button>
     </div>
   )
