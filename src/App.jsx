@@ -11,7 +11,6 @@ import PrintshopPage, { RegisterShop } from './pages/PrintshopPage'
 import AdminPage       from './pages/AdminPage'
 import Navbar          from './components/layout/Navbar'
 import { createEmptyDraft, revokeDraftUrls } from './lib/draft'
-import { registerPush } from './lib/push'
 
 export default function App() {
   const [session,  setSession]  = useState(null)
@@ -91,9 +90,11 @@ export default function App() {
       .maybeSingle()
     setOwnsShop(!!shop)
 
-    // Registrar push en segundo plano, SIN bloquear la carga de la app
-    if (data?.onboarding_seen && Notification.permission === 'granted') {
-      setTimeout(() => registerPush(userId).catch(() => {}), 3000)
+    // Desregistrar cualquier Service Worker anterior que pudiera causar problemas
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(reg => reg.unregister())
+      }).catch(() => {})
     }
 
     setLoading(false)
