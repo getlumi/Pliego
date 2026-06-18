@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import AuthPage        from './pages/AuthPage'
 import OnboardingPage  from './pages/OnboardingPage'
+import TutorialPage    from './pages/TutorialPage'
 import HomePage        from './pages/HomePage'
 import UploadPage      from './pages/UploadPage'
 import WalletPage      from './pages/WalletPage'
@@ -156,9 +157,15 @@ export default function App() {
     </div></div>
   )
 
-  if (!onboarded || showTutorial) return (
+  if (!onboarded) return (
     <div className="app-shell"><div className="phone-frame">
-      <OnboardingPage session={session} onComplete={() => { setOnboarded(true); setShowTutorial(false) }} />
+      <OnboardingPage session={session} onComplete={() => setOnboarded(true)} />
+    </div></div>
+  )
+
+  if (showTutorial) return (
+    <div className="app-shell"><div className="phone-frame">
+      <TutorialPage type="user" onClose={() => setShowTutorial(false)} />
     </div></div>
   )
 
