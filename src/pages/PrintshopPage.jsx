@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import SupportPage from './SupportPage'
+import SupportPage  from './SupportPage'
+import TutorialPage from './TutorialPage'
 import { DAY_KEYS, DAY_LABELS, DEFAULT_HOURS } from '../lib/hours'
 
 const SERVICE_OPTIONS = [
@@ -27,7 +28,8 @@ export default function PrintshopPage({ session }) {
   const [orders, setOrders]   = useState([])
   const [tab, setTab]         = useState('orders')
   const [showWelcome, setShowWelcome] = useState(false)
-  const [showSupport, setShowSupport] = useState(false)
+  const [showSupport,  setShowSupport]  = useState(false)
+  const [showTutorial, setShowTutorial] = useState(false)
 
   useEffect(() => {
     loadShop()
@@ -110,6 +112,10 @@ export default function PrintshopPage({ session }) {
     />
   )
 
+
+  if (showTutorial) return (
+    <TutorialPage type="printshop" onClose={() => setShowTutorial(false)} />
+  )
 
   if (showSupport) return (
     <SupportPage
@@ -207,7 +213,7 @@ export default function PrintshopPage({ session }) {
         ? <EarningsTab shop={shop} />
         : tab === 'reviews'
         ? <ReviewsTab shop={shop} />
-        : <ConfigTab shop={shop} services={services} onSaved={loadShop} onSupport={() => setShowSupport(true)} />}
+        : <ConfigTab shop={shop} services={services} onSaved={loadShop} onSupport={() => setShowSupport(true)} onTutorial={() => setShowTutorial(true)} />}
     </div>
   )
 }
@@ -935,7 +941,7 @@ function EarningsTab({ shop }) {
 }
 
 
-function ConfigTab({ shop, services, onSaved, onSupport }) {
+function ConfigTab({ shop, services, onSaved, onSupport, onTutorial }) {
   const [name, setName] = useState(shop.name)
   const [hours, setHours] = useState(() => {
     const h = shop.hours ?? DEFAULT_HOURS
@@ -1141,6 +1147,19 @@ function ConfigTab({ shop, services, onSaved, onSupport }) {
       <button onClick={save} disabled={saving} className="btn-primary">
         <i className="ti ti-check" style={{ fontSize:16 }} />
         {saving ? 'Guardando...' : saved ? 'Guardado ✓' : 'Guardar configuración'}
+      </button>
+
+      <button
+        onClick={() => onTutorial()}
+        style={{
+          width:'100%', marginTop:12, padding:12, background:'var(--green-light)',
+          border:'1px solid var(--green)', borderRadius:'var(--radius-md)',
+          color:'var(--green-dark)', fontSize:13, fontWeight:700, cursor:'pointer',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+        }}
+      >
+        <i className="ti ti-help" style={{ fontSize:15 }} />
+        Ver tutorial
       </button>
 
       <button
