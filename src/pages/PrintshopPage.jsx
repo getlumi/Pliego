@@ -398,9 +398,17 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
       </div>
       <div className="scroll-content">
         <div className="card">
+          {/* Instrucción importante */}
+          <div style={{ background:'var(--amber-light)', border:'1px solid var(--amber)', borderRadius:'var(--radius-md)', padding:'10px 14px', marginBottom:14, display:'flex', gap:8 }}>
+            <i className="ti ti-map-pin" style={{ fontSize:16, color:'#92530a', flexShrink:0, marginTop:1 }} />
+            <p style={{ fontSize:13, color:'#92530a', lineHeight:1.5 }}>
+              <strong>Importante:</strong> Presiona el botón de ubicación estando <strong>dentro de tu local</strong> para que tu dirección sea exacta.
+            </p>
+          </div>
+
           <button onClick={getLocation} disabled={locating} className={coords ? 'btn-outline' : 'btn-primary'} style={{ marginBottom: 14 }}>
             <i className={`ti ${coords ? 'ti-circle-check' : 'ti-current-location'}`} style={{ fontSize:16 }} />
-            {locating ? 'Buscando ubicación...' : coords ? 'Ubicación obtenida ✓' : 'Usar mi ubicación actual'}
+            {locating ? 'Obteniendo ubicación...' : coords ? '✓ Ubicación registrada' : 'Capturar mi ubicación ahora'}
           </button>
 
           <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>NOMBRE DE TU PAPELERÍA</label>
