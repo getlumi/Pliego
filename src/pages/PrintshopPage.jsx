@@ -1163,7 +1163,7 @@ function ConfigTab({ shop, services, onSaved }) {
               <i className="ti ti-file" style={{ fontSize:18, color:'var(--text-secondary)' }} />
               <input type="text" value={s.label} onChange={e => updateCustomLabel(idx, e.target.value)}
                 placeholder="Nombre del tipo"
-                style={{ flex:1, fontSize:14, border:'none', background:'transparent', padding:0, color:'var(--text-primary)' }} />
+                style={{ flex:1, fontSize:16, border:'none', background:'transparent', padding:0, color:'var(--text-primary)' }} />
               <span style={{ fontSize:13, color:'var(--text-secondary)' }}>$</span>
               <input type="number" min="0" step="0.5" value={s.price} disabled={!s.enabled}
                 onChange={e => setCustomPrice(idx, e.target.value)}
@@ -1182,11 +1182,11 @@ function ConfigTab({ shop, services, onSaved }) {
         <div style={{ display:'flex', gap:8, marginTop:12, alignItems:'center' }}>
           <input type="text" placeholder="Ej. Cartulina, Adhesivo..." value={newCustomLabel}
             onChange={e => setNewCustomLabel(e.target.value)}
-            style={{ flex:1, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:13 }} />
+            style={{ flex:1, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:16 }} />
           <span style={{ fontSize:13, color:'var(--text-secondary)' }}>$</span>
           <input type="number" min="0" step="0.5" placeholder="0" value={newCustomPrice}
             onChange={e => setNewCustomPrice(e.target.value)}
-            style={{ width:56, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:13 }} />
+            style={{ width:56, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:16 }} />
           <button onClick={addCustomService} disabled={!newCustomLabel.trim()} aria-label="Agregar tipo" style={{
             width:32, height:32, borderRadius:'var(--radius-sm)', border:'none', flexShrink:0,
             background: newCustomLabel.trim() ? 'var(--green)' : 'var(--border)',
@@ -1261,10 +1261,10 @@ function DayHours({ label, periods, onChange }) {
           {periods.map((p, idx) => (
             <div key={idx} style={{ display:'flex', alignItems:'center', gap:6 }}>
               <input type="time" value={p.open} onChange={e => updatePeriod(idx, 'open', e.target.value)}
-                style={{ flex:1, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:13 }} />
+                style={{ flex:1, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:16 }} />
               <span style={{ fontSize:12, color:'var(--text-muted)' }}>–</span>
               <input type="time" value={p.close} onChange={e => updatePeriod(idx, 'close', e.target.value)}
-                style={{ flex:1, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:13 }} />
+                style={{ flex:1, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:16 }} />
               {periods.length > 1 && (
                 <button onClick={() => removePeriod(idx)} aria-label="Quitar turno" style={{
                   width:28, height:28, borderRadius:'50%', border:'none', background:'var(--red-light)',
