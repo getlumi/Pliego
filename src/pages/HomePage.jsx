@@ -136,20 +136,21 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
         </div>
       </div>
 
-      {/* Papelería elegida */}
+      {/* Papelería elegida — siempre visible en el header */}
       {selectedShop && (
-        <div style={{ padding: '0 16px', marginTop: -16, marginBottom: 10 }}>
-          <div className="card" style={{
+        <div style={{ background: 'var(--gradient-dark)', padding: '0 16px 14px' }}>
+          <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '10px 14px', border: '1.5px solid var(--green)', background: 'var(--green-light)',
+            background: 'rgba(255,255,255,0.12)', borderRadius: 12,
+            padding: '10px 14px', border: '1px solid rgba(255,255,255,0.2)',
           }}>
-            <span style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <i className="ti ti-circle-check" style={{ fontSize: 16, color: 'var(--green)' }} />
-              Imprimirás en: {selectedShop.name}
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <i className="ti ti-circle-check-filled" style={{ fontSize: 16, color: '#4ade80' }} />
+              {selectedShop.name}
             </span>
             <button
               onClick={() => shopsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
             >
               Cambiar
             </button>
