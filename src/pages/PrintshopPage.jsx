@@ -563,19 +563,18 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
     await onReload()
   }
 
+  const [downloadUrls, setDownloadUrls] = useState({}) // orderId -> signedUrl
+
   const download = async (order) => {
-    const { data, error } = await supabase.storage.from('documents').createSignedUrl(order.file_url, 60)
+    // Si ya tenemos la URL, no hacer nada (el enlace ya está visible)
+    if (downloadUrls[order.id]) return
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(order.file_url, 300) // 5 minutos
     if (!error && data?.signedUrl) {
-      // Usar <a> programático para evitar bloqueo de Safari en async
-      const a = document.createElement('a')
-      a.href = data.signedUrl
-      a.target = '_blank'
-      a.rel = 'noopener noreferrer'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
+      setDownloadUrls(prev => ({ ...prev, [order.id]: data.signedUrl }))
     } else {
-      alert('No se pudo generar el enlace de descarga')
+      alert('No se pudo generar el enlace')
     }
   }
 
@@ -658,13 +657,25 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6 }}>
 
             {/* Botón 1: Descargar — siempre activo */}
-            <button onClick={() => download(o)} style={{
-              padding:'8px 4px', fontSize:12, fontWeight:700, cursor:'pointer',
-              borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'#fff',
-              color:'var(--text-primary)', display:'flex', alignItems:'center', justifyContent:'center', gap:4,
-            }}>
-              <i className="ti ti-download" style={{ fontSize:14 }} /> Descargar
-            </button>
+            {downloadUrls[o.id] ? (
+              <a href={downloadUrls[o.id]} target="_blank" rel="noopener noreferrer" style={{
+                flex:1, padding:'8px 4px', fontSize:12, fontWeight:700,
+                borderRadius:'var(--radius-md)', border:'1px solid var(--green)',
+                background:'var(--green)', color:'#fff',
+                display:'flex', alignItems:'center', justifyContent:'center', gap:4,
+                textDecoration:'none',
+              }}>
+                <i className="ti ti-external-link" style={{ fontSize:14 }} /> Abrir archivo
+              </a>
+            ) : (
+              <button onClick={() => download(o)} style={{
+                flex:1, padding:'8px 4px', fontSize:12, fontWeight:700, cursor:'pointer',
+                borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'#fff',
+                color:'var(--text-primary)', display:'flex', alignItems:'center', justifyContent:'center', gap:4,
+              }}>
+                <i className="ti ti-download" style={{ fontSize:14 }} /> Descargar
+              </button>
+            )}
 
             {/* Botón 2: Imprimiendo — activo cuando es 'nuevo' */}
             <button
