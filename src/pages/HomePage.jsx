@@ -10,6 +10,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   const [user,     setUser]     = useState(null)
   const [showSelectPrompt, setShowSelectPrompt] = useState(false)
   const shopsRef = useRef(null)
+  const topRef = useRef(null)
 
   // Cuando el usuario elige papelería, ocultamos el aviso
   const handleSelectShop = (shopId) => {
@@ -67,6 +68,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
     }
     setShops(shops)
     setLoading(false)
+    // La papelería elegida se coloca al frente en el render (ver sortedShops)
   }
 
   const distKm = (lat1, lon1, lat2, lon2) => {
@@ -76,6 +78,10 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   }
 
   const selectedShop = shops.find(s => s.id === draft.shopId)
+  // Siempre mostrar la papelería elegida en primer lugar
+  const sortedShops = selectedShop
+    ? [selectedShop, ...shops.filter(s => s.id !== draft.shopId)]
+    : shops
 
   const handleUploadTap = () => {
     if (!draft.shopId) {
@@ -101,6 +107,13 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
       ))}
     </span>
   )
+
+  // Scroll al top para que la papelería elegida (y el botón Enviar) sea lo primero visible
+  React.useEffect(() => {
+    if (draft.shopId && draft.files.length > 0) {
+      setTimeout(() => topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    }
+  }, [])
 
   return (
     <div className="page">
@@ -210,6 +223,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
 
       {/* Shops list */}
       <div className="scroll-content">
+        <div ref={topRef} />
         <div ref={shopsRef} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <i className="ti ti-map-pin" style={{ fontSize: 16, color: 'var(--green)' }} />
           <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
@@ -234,7 +248,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
           <p style={{ textAlign:'center', color:'var(--text-muted)', fontSize:14, padding:20 }}>Buscando...</p>
         ) : shops.length === 0 ? (
           <p style={{ textAlign:'center', color:'var(--text-muted)', fontSize:14, padding:20 }}>No hay papelerías disponibles en este momento</p>
-        ) : shops.map(shop => (
+        ) : sortedShops.map(shop => (
           <ShopCard key={shop.id} shop={shop} serviceIcons={serviceIcons} Stars={Stars}
             isSelected={draft.shopId === shop.id}
             onSelect={() => handleSelectShop(shop.id)}
@@ -319,7 +333,9 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
       {/* Services chips */}
       <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:10 }}>
         {services.map(s => {
-          const meta = serviceIcons[s.service_type] ?? { icon:'ti-file', label: s.service_type }
+          const preset = serviceIcons[s.service_type]
+          const icon  = preset ? preset.icon : 'ti-file'
+          const label = preset ? preset.label : (s.label ?? s.service_type)
           return (
             <span key={s.id} style={{
               display:'flex', alignItems:'center', gap:4,
@@ -327,8 +343,8 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
               padding:'3px 8px', borderRadius:'var(--radius-full)',
               border:'1px solid var(--border-light)',
             }}>
-              <i className={`ti ${meta.icon}`} style={{ fontSize:13 }} />
-              {meta.label} ${s.price_per_sheet}
+              <i className={`ti ${icon}`} style={{ fontSize:13 }} />
+              {label} ${s.price_per_sheet}
             </span>
           )
         })}
