@@ -234,14 +234,17 @@ export default function PrintshopPage({ session }) {
         ? <ReviewsTab shop={shop} />
         : tab === 'profile'
         ? <PrintshopProfileTab shop={shop} onSupport={() => setShowSupport(true)} onTutorial={() => setShowTutorial(true)} />
-        : <ConfigTab shop={shop} services={services} onSaved={async () => {
-            // Solo actualizamos el nombre del shop en el header, sin recargar services
-            // (recargar services destruiría el estado local de ConfigTab)
-            const { data } = await supabase.from('printshops')
-              .select('name, hours, is_available, verified, verification_status, welcome_shown, rating_avg, rating_count, whatsapp, latitude, longitude, submitted_at, rejection_reason, reviewed_at')
-              .eq('id', shop.id).maybeSingle()
-            if (data) setShop(prev => ({ ...prev, ...data }))
-          }} />}
+        : <ConfigTab shop={shop} services={services}
+            onServicesChange={setServices}
+            onSaved={async () => {
+              // Recargar services frescos del padre para que al remontar ConfigTab
+              // el prop `services` ya tenga los datos actualizados de DB
+              const { data: freshServices } = await supabase
+                .from('printshop_services')
+                .select('*')
+                .eq('printshop_id', shop.id)
+              if (freshServices) setServices(freshServices)
+            }} />}
     </div>
   )
 }
@@ -1037,7 +1040,7 @@ function PrintshopProfileTab({ shop, onSupport, onTutorial }) {
   )
 }
 
-function ConfigTab({ shop, services, onSaved }) {
+function ConfigTab({ shop, services, onServicesChange, onSaved }) {
   const [name, setName] = useState(shop.name)
   const [hours, setHours] = useState(() => {
     const h = shop.hours ?? DEFAULT_HOURS
@@ -1146,7 +1149,9 @@ function ConfigTab({ shop, services, onSaved }) {
 
     setSaving(false)
     setSaved(true)
-    onSaved()
+    // Notificar al padre para que actualice su prop `services` desde DB
+    // Esto garantiza que al remontar ConfigTab (cambio de tab), los datos sean correctos
+    await onSaved()
   }
 
   return (
@@ -1353,5 +1358,6 @@ function ToggleSwitch({ checked, onChange, disabled }) {
     </label>
   )
 }
+
 
 
