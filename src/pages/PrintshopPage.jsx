@@ -1214,7 +1214,10 @@ function ConfigTab({ shop, services, onServicesChange, onSaved }) {
                 placeholder="Nombre del tipo"
                 style={{ flex:1, fontSize:16, border:'none', background:'transparent', padding:0, color:'var(--text-primary)' }} />
               <span style={{ fontSize:13, color:'var(--text-secondary)' }}>$</span>
-              <input type="number" min="0" step="0.5" value={s.price} disabled={!s.enabled}
+              <input type="number" min="0" step="0.5"
+                value={s.price === 0 || s.price === '0' || s.price === '' ? '' : s.price}
+                placeholder="0"
+                disabled={!s.enabled}
                 onChange={e => setCustomPrice(idx, e.target.value)}
                 style={{ width:56, padding:'6px 8px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)' }} />
               <button onClick={() => removeCustomService(idx)} aria-label="Eliminar tipo" style={{
@@ -1358,6 +1361,7 @@ function ToggleSwitch({ checked, onChange, disabled }) {
     </label>
   )
 }
+
 
 
 
