@@ -555,15 +555,30 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
   }
 
   // Realtime: llegan pedidos nuevos sin refresh
+  // NOTA: No usamos filter en postgres_changes porque requiere REPLICA IDENTITY FULL.
+  // Filtramos por printshop_id en el callback para evitar silently-failing subscriptions.
   useEffect(() => {
-    const channel = supabase
-      .channel(`orders:printshop:${shop.id}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'orders',
-        filter: `printshop_id=eq.${shop.id}`,
-      }, (payload) => { notifyNewOrder(payload); onReloadOrders() })
-      .subscribe()
-    return () => supabase.removeChannel(channel)
+    let channel
+    const setupChannel = () => {
+      channel = supabase
+        .channel(`orders:shop:${shop.id}:${Date.now()}`)
+        .on('postgres_changes', {
+          event: '*', schema: 'public', table: 'orders',
+        }, (payload) => {
+          const shopId = payload.new?.printshop_id ?? payload.old?.printshop_id
+          if (shopId !== shop.id) return
+          notifyNewOrder(payload)
+          onReloadOrders()
+        })
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            supabase.removeChannel(channel)
+            setTimeout(setupChannel, 3000)
+          }
+        })
+    }
+    setupChannel()
+    return () => { if (channel) supabase.removeChannel(channel) }
   }, [shop.id])
 
   const pending = orders.filter(o => o.status === 'nuevo' || o.status === 'en_proceso')
