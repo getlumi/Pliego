@@ -204,7 +204,7 @@ export default function PrintshopPage({ session }) {
       )}
 
       {/* Tabs */}
-      <div style={{ display:'flex', gap:8, padding:'14px 16px 0' }}>
+      <div style={{ display:'flex', gap:5, padding:'14px 12px 0' }}>
         {[
           {id:'orders',   label:'Pedidos',   icon:'ti-list-details'},
           {id:'earnings', label:'Ganancias', icon:'ti-cash'},
@@ -213,13 +213,15 @@ export default function PrintshopPage({ session }) {
           {id:'profile',  label:'Perfil',    icon:'ti-user'},
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
-            flex:1, padding:'10px 0', borderRadius:'var(--radius-md)',
+            flex:1, padding:'9px 2px', borderRadius:'var(--radius-md)',
             border: tab === t.id ? 'none' : '1px solid var(--border)',
             background: tab === t.id ? 'var(--gradient)' : '#fff',
             color: tab === t.id ? '#fff' : 'var(--text-secondary)',
-            fontSize:12, fontWeight:700, cursor:'pointer',
+            fontSize:11, fontWeight:700, cursor:'pointer',
+            display:'flex', flexDirection:'column', alignItems:'center', gap:3,
           }}>
-            <i className={`ti ${t.icon}`} style={{ fontSize:14, verticalAlign:-2, marginRight:4 }} />{t.label}
+            <i className={`ti ${t.icon}`} style={{ fontSize:15 }} />
+            <span>{t.label}</span>
           </button>
         ))}
       </div>
@@ -1037,8 +1039,8 @@ function ConfigTab({ shop, services, onSaved }) {
   const [newCustomLabel, setNewCustomLabel] = useState('')
   const [newCustomPrice, setNewCustomPrice] = useState('')
 
-  // Re-sincroniza tras guardar (cuando el padre recarga `services` con los ids reales)
-  useEffect(() => { setCustomServices(deriveCustom(services)) }, [services])
+  // No re-sincronizamos desde el prop services para evitar que el useEffect
+  // sobreescriba el estado local después de guardar. Los ids se actualizan en save().
 
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -1093,7 +1095,9 @@ function ConfigTab({ shop, services, onSaved }) {
       }, { onConflict: 'printshop_id,service_type' })
     }
 
-    for (const cs of customServices) {
+    const updatedCustoms = [...customServices]
+    for (let i = 0; i < updatedCustoms.length; i++) {
+      const cs = updatedCustoms[i]
       if (cs.id) {
         await supabase.from('printshop_services').update({
           label: cs.label.trim(),
@@ -1101,15 +1105,17 @@ function ConfigTab({ shop, services, onSaved }) {
           enabled: cs.enabled,
         }).eq('id', cs.id)
       } else {
-        await supabase.from('printshop_services').insert({
+        const { data: inserted } = await supabase.from('printshop_services').insert({
           printshop_id: shop.id,
           service_type: cs.service_type,
           label: cs.label.trim(),
           price_per_sheet: Number(cs.price) || 0,
           enabled: cs.enabled,
-        })
+        }).select().single()
+        if (inserted) updatedCustoms[i] = { ...cs, id: inserted.id }
       }
     }
+    setCustomServices(updatedCustoms)
 
     for (const id of removedCustomIds) {
       await supabase.from('printshop_services').delete().eq('id', id)
@@ -1325,3 +1331,4 @@ function ToggleSwitch({ checked, onChange, disabled }) {
     </label>
   )
 }
+
