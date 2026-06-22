@@ -81,7 +81,7 @@ const TUTORIAL_PRINTSHOP = [
     icon:    'ti-printer',
     color:   '#1A1A1A',
     title:   '3. Los 3 botones del pedido',
-    desc:    'Cada pedido tiene 3 botones independientes:\n• "Imprimir" → confirma que empezaste a imprimir\n• "Listo" → avisa al cliente que puede pasar\n• "Entregar" → cierra el pedido al hacer entrega',
+    desc:    'Cada pedido tiene 3 botones: "Imprimir" confirma que empezaste, "Listo" avisa al cliente que puede pasar a recoger, y "Entregar" cierra el pedido al hacer la entrega.',
     tip:     '💡 Cuando tocas "Listo", el cliente recibe una notificación automática.',
   },
   {
@@ -102,8 +102,15 @@ const TUTORIAL_PRINTSHOP = [
     icon:    'ti-settings',
     color:   '#1A1A1A',
     title:   '6. Configura tu papelería',
-    desc:    'En "Config" puedes cambiar tus horarios, precios por tipo de impresión y agregar servicios personalizados.',
-    tip:     '💡 Mantén actualizado el toggle "Recibiendo pedidos" para que los clientes sepan si estás disponible.',
+    desc:    'En "Config" puedes cambiar tus horarios, precios por tipo de impresión y agregar servicios personalizados como cartulina, adhesivo o fotográfico.',
+    tip:     null,
+  },
+  {
+    icon:    'ti-toggle-right',
+    color:   '#1A1A1A',
+    title:   '7. Activa y desactiva cuando quieras',
+    desc:    'El toggle "Recibiendo pedidos" en Config te permite pausar temporalmente sin desaparecer de la app. Úsalo cuando estés lleno, en descanso o fuera del local.',
+    tip:     '💡 Los clientes ven si estás disponible u ocupado antes de elegirte.',
   },
 ]
 
@@ -211,3 +218,4 @@ export default function TutorialPage({ type = 'user', onClose }) {
     </div>
   )
 }
+
