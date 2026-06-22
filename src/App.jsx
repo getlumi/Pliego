@@ -21,6 +21,7 @@ export default function App() {
   const [isAdmin,  setIsAdmin]  = useState(false)
   const [businessIntent, setBusinessIntent] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
+  const [showPrintshopTutorial, setShowPrintshopTutorial] = useState(false)
   const [page,     setPage]     = useState(() => {
     // Detectar si Mercado Pago nos redirigió de vuelta
     const path = window.location.pathname
@@ -151,11 +152,18 @@ export default function App() {
   )
 
   // Cuenta de negocio: panel propio, sin tutorial ni navegación de cliente
-  if (ownsShop) return (
-    <div className="app-shell"><div className="phone-frame">
-      <PrintshopPage session={session} />
-    </div></div>
-  )
+  if (ownsShop) {
+    if (showPrintshopTutorial) return (
+      <div className="app-shell"><div className="phone-frame">
+        <TutorialPage type="printshop" onClose={() => setShowPrintshopTutorial(false)} />
+      </div></div>
+    )
+    return (
+      <div className="app-shell"><div className="phone-frame">
+        <PrintshopPage session={session} />
+      </div></div>
+    )
+  }
 
   if (!onboarded) return (
     <div className="app-shell"><div className="phone-frame">
@@ -174,7 +182,7 @@ export default function App() {
     <div className="app-shell"><div className="phone-frame">
       <RegisterShop
         session={session}
-        onRegistered={() => setOwnsShop(true)}
+        onRegistered={() => { setOwnsShop(true); setShowPrintshopTutorial(true) }}
         onCancel={() => setBusinessIntent(false)}
       />
     </div></div>
@@ -237,3 +245,4 @@ function PaymentResult({ status, onNavigate }) {
     </div>
   )
 }
+
