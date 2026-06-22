@@ -101,10 +101,22 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   }
 
   const Stars = ({ rating }) => (
-    <span className="stars">
-      {[1,2,3,4,5].map(i => (
-        <i key={i} className={`ti ${i <= Math.round(rating) ? 'ti-star-filled star-filled' : 'ti-star star-empty'}`} />
-      ))}
+    <span style={{ display:'inline-flex', gap:1 }}>
+      {[1,2,3,4,5].map(i => {
+        const fill = Math.min(1, Math.max(0, rating - (i - 1)))
+        return (
+          <span key={i} style={{ position:'relative', width:14, height:14, display:'inline-block' }}>
+            {/* Estrella vacía (fondo) */}
+            <i className="ti ti-star" style={{ fontSize:14, color:'#E5E7EB', position:'absolute', left:0, top:0 }} />
+            {/* Estrella llena recortada al porcentaje exacto */}
+            {fill > 0 && (
+              <span style={{ position:'absolute', left:0, top:0, width:`${fill*100}%`, overflow:'hidden', display:'inline-block' }}>
+                <i className="ti ti-star-filled" style={{ fontSize:14, color:'#F59E0B' }} />
+              </span>
+            )}
+          </span>
+        )
+      })}
     </span>
   )
 
@@ -432,3 +444,4 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
     </div>
   )
 }
+
