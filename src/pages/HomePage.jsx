@@ -101,18 +101,23 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   }
 
   const Stars = ({ rating }) => (
-    <span style={{ display:'inline-flex', gap:1 }}>
+    <span style={{ display:'inline-flex', gap:2 }}>
       {[1,2,3,4,5].map(i => {
         const fill = Math.min(1, Math.max(0, rating - (i - 1)))
         return (
-          <span key={i} style={{ position:'relative', width:14, height:14, display:'inline-block' }}>
-            {/* Estrella vacía (fondo) */}
-            <i className="ti ti-star" style={{ fontSize:14, color:'#E5E7EB', position:'absolute', left:0, top:0 }} />
-            {/* Estrella llena recortada al porcentaje exacto */}
+          <span key={i} style={{ position:'relative', display:'inline-block', width:15, height:15 }}>
+            {/* Base: estrella vacía gris */}
+            <i className="ti ti-star-filled" style={{
+              fontSize:15, color:'#E5E7EB',
+              position:'absolute', left:0, top:0, lineHeight:1,
+            }} />
+            {/* Overlay: estrella amarilla recortada con clipPath */}
             {fill > 0 && (
-              <span style={{ position:'absolute', left:0, top:0, width:`${fill*100}%`, overflow:'hidden', display:'inline-block' }}>
-                <i className="ti ti-star-filled" style={{ fontSize:14, color:'#F59E0B' }} />
-              </span>
+              <i className="ti ti-star-filled" style={{
+                fontSize:15, color:'#F59E0B',
+                position:'absolute', left:0, top:0, lineHeight:1,
+                clipPath: `inset(0 ${100 - fill*100}% 0 0)`,
+              }} />
             )}
           </span>
         )
@@ -444,4 +449,5 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
     </div>
   )
 }
+
 
