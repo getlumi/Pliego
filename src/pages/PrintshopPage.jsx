@@ -234,7 +234,14 @@ export default function PrintshopPage({ session }) {
         ? <ReviewsTab shop={shop} />
         : tab === 'profile'
         ? <PrintshopProfileTab shop={shop} onSupport={() => setShowSupport(true)} onTutorial={() => setShowTutorial(true)} />
-        : <ConfigTab shop={shop} services={services} onSaved={loadShop} />}
+        : <ConfigTab shop={shop} services={services} onSaved={async () => {
+            // Solo actualizamos el nombre del shop en el header, sin recargar services
+            // (recargar services destruiría el estado local de ConfigTab)
+            const { data } = await supabase.from('printshops')
+              .select('name, hours, is_available, verified, verification_status, welcome_shown, rating_avg, rating_count, whatsapp, latitude, longitude, submitted_at, rejection_reason, reviewed_at')
+              .eq('id', shop.id).maybeSingle()
+            if (data) setShop(prev => ({ ...prev, ...data }))
+          }} />}
     </div>
   )
 }
@@ -1346,4 +1353,5 @@ function ToggleSwitch({ checked, onChange, disabled }) {
     </label>
   )
 }
+
 
