@@ -101,26 +101,28 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   }
 
   const Stars = ({ rating }) => (
-    <span style={{ display:'inline-flex', gap:2 }}>
+    <span style={{ display:'inline-flex', gap:1 }}>
       {[1,2,3,4,5].map(i => {
         const fill = Math.min(1, Math.max(0, rating - (i - 1)))
-        return (
-          <span key={i} style={{ position:'relative', display:'inline-block', width:15, height:15 }}>
-            {/* Base: estrella vacía gris */}
-            <i className="ti ti-star-filled" style={{
-              fontSize:15, color:'#E5E7EB',
-              position:'absolute', left:0, top:0, lineHeight:1,
-            }} />
-            {/* Overlay: estrella amarilla recortada con clipPath */}
-            {fill > 0 && (
-              <i className="ti ti-star-filled" style={{
-                fontSize:15, color:'#F59E0B',
-                position:'absolute', left:0, top:0, lineHeight:1,
-                clipPath: `inset(0 ${100 - fill*100}% 0 0)`,
-              }} />
-            )}
-          </span>
-        )
+        if (fill >= 1) {
+          // Estrella completamente llena
+          return <span key={i} style={{ fontSize:14, color:'#F59E0B', lineHeight:1 }}>★</span>
+        } else if (fill <= 0) {
+          // Estrella vacía
+          return <span key={i} style={{ fontSize:14, color:'#E5E7EB', lineHeight:1 }}>★</span>
+        } else {
+          // Estrella parcial: gris de fondo, amarilla recortada encima
+          return (
+            <span key={i} style={{ position:'relative', display:'inline-block', fontSize:14, lineHeight:1 }}>
+              <span style={{ color:'#E5E7EB' }}>★</span>
+              <span style={{
+                position:'absolute', left:0, top:0, overflow:'hidden',
+                width:`${fill*100}%`, display:'inline-block', whiteSpace:'nowrap',
+                color:'#F59E0B',
+              }}>★</span>
+            </span>
+          )
+        }
       })}
     </span>
   )
@@ -449,5 +451,6 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
     </div>
   )
 }
+
 
 
