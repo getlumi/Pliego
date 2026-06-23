@@ -1067,8 +1067,29 @@ function ConfigTab({ shop, services, onServicesChange, onSaved }) {
   // No re-sincronizamos desde el prop services para evitar que el useEffect
   // sobreescriba el estado local después de guardar. Los ids se actualizan en save().
 
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [saving, setSaving]     = useState(false)
+  const [saved, setSaved]       = useState(false)
+  const [locating, setLocating] = useState(false)
+  const [locSaved, setLocSaved] = useState(false)
+
+  const updateLocation = () => {
+    if (!navigator.geolocation) return
+    setLocating(true)
+    setLocSaved(false)
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        await supabase.from('printshops').update({
+          latitude:  pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        }).eq('id', shop.id)
+        setLocating(false)
+        setLocSaved(true)
+        setTimeout(() => setLocSaved(false), 3000)
+      },
+      () => setLocating(false),
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
 
   const toggleService = (type) => {
     setSvcState(prev => ({ ...prev, [type]: { ...prev[type], enabled: !prev[type].enabled } }))
@@ -1252,6 +1273,24 @@ function ConfigTab({ shop, services, onServicesChange, onSaved }) {
         </p>
       </div>
 
+      {/* Ubicación */}
+      <div className="card">
+        <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:8 }}>
+          UBICACIÓN DEL NEGOCIO
+        </label>
+        <p style={{ fontSize:12, color:'var(--text-muted)', marginBottom:10, lineHeight:1.5 }}>
+          Toca estando dentro de tu local para mayor precisión.
+        </p>
+        <button
+          onClick={updateLocation}
+          disabled={locating}
+          className={locSaved ? 'btn-outline' : 'btn-primary'}
+        >
+          <i className={`ti ${locSaved ? 'ti-circle-check' : 'ti-current-location'}`} style={{ fontSize:16 }} />
+          {locating ? 'Obteniendo ubicación...' : locSaved ? '✓ Ubicación actualizada' : 'Actualizar ubicación'}
+        </button>
+      </div>
+
       <button onClick={save} disabled={saving} className="btn-primary">
         <i className="ti ti-check" style={{ fontSize:16 }} />
         {saving ? 'Guardando...' : saved ? 'Guardado ✓' : 'Guardar configuración'}
@@ -1361,6 +1400,7 @@ function ToggleSwitch({ checked, onChange, disabled }) {
     </label>
   )
 }
+
 
 
 
