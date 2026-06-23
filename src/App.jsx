@@ -55,7 +55,7 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const checkOnboarding = async (userId) => {
+  const checkOnboarding = async (userId, showShopTutorial = false) => {
     let { data } = await supabase
       .from('users')
       .select('onboarding_seen, is_admin')
@@ -91,6 +91,7 @@ export default function App() {
       .eq('owner_id', userId)
       .maybeSingle()
     setOwnsShop(!!shop)
+    if (!!shop && showShopTutorial) setShowPrintshopTutorial(true)
 
     // Desregistrar cualquier Service Worker anterior que pudiera causar problemas
     if ('serviceWorker' in navigator) {
@@ -182,7 +183,7 @@ export default function App() {
     <div className="app-shell"><div className="phone-frame">
       <RegisterShop
         session={session}
-        onRegistered={() => { setOwnsShop(true); setShowPrintshopTutorial(true) }}
+        onRegistered={() => checkOnboarding(session.user.id, true)}
         onCancel={() => setBusinessIntent(false)}
       />
     </div></div>
@@ -245,4 +246,5 @@ function PaymentResult({ status, onNavigate }) {
     </div>
   )
 }
+
 
