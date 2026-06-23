@@ -82,18 +82,29 @@ export default function AuthPage({ onAuth }) {
           Imprime cerca de ti, sin complicaciones
         </p>
 
-        <button
-          onClick={() => setIntent(i => i === 'business' ? 'consumer' : 'business')}
-          style={{
-            marginTop: 16, display: 'flex', alignItems: 'center', gap: 6,
-            background: intent === 'business' ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
-            border: '1px solid rgba(255,255,255,0.25)', borderRadius: 'var(--radius-full)',
-            padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer',
-          }}
-        >
-          <i className="ti ti-printer" style={{ fontSize: 14 }} />
-          {intent === 'business' ? 'Entrando como negocio · cambiar' : '¿Tienes una papelería? Entra aquí'}
-        </button>
+        <div style={{ display:'flex', gap:10, width:'100%', marginTop:16 }}>
+          {[
+            { value:'consumer', icon:'ti-user',           label:'Soy usuario' },
+            { value:'business', icon:'ti-building-store', label:'Soy negocio' },
+          ].map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setIntent(opt.value)}
+              style={{
+                flex:1, padding:'12px 6px', borderRadius:16,
+                border:'2px solid rgba(255,255,255,0.8)',
+                background: intent === opt.value ? '#fff' : 'transparent',
+                color:       intent === opt.value ? '#111' : '#fff',
+                cursor:'pointer', display:'flex', flexDirection:'column',
+                alignItems:'center', gap:6,
+                fontSize:13, fontWeight:800, fontFamily:'inherit',
+              }}
+            >
+              <i className={`ti ${opt.icon}`} style={{ fontSize:22, color: intent === opt.value ? '#111' : '#fff' }} />
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Card */}
@@ -102,6 +113,16 @@ export default function AuthPage({ onAuth }) {
         borderRadius: '32px 32px 0 0',
         padding: '32px 24px 40px',
       }}>
+        {intent === 'business' && (
+          <div style={{
+            display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            background:'#111', color:'#fff', borderRadius:10,
+            padding:'8px 14px', fontSize:13, fontWeight:700, marginBottom:16,
+          }}>
+            <i className="ti ti-building-store" style={{ fontSize:15 }} />
+            Registrando como negocio
+          </div>
+        )}
         {/* Tabs */}
         <div style={{
           display: 'grid', gridTemplateColumns: '1fr 1fr',
@@ -221,3 +242,4 @@ const inputStyle = {
   fontSize: 16, color: 'var(--text-primary)',
   background: 'transparent', fontFamily: 'inherit', width: '100%',
 }
+
