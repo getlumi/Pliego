@@ -439,12 +439,12 @@ function UsersTab() {
     if (!shopName.trim()) { setConvertError('Escribe el nombre del negocio'); return }
     setConverting(true)
     setConvertError('')
-    const { error } = await supabase.from('printshops').insert({
-      name: shopName.trim(),
-      whatsapp: convertModal.phone ?? '',
-      latitude: 21.1619,
-      longitude: -86.8515,
-      owner_id: convertModal.id,
+    const { error } = await supabase.rpc('admin_create_printshop', {
+      p_owner_id:  convertModal.id,
+      p_name:      shopName.trim(),
+      p_whatsapp:  convertModal.phone ?? '',
+      p_latitude:  21.1619,
+      p_longitude: -86.8515,
     })
     setConverting(false)
     if (error) {
@@ -1051,4 +1051,5 @@ function AdminSupportTab() {
     </div>
   )
 }
+
 
