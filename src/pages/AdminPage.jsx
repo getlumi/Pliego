@@ -399,33 +399,116 @@ function OrdersTab() {
 // USUARIOS
 // ============================================================
 function UsersTab() {
-  const [users, setUsers]     = useState([])
-  const [loading, setLoading] = useState(true)
+  const [users, setUsers]       = useState([])
+  const [shops, setShops]       = useState([]) // para saber quién ya tiene papelería
+  const [loading, setLoading]   = useState(true)
   const [toggling, setToggling] = useState(null)
+  const [convertModal, setConvertModal] = useState(null) // { user }
+  const [shopName, setShopName] = useState('')
+  const [converting, setConverting] = useState(false)
+  const [convertError, setConvertError] = useState('')
 
-  const load = () => {
+  const load = async () => {
     setLoading(true)
-    supabase.from('users').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => { setUsers(data ?? []); setLoading(false) })
+    const [usersRes, shopsRes] = await Promise.all([
+      supabase.from('users').select('*').order('created_at', { ascending: false }),
+      supabase.from('printshops').select('owner_id'),
+    ])
+    setUsers(usersRes.data ?? [])
+    setShops(shopsRes.data ?? [])
+    setLoading(false)
   }
 
   useEffect(() => { load() }, [])
 
   const toggleActive = async (user) => {
-    if (user.is_admin) return // no desactivar admins
+    if (user.is_admin) return
     setToggling(user.id)
-    await supabase.from('users')
-      .update({ is_active: !user.is_active })
-      .eq('id', user.id)
+    await supabase.from('users').update({ is_active: !user.is_active }).eq('id', user.id)
     await load()
     setToggling(null)
   }
 
+  const openConvert = (user) => {
+    setShopName(user.name ?? '')
+    setConvertError('')
+    setConvertModal(user)
+  }
+
+  const convertToShop = async () => {
+    if (!shopName.trim()) { setConvertError('Escribe el nombre del negocio'); return }
+    setConverting(true)
+    setConvertError('')
+    const { error } = await supabase.from('printshops').insert({
+      name: shopName.trim(),
+      whatsapp: convertModal.phone ?? '',
+      latitude: 21.1619,
+      longitude: -86.8515,
+      owner_id: convertModal.id,
+    })
+    setConverting(false)
+    if (error) {
+      if (error.code === '23505') setConvertError('Este usuario ya tiene una papelería registrada')
+      else setConvertError('Error al registrar: ' + error.message)
+      return
+    }
+    setConvertModal(null)
+    await load()
+  }
+
+  const shopOwnerIds = new Set(shops.map(s => s.owner_id))
   const totalBalance = users.reduce((sum, u) => sum + (u.wallet_balance ?? 0), 0)
   const activeUsers  = users.filter(u => u.is_active !== false)
 
   return (
     <div className="scroll-content">
+
+      {/* Modal convertir a papelería */}
+      {convertModal && (
+        <div style={{
+          position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:1000,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:24,
+        }}>
+          <div style={{ background:'#fff', borderRadius:20, padding:28, width:'100%', maxWidth:320 }}>
+            <p style={{ fontSize:16, fontWeight:800, marginBottom:4 }}>Registrar como papelería</p>
+            <p style={{ fontSize:13, color:'var(--text-secondary)', marginBottom:16 }}>
+              La próxima vez que <strong>{convertModal.name}</strong> abra la app, verá el panel de papelería.
+            </p>
+            <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>
+              NOMBRE DEL NEGOCIO
+            </label>
+            <input
+              type="text"
+              value={shopName}
+              onChange={e => setShopName(e.target.value)}
+              placeholder="Ej. Papelería San Juan"
+              style={{ width:'100%', padding:'10px 12px', fontSize:16, border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)', marginBottom:8, boxSizing:'border-box' }}
+            />
+            <p style={{ fontSize:11, color:'var(--text-muted)', marginBottom:16 }}>
+              La ubicación quedará en el centro de la ciudad — la papelería deberá actualizarla desde Config.
+            </p>
+            {convertError && (
+              <p style={{ fontSize:12, color:'var(--red)', marginBottom:10, fontWeight:600 }}>{convertError}</p>
+            )}
+            <button
+              onClick={convertToShop}
+              disabled={converting}
+              className="btn-primary"
+              style={{ marginBottom:8 }}
+            >
+              <i className="ti ti-building-store" style={{ fontSize:16 }} />
+              {converting ? 'Registrando...' : 'Confirmar'}
+            </button>
+            <button
+              onClick={() => setConvertModal(null)}
+              style={{ width:'100%', background:'none', border:'none', color:'var(--text-muted)', fontSize:13, cursor:'pointer', padding:6 }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
         <div className="card" style={{ textAlign:'center' }}>
           <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Total</p>
@@ -444,6 +527,7 @@ function UsersTab() {
       {loading ? <p style={{ textAlign:'center', color:'var(--text-muted)', padding:32 }}>Cargando...</p> :
         users.map(u => {
           const isActive = u.is_active !== false
+          const hasShop  = shopOwnerIds.has(u.id)
           return (
             <div key={u.id} className="card" style={{
               opacity: isActive ? 1 : 0.6,
@@ -456,6 +540,11 @@ function UsersTab() {
                     {u.is_admin && (
                       <span style={{ fontSize:10, background:'var(--green)', color:'#fff', padding:'1px 6px', borderRadius:'var(--radius-full)' }}>Admin</span>
                     )}
+                    {hasShop && (
+                      <span style={{ fontSize:10, background:'var(--green-light)', color:'var(--green-dark)', padding:'1px 6px', borderRadius:'var(--radius-full)', fontWeight:700 }}>
+                        <i className="ti ti-building-store" style={{ fontSize:10 }} /> Papelería
+                      </span>
+                    )}
                     {!isActive && (
                       <span style={{ fontSize:10, background:'var(--red-light)', color:'var(--red)', padding:'1px 6px', borderRadius:'var(--radius-full)', fontWeight:700 }}>Desactivada</span>
                     )}
@@ -464,19 +553,37 @@ function UsersTab() {
                   <p style={{ fontSize:11, color:'var(--text-muted)' }}>{new Date(u.created_at).toLocaleDateString('es-MX')} · ${(u.wallet_balance ?? 0).toFixed(2)}</p>
                 </div>
                 {!u.is_admin && (
-                  <button
-                    onClick={() => toggleActive(u)}
-                    disabled={toggling === u.id}
-                    style={{
-                      flexShrink:0, padding:'7px 12px', fontSize:12, fontWeight:700,
-                      borderRadius:'var(--radius-md)', cursor:'pointer',
-                      border: isActive ? '1px solid var(--red)' : '1px solid var(--green)',
-                      background: isActive ? 'var(--red-light)' : 'var(--green-light)',
-                      color: isActive ? 'var(--red)' : 'var(--green-dark)',
-                    }}
-                  >
-                    {toggling === u.id ? '...' : isActive ? 'Desactivar' : 'Activar'}
-                  </button>
+                  <div style={{ display:'flex', flexDirection:'column', gap:6, flexShrink:0 }}>
+                    <button
+                      onClick={() => toggleActive(u)}
+                      disabled={toggling === u.id}
+                      style={{
+                        padding:'6px 10px', fontSize:11, fontWeight:700,
+                        borderRadius:'var(--radius-md)', cursor:'pointer',
+                        border: isActive ? '1px solid var(--red)' : '1px solid var(--green)',
+                        background: isActive ? 'var(--red-light)' : 'var(--green-light)',
+                        color: isActive ? 'var(--red)' : 'var(--green-dark)',
+                      }}
+                    >
+                      {toggling === u.id ? '...' : isActive ? 'Desactivar' : 'Activar'}
+                    </button>
+                    {!hasShop && (
+                      <button
+                        onClick={() => openConvert(u)}
+                        style={{
+                          padding:'6px 10px', fontSize:11, fontWeight:700,
+                          borderRadius:'var(--radius-md)', cursor:'pointer',
+                          border:'1px solid var(--border)',
+                          background:'#fff',
+                          color:'var(--text-secondary)',
+                          display:'flex', alignItems:'center', gap:4,
+                        }}
+                      >
+                        <i className="ti ti-building-store" style={{ fontSize:12 }} />
+                        Papelería
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -944,3 +1051,4 @@ function AdminSupportTab() {
     </div>
   )
 }
+
