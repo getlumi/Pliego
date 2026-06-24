@@ -111,8 +111,26 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
       order_id: orderId,
     })
 
+    // 5) Notificar al dueño de la papelería via push
+    try {
+      const { data: shopRow } = await supabase
+        .from('printshops').select('owner_id, name').eq('id', draft.shopId).maybeSingle()
+      if (shopRow?.owner_id) {
+        await supabase.functions.invoke('send-push', {
+          body: {
+            user_id: shopRow.owner_id,
+            title:   '🖨️ Nuevo pedido',
+            body:    `${userRow.name ?? 'Un cliente'} quiere imprimir ${totalPages} ${totalPages === 1 ? 'página' : 'páginas'}`,
+            tag:     'nuevo-pedido',
+            url:     '/',
+          }
+        })
+      }
+    } catch (_) { /* push no crítico */ }
+
     return { success: true, orderId }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Error desconocido' }
   }
 }
+
