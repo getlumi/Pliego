@@ -20,20 +20,22 @@ export async function registerPush(userId) {
 
   try {
     // Registrar Service Worker
-    const reg = await navigator.serviceWorker.register('/sw.js')
+    await navigator.serviceWorker.register('/sw.js')
 
-    // Timeout de 5s para que serviceWorker.ready no se cuelgue
-    await Promise.race([
+    // Esperar SW activo — usamos readyReg para el subscribe()
+    // CRÍTICO: reg.pushManager puede ser undefined si el SW aún no está active.
+    // serviceWorker.ready siempre resuelve con el SW activo.
+    const readyReg = await Promise.race([
       navigator.serviceWorker.ready,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 5000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 8000))
     ])
 
     // Solicitar permiso
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') return { ok: false, reason: 'denied' }
 
-    // Suscribirse al servidor push
-    const sub = await reg.pushManager.subscribe({
+    // Suscribirse usando el SW activo (readyReg, no reg)
+    const sub = await readyReg.pushManager.subscribe({
       userVisibleOnly:      true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     })
@@ -72,3 +74,4 @@ export function isStandalone() {
   return window.navigator.standalone === true ||
     window.matchMedia('(display-mode: standalone)').matches
 }
+
