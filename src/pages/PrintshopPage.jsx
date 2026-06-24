@@ -52,9 +52,10 @@ export default function PrintshopPage({ session }) {
       })
       .subscribe()
 
-    // Canal 2: pedidos nuevos — vive aquí para no depender del tab activo
+    // Canal 2: pedidos nuevos — vive en el padre para persistir entre tabs
     let ordersChannel
     const setupOrdersChannel = () => {
+      if (ordersChannel) supabase.removeChannel(ordersChannel)
       ordersChannel = supabase
         .channel(`orders:shop:${shop.id}:${Date.now()}`)
         .on('postgres_changes', {
@@ -62,7 +63,6 @@ export default function PrintshopPage({ session }) {
         }, (payload) => {
           const shopId = payload.new?.printshop_id ?? payload.old?.printshop_id
           if (shopId !== shop.id) return
-          // Sonido solo en pedidos nuevos
           if (payload.eventType === 'INSERT') {
             try {
               const ctx = new (window.AudioContext || window.webkitAudioContext)()
@@ -90,7 +90,17 @@ export default function PrintshopPage({ session }) {
     }
     setupOrdersChannel()
 
+    // Reconexión cuando la app vuelve al foreground (iOS mata WebSockets en background)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        setupOrdersChannel()   // reconectar canal
+        loadOrders(shop.id)    // cargar pedidos que llegaron mientras estaba en background
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
       supabase.removeChannel(shopChannel)
       if (ordersChannel) supabase.removeChannel(ordersChannel)
     }
@@ -1475,6 +1485,7 @@ function ToggleSwitch({ checked, onChange, disabled }) {
     </label>
   )
 }
+
 
 
 
