@@ -11,8 +11,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const json = (body, status = 200) =>
+const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+
+const WELCOME_CREDIT = 6 // $6 MXN de bienvenida = 3 servicios gratis
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -35,7 +37,7 @@ Deno.serve(async (req) => {
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // <- evita por completo el correo de confirmacion
+      email_confirm: true,
       user_metadata: { name: name.trim(), phone: cleanPhone },
     })
 
@@ -44,11 +46,14 @@ Deno.serve(async (req) => {
       return json({ error: already ? 'Este número ya está registrado. Intenta iniciar sesión.' : error.message }, 400)
     }
 
+    const userId = data.user.id
+
+    // Crear perfil con crédito de bienvenida
     const { error: insertError } = await supabaseAdmin.from('users').insert({
-      id: data.user.id,
+      id: userId,
       name: name.trim(),
       phone: cleanPhone,
-      wallet_balance: 0,
+      wallet_balance: WELCOME_CREDIT,
       privacy_accepted_at: new Date().toISOString(),
       onboarding_seen: false,
     })
@@ -57,7 +62,15 @@ Deno.serve(async (req) => {
       return json({ error: 'Tu cuenta se creó, pero hubo un problema con tu perfil. Intenta iniciar sesión.' }, 207)
     }
 
-    return json({ success: true, user_id: data.user.id })
+    // Registrar la transacción de bienvenida en el historial del wallet
+    await supabaseAdmin.from('wallet_transactions').insert({
+      user_id: userId,
+      amount: WELCOME_CREDIT,
+      type: 'recarga',
+      description: '🎁 Crédito de bienvenida',
+    })
+
+    return json({ success: true, user_id: userId })
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : 'Error desconocido' }, 500)
   }
