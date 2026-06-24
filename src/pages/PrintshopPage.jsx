@@ -37,8 +37,9 @@ export default function PrintshopPage({ session }) {
 
   useEffect(() => {
     if (!shop?.id) return
-    // Realtime: detectar cuando el admin aprueba los documentos
-    const channel = supabase
+
+    // Canal 1: cambios en printshops (aprobación KYC)
+    const shopChannel = supabase
       .channel(`shop:${shop.id}`)
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'printshops',
@@ -47,13 +48,52 @@ export default function PrintshopPage({ session }) {
         const wasNotVerified = !shop.verified
         const nowVerified = payload.new.verified === true
         setShop(prev => ({ ...prev, ...payload.new }))
-        // Si acaba de ser aprobada, mostrar bienvenida
-        if (wasNotVerified && nowVerified) {
-          setShowWelcome(true)
-        }
+        if (wasNotVerified && nowVerified) setShowWelcome(true)
       })
       .subscribe()
-    return () => supabase.removeChannel(channel)
+
+    // Canal 2: pedidos nuevos — vive aquí para no depender del tab activo
+    let ordersChannel
+    const setupOrdersChannel = () => {
+      ordersChannel = supabase
+        .channel(`orders:shop:${shop.id}:${Date.now()}`)
+        .on('postgres_changes', {
+          event: '*', schema: 'public', table: 'orders',
+        }, (payload) => {
+          const shopId = payload.new?.printshop_id ?? payload.old?.printshop_id
+          if (shopId !== shop.id) return
+          // Sonido solo en pedidos nuevos
+          if (payload.eventType === 'INSERT') {
+            try {
+              const ctx = new (window.AudioContext || window.webkitAudioContext)()
+              const play = (freq, t) => {
+                const o = ctx.createOscillator()
+                const g = ctx.createGain()
+                o.connect(g); g.connect(ctx.destination)
+                o.frequency.value = freq
+                g.gain.setValueAtTime(0.3, ctx.currentTime + t)
+                g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.4)
+                o.start(ctx.currentTime + t)
+                o.stop(ctx.currentTime + t + 0.4)
+              }
+              play(880, 0); play(1100, 0.15)
+            } catch (_) {}
+          }
+          loadOrders(shop.id)
+        })
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            supabase.removeChannel(ordersChannel)
+            setTimeout(setupOrdersChannel, 3000)
+          }
+        })
+    }
+    setupOrdersChannel()
+
+    return () => {
+      supabase.removeChannel(shopChannel)
+      if (ordersChannel) supabase.removeChannel(ordersChannel)
+    }
   }, [shop?.id, shop?.verified])
 
   const loadShop = async () => {
@@ -565,31 +605,8 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
   }
 
   // Realtime: llegan pedidos nuevos sin refresh
-  // NOTA: No usamos filter en postgres_changes porque requiere REPLICA IDENTITY FULL.
-  // Filtramos por printshop_id en el callback para evitar silently-failing subscriptions.
-  useEffect(() => {
-    let channel
-    const setupChannel = () => {
-      channel = supabase
-        .channel(`orders:shop:${shop.id}:${Date.now()}`)
-        .on('postgres_changes', {
-          event: '*', schema: 'public', table: 'orders',
-        }, (payload) => {
-          const shopId = payload.new?.printshop_id ?? payload.old?.printshop_id
-          if (shopId !== shop.id) return
-          notifyNewOrder(payload)
-          onReloadOrders()
-        })
-        .subscribe((status) => {
-          if (status === 'CHANNEL_ERROR') {
-            supabase.removeChannel(channel)
-            setTimeout(setupChannel, 3000)
-          }
-        })
-    }
-    setupChannel()
-    return () => { if (channel) supabase.removeChannel(channel) }
-  }, [shop.id])
+  // Realtime vive en el componente padre PrintshopPage para persistir
+  // independientemente del tab activo. OrdersTab solo recibe los datos.
 
   const pending = orders.filter(o => o.status === 'nuevo' || o.status === 'en_proceso')
   const today = orders.filter(o => new Date(o.created_at).toDateString() === new Date().toDateString())
@@ -1400,6 +1417,7 @@ function ToggleSwitch({ checked, onChange, disabled }) {
     </label>
   )
 }
+
 
 
 
