@@ -12,6 +12,7 @@ import PrintshopPage, { RegisterShop } from './pages/PrintshopPage'
 import AdminPage       from './pages/AdminPage'
 import Navbar          from './components/layout/Navbar'
 import { createEmptyDraft, revokeDraftUrls } from './lib/draft'
+import { registerPush, isPushSupported } from './lib/push'
 
 export default function App() {
   const [session,  setSession]  = useState(null)
@@ -46,7 +47,11 @@ export default function App() {
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setSession(session)
-      if (session) checkOnboarding(session.user.id)
+      if (session) {
+        checkOnboarding(session.user.id)
+        // Registrar push silenciosamente si está soportado
+        if (isPushSupported()) registerPush(session.user.id).catch(() => {})
+      }
       else {
         setOnboarded(false); setOwnsShop(false); setIsAdmin(false); setBusinessIntent(false); setLoading(false)
         setDraft(d => { revokeDraftUrls(d); return createEmptyDraft() })
@@ -93,11 +98,9 @@ export default function App() {
     setOwnsShop(!!shop)
     if (!!shop && showShopTutorial) setShowPrintshopTutorial(true)
 
-    // Desregistrar cualquier Service Worker anterior que pudiera causar problemas
+    // Registrar Service Worker para notificaciones push
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        regs.forEach(reg => reg.unregister())
-      }).catch(() => {})
+      navigator.serviceWorker.register('/sw.js').catch(() => {})
     }
 
     setLoading(false)
