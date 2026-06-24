@@ -12,7 +12,7 @@ import PrintshopPage, { RegisterShop } from './pages/PrintshopPage'
 import AdminPage       from './pages/AdminPage'
 import Navbar          from './components/layout/Navbar'
 import { createEmptyDraft, revokeDraftUrls } from './lib/draft'
-import { registerPush, isPushSupported } from './lib/push'
+// push se activa desde ProfilePage cuando el usuario lo solicita
 
 export default function App() {
   const [session,  setSession]  = useState(null)
@@ -49,8 +49,6 @@ export default function App() {
       setSession(session)
       if (session) {
         checkOnboarding(session.user.id)
-        // Registrar push silenciosamente si está soportado
-        if (isPushSupported()) registerPush(session.user.id).catch(() => {})
       }
       else {
         setOnboarded(false); setOwnsShop(false); setIsAdmin(false); setBusinessIntent(false); setLoading(false)
