@@ -111,22 +111,29 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
       order_id: orderId,
     })
 
-    // 5) Notificar al dueño de la papelería via push
+    // 5) Notificar al dueño de la papelería via WhatsApp
     try {
       const { data: shopRow } = await supabase
         .from('printshops').select('owner_id, name').eq('id', draft.shopId).maybeSingle()
       if (shopRow?.owner_id) {
-        await supabase.functions.invoke('send-push', {
+        // Obtener nombre del servicio legible
+        const serviceLabel = selectedService?.label || selectedService?.service_type || 'B/N Bond'
+        await supabase.functions.invoke('send-whatsapp', {
           body: {
             user_id: shopRow.owner_id,
-            title:   '🖨️ Nuevo pedido',
-            body:    `${userRow.name ?? 'Un cliente'} quiere imprimir ${totalPages} ${totalPages === 1 ? 'página' : 'páginas'}`,
-            tag:     'nuevo-pedido',
-            url:     '/',
+            tipo:    'nuevo_pedido',
+            data: {
+              cliente:        userRow.name ?? 'Cliente',
+              archivo:        draft.files?.[0]?.file?.name ?? 'documento.pdf',
+              paginas:        String(totalPages),
+              tipo_impresion: serviceLabel,
+              copias:         String(draft.copies ?? 1),
+              instrucciones:  draft.instructions || '',
+            }
           }
         })
       }
-    } catch (_) { /* push no crítico */ }
+    } catch (_) { /* WhatsApp no crítico, no bloquea el pedido */ }
 
     return { success: true, orderId }
   } catch (e) {

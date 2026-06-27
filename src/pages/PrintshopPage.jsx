@@ -602,14 +602,19 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
         icon: '/icon-192.png',
       })
     }
-    // Push al dueño de la papelería (para cuando no tiene la app abierta)
-    supabase.functions.invoke('send-push', {
+    // WhatsApp al dueño (funciona aunque no tenga la app abierta)
+    supabase.functions.invoke('send-whatsapp', {
       body: {
         user_id: shop.owner_id,
-        title:   '🖨️ Nuevo pedido',
-        body:    'Tienes un documento listo para imprimir en Pliego',
-        tag:     'new-order',
-        url:     '/',
+        tipo:    'nuevo_pedido',
+        data: {
+          cliente:        payload.new?.user_name ?? 'Cliente',
+          archivo:        payload.new?.file_name ?? 'documento.pdf',
+          paginas:        String(payload.new?.file_count ?? '?'),
+          tipo_impresion: payload.new?.service_type ?? 'B/N Bond',
+          copias:         String(payload.new?.copies ?? 1),
+          instrucciones:  payload.new?.special_instructions ?? '',
+        }
       }
     }).catch(() => {})
   }
@@ -638,13 +643,14 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
 
     // Push al usuario cuando su impresión está lista
     if (status === 'listo' && order?.user_id) {
-      supabase.functions.invoke('send-push', {
+      supabase.functions.invoke('send-whatsapp', {
         body: {
           user_id: order.user_id,
-          title:   '✅ Tu impresión está lista',
-          body:    `Pasa a recogerla en ${shop.name}`,
-          tag:     'order-ready',
-          url:     '/',
+          tipo:    'pedido_listo',
+          data: {
+            papeleria:  shop.name ?? 'la papelería',
+            direccion:  shop.address ?? 'Ver en la app',
+          }
         }
       }).catch(() => {})
     }
