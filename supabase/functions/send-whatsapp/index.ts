@@ -1,9 +1,9 @@
 // Pliego · Edge Function: send-whatsapp
-// Envía mensajes de WhatsApp vía Twilio al número registrado del usuario/papelería
-// Secrets requeridos: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM
+// Envía mensajes vía Twilio: SMS ahora, WhatsApp cuando se apruebe el número
+// Secrets requeridos: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SMS_FROM
 //
-// TWILIO_WHATSAPP_FROM = 'whatsapp:+14155238886'  ← sandbox de Twilio mientras se aprueba número propio
-// Cuando tengas número propio: 'whatsapp:+521XXXXXXXXXX'
+// TWILIO_SMS_FROM = número Twilio en formato +1XXXXXXXXXX (se compra en consola Twilio)
+// Cuando Meta apruebe WhatsApp: agregar TWILIO_WHATSAPP_FROM y cambiar canal a 'whatsapp'
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -64,12 +64,18 @@ Deno.serve(async (req) => {
   try {
     const TWILIO_SID   = Deno.env.get('TWILIO_ACCOUNT_SID')
     const TWILIO_TOKEN = Deno.env.get('TWILIO_AUTH_TOKEN')
-    const TWILIO_FROM  = Deno.env.get('TWILIO_WHATSAPP_FROM') // 'whatsapp:+14155238886'
+    // SMS_FROM: número Twilio comprado, ej: '+12015551234'
+    // WHATSAPP_FROM: cuando Meta lo apruebe, ej: 'whatsapp:+521XXXXXXXXXX'
+    const TWILIO_SMS_FROM      = Deno.env.get('TWILIO_SMS_FROM')
+    const TWILIO_WHATSAPP_FROM = Deno.env.get('TWILIO_WHATSAPP_FROM') // vacío por ahora
+    const TWILIO_FROM = TWILIO_WHATSAPP_FROM || TWILIO_SMS_FROM
 
     if (!TWILIO_SID || !TWILIO_TOKEN || !TWILIO_FROM) {
-      console.error('Faltan secrets de Twilio')
+      console.error('Faltan secrets de Twilio: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN y TWILIO_SMS_FROM son requeridos')
       return json({ error: 'Twilio no configurado' }, 500)
     }
+
+    const usandoWhatsApp = TWILIO_FROM.startsWith('whatsapp:')
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -119,7 +125,8 @@ Deno.serve(async (req) => {
     let normalized = toNumber.replace(/\D/g, '') // solo dígitos
     if (normalized.length === 10) normalized = '52' + normalized
     if (!normalized.startsWith('52')) normalized = '52' + normalized
-    const to = `whatsapp:+${normalized}`
+    // Si usamos WhatsApp API: prefijo whatsapp:, si es SMS: solo +número
+    const to = usandoWhatsApp ? `whatsapp:+${normalized}` : `+${normalized}`
 
     // Construir mensaje
     const mensaje = buildMessage(tipo, data)
@@ -148,8 +155,9 @@ Deno.serve(async (req) => {
       return json({ error: result.message ?? 'Error de Twilio', code: result.code }, 500)
     }
 
-    console.log(`WhatsApp enviado a ${to} (tipo: ${tipo}) — SID: ${result.sid}`)
-    return json({ ok: true, sid: result.sid, to })
+    const canal = usandoWhatsApp ? 'WhatsApp' : 'SMS'
+    console.log(`${canal} enviado a ${to} (tipo: ${tipo}) — SID: ${result.sid}`)
+    return json({ ok: true, sid: result.sid, to, canal })
 
   } catch (e) {
     console.error('Error interno send-whatsapp:', e)
