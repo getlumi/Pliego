@@ -282,7 +282,7 @@ export default function AuthPage({ onAuth }) {
           {/* Privacidad */}
           <p style={{ textAlign:'center', fontSize:12, color:'var(--text-muted)', marginTop:8 }}>
             Al registrarte aceptas nuestro{' '}
-            <a href="#" style={{ color:'var(--green)', textDecoration:'underline' }}>
+            <a href="/privacidad.html" target="_blank" style={{ color:'var(--green)', textDecoration:'underline' }}>
               aviso de privacidad
             </a>
             {' '}y términos de uso.

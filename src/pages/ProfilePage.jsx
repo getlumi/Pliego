@@ -88,7 +88,7 @@ export default function ProfilePage({ session, onNavigate }) {
         <button className="btn-outline" onClick={() => supabase.auth.signOut()} style={{ marginTop:8 }}>
           <i className="ti ti-logout" style={{ fontSize:18 }} /> Cerrar sesión
         </button>
-        <a href="#" style={{ display:'block', textAlign:'center', fontSize:13, color:'var(--text-muted)', marginTop:8 }}>
+        <a href="/privacidad.html" target="_blank" style={{ display:'block', textAlign:'center', fontSize:13, color:'var(--text-muted)', marginTop:8 }}>
           Aviso de privacidad
         </a>
       </div>

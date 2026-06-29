@@ -279,7 +279,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
       {/* Privacy link */}
       <p style={{ textAlign:'center', fontSize:12, color:'var(--text-muted)', padding:'8px 0 4px' }}>
         <i className="ti ti-shield-check" style={{ fontSize:13, verticalAlign:-1 }} />{' '}
-        <a href="#" style={{ color:'var(--text-muted)' }}>Aviso de privacidad</a>
+        <a href="/privacidad.html" target="_blank" style={{ color:'var(--text-muted)' }}>Aviso de privacidad</a>
       </p>
       <p style={{ textAlign:'center', fontSize:12, padding:'0 0 20px' }}>
         <button onClick={onShowTutorial} style={{
