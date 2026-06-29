@@ -596,27 +596,14 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
     // Solo notificar si es un pedido NUEVO (INSERT)
     if (payload.eventType !== 'INSERT') return
     playAlert()
+    // Notificación browser (solo si la app está abierta)
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('Nuevo pedido en Pliego 🖨️', {
         body: `Llegó un documento para imprimir`,
         icon: '/icon-192.png',
       })
     }
-    // WhatsApp al dueño (funciona aunque no tenga la app abierta)
-    supabase.functions.invoke('send-whatsapp', {
-      body: {
-        user_id: shop.owner_id,
-        tipo:    'nuevo_pedido',
-        data: {
-          cliente:        payload.new?.user_name ?? 'Cliente',
-          archivo:        payload.new?.file_name ?? 'documento.pdf',
-          paginas:        String(payload.new?.file_count ?? '?'),
-          tipo_impresion: payload.new?.service_type ?? 'B/N Bond',
-          copias:         String(payload.new?.copies ?? 1),
-          instrucciones:  payload.new?.special_instructions ?? '',
-        }
-      }
-    }).catch(() => {})
+    // WhatsApp ya lo envía sendOrder.js al crear el pedido → no duplicar aquí
   }
 
   // Realtime: llegan pedidos nuevos sin refresh
@@ -648,8 +635,10 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
           user_id: order.user_id,
           tipo:    'pedido_listo',
           data: {
-            papeleria:  shop.name ?? 'la papelería',
-            direccion:  shop.address ?? 'Ver en la app',
+            papeleria: shop.name ?? 'la papelería',
+            direccion: shop.latitude && shop.longitude
+              ? `https://maps.google.com/?q=${shop.latitude},${shop.longitude}`
+              : 'Ver ubicación en la app',
           }
         }
       }).catch(() => {})
