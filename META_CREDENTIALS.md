@@ -12,7 +12,7 @@
 - **Número:** +1 (555) 676-7736
 - **Phone Number ID:** 1238205789369369
 - **WhatsApp Business Account ID:** 1551671766302944
-- **Token de acceso temporal:** EAGEC4qc5k1oBR4mpo6zRlFN6G9lNff5MTqeMNfJxtebXWTTZA2QOpE5DZCYxGrFqZCd7mEqNI0TJqCheXc42cZC1XCw07mDRiLROYzpS3mpZAOa6T2LdJXnEA2xE7ZCZAZCU6MBET4NkwLFKhZBZAtqQ7chSd4ARbByb2mTKk5vTkAVOuNcchMO3leQ3UjTZCc4fuRBQAYc5iuI2oyq2Rw704d4sGb91CKmPiQIoBwZBfQP3L5zplizmkdbTPpQs9DZAW5BPWl0pmTvxBzzGhiFZBONxyCSAZDZD
+- **Token permanente (producción):** EAGEC4qc5k1oBR8kZB2o5hPBwJ6IZBY1xyMNpaZB02ZApY6vH7BC5YFkjkZCICE2XQuGrMLrtCliaqIOFJe5YiwKndFNwidVoeyzQBfj9UJHE1qmBz1mIN3RJcQkAqkG08xCDB5AVLADAyliDZBNn0kzr6AvWWqPusgIZAOfO6z4j9KHe23982JgQShzde97Ize2XgZDZD
   ⚠️ Este token expira — generar token permanente con System User
 
 ## Próximos pasos
