@@ -11,6 +11,10 @@ export default function AuthPage({ onAuth }) {
   const [intent, setIntent] = useState('consumer') // 'consumer' | 'business'
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
+  // OTP
+  const [otpStep,    setOtpStep]    = useState(false)
+  const [otpCode,    setOtpCode]    = useState('')
+  const [otpLoading, setOtpLoading] = useState(false)
 
   const handleSubmit = async () => {
     setError('')
@@ -22,26 +26,54 @@ export default function AuthPage({ onAuth }) {
         if (error) throw new Error('Número o contraseña incorrectos')
         onAuth(intent)
       } else {
-        if (!name.trim())      throw new Error('Por favor escribe tu nombre')
-        if (!phone.trim())     throw new Error('Por favor escribe tu WhatsApp')
+        if (!name.trim())        throw new Error('Por favor escribe tu nombre')
+        if (!phone.trim())       throw new Error('Por favor escribe tu WhatsApp')
         if (password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres')
 
-        // 1) Crear la cuenta ya confirmada via Edge Function (no depende de "Confirm email")
-        const { data: regData, error: regError } = await supabase.functions.invoke('smart-task', {
-          body: { name, phone: phone.replace(/\s/g,''), password }
+        // 1) Enviar OTP al WhatsApp
+        const { data: otpData, error: otpError } = await supabase.functions.invoke('send-otp', {
+          body: { action: 'send', phone: phone.replace(/\s/g,'') }
         })
-        if (regError) throw new Error('No se pudo crear tu cuenta. Intenta de nuevo.')
-        if (regData?.error) throw new Error(regData.error)
+        if (otpError || otpData?.error) throw new Error('No pudimos enviar el código. Verifica tu número.')
 
-        // 2) Iniciar sesión normalmente
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-        if (signInError) throw new Error('Tu cuenta se creó. Ahora entra con "Entrar".')
-        onAuth(intent)
+        // 2) Mostrar campo OTP
+        setOtpStep(true)
       }
     } catch (e) {
       setError(e.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleVerifyOtp = async () => {
+    setError('')
+    setOtpLoading(true)
+    try {
+      if (otpCode.length !== 6) throw new Error('El código debe tener 6 dígitos')
+
+      // 1) Verificar OTP
+      const { data: verifyData, error: verifyError } = await supabase.functions.invoke('send-otp', {
+        body: { action: 'verify', phone: phone.replace(/\s/g,''), code: otpCode }
+      })
+      if (verifyError || !verifyData?.ok) throw new Error('Código incorrecto o expirado')
+
+      // 2) Crear la cuenta
+      const { data: regData, error: regError } = await supabase.functions.invoke('smart-task', {
+        body: { name, phone: phone.replace(/\s/g,''), password }
+      })
+      if (regError) throw new Error('No se pudo crear tu cuenta. Intenta de nuevo.')
+      if (regData?.error) throw new Error(regData.error)
+
+      // 3) Iniciar sesión
+      const email = `${phone.replace(/\s/g,'')}@pliego.com`
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+      if (signInError) throw new Error('Tu cuenta se creó. Ahora entra con "Entrar".')
+      onAuth(intent)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setOtpLoading(false)
     }
   }
 
@@ -195,6 +227,45 @@ export default function AuthPage({ onAuth }) {
             </div>
           )}
 
+          {/* Paso OTP */}
+          {otpStep && (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <div style={{
+                background:'#F0F9FF', border:'1.5px solid #BAE6FD',
+                borderRadius:14, padding:'12px 16px',
+                display:'flex', gap:10, alignItems:'flex-start',
+              }}>
+                <i className="ti ti-brand-whatsapp" style={{ fontSize:20, color:'#25D366', flexShrink:0, marginTop:2 }} />
+                <p style={{ fontSize:13, color:'#0369A1', fontWeight:600, lineHeight:1.4 }}>
+                  Enviamos un código de 6 dígitos a tu WhatsApp {phone}
+                </p>
+              </div>
+              <Field label="CÓDIGO DE VERIFICACIÓN" icon="ti-shield-check">
+                <input
+                  type="tel" placeholder="123456" maxLength={6}
+                  value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/\D/g,''))}
+                  onKeyDown={e => e.key === 'Enter' && handleVerifyOtp()}
+                  style={{ ...inputStyle, letterSpacing: 6, fontSize: 20, fontWeight: 800 }}
+                  autoFocus
+                />
+              </Field>
+              <button
+                onClick={handleVerifyOtp} disabled={otpLoading}
+                className="btn-primary" style={{ marginTop: 4, opacity: otpLoading ? 0.7 : 1 }}
+              >
+                {otpLoading ? 'Verificando...' : 'Verificar y crear cuenta'}
+                {!otpLoading && <i className="ti ti-check" style={{ fontSize: 18 }} />}
+              </button>
+              <button
+                onClick={() => { setOtpStep(false); setOtpCode(''); setError('') }}
+                style={{ background:'none', border:'none', color:'var(--text-muted)', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}
+              >
+                ← Cambiar número
+              </button>
+            </div>
+          )}
+
+          {!otpStep && (
           <button
             onClick={handleSubmit} disabled={loading}
             className="btn-primary" style={{ marginTop: 8, opacity: loading ? 0.7 : 1 }}
@@ -206,6 +277,7 @@ export default function AuthPage({ onAuth }) {
                 : (intent === 'business' ? 'Crear cuenta de negocio' : 'Crear mi cuenta')}
             {!loading && <i className="ti ti-arrow-right" style={{ fontSize: 18 }} />}
           </button>
+          )}
 
           {/* Privacidad */}
           <p style={{ textAlign:'center', fontSize:12, color:'var(--text-muted)', marginTop:8 }}>
