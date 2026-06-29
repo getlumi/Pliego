@@ -1,6 +1,7 @@
 // Pliego · Edge Function: send-whatsapp
-// Envía mensajes de WhatsApp vía Meta Cloud API directamente
-// Secrets requeridos: META_WHATSAPP_TOKEN, META_PHONE_NUMBER_ID
+// Envía mensajes de WhatsApp vía Meta Cloud API
+// Usa plantillas aprobadas cuando están disponibles, texto libre como fallback
+// Secrets: META_WHATSAPP_TOKEN, META_PHONE_NUMBER_ID
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -15,34 +16,68 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 
-function buildMessage(tipo: string, data: Record<string, string>): string {
+// Construye el payload para plantilla aprobada por Meta
+function buildTemplatePayload(tipo: string, to: string, data: Record<string, string>) {
   switch (tipo) {
     case 'nuevo_pedido':
-      return (
-        `🖨️ *Nuevo pedido en Pliego*\n\n` +
-        `👤 Cliente: *${data.cliente ?? 'Cliente'}*\n` +
-        `📄 Archivo: *${data.archivo ?? 'documento.pdf'}* (${data.paginas ?? '?'} páginas)\n` +
-        `🖨️ Tipo: *${data.tipo_impresion ?? 'B/N Bond'}*\n` +
-        `📋 Copias: *${data.copias ?? '1'}*\n` +
-        (data.instrucciones ? `📝 Instrucciones: _${data.instrucciones}_\n` : '') +
-        `\nEntra a pliego.live para descargarlo y marcarlo como listo.`
-      )
+      return {
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: 'pliego_nuevo_pedido',
+          language: { code: 'es_MX' },
+          components: [{
+            type: 'body',
+            parameters: [
+              { type: 'text', text: data.cliente ?? 'Cliente' },
+              { type: 'text', text: data.archivo ?? 'documento.pdf' },
+              { type: 'text', text: data.paginas ?? '1' },
+              { type: 'text', text: data.tipo_impresion ?? 'B/N Bond' },
+              { type: 'text', text: data.copias ?? '1' },
+            ]
+          }]
+        }
+      }
     case 'pedido_listo':
-      return (
-        `✅ *Tu impresión está lista*\n\n` +
-        `Tu pedido en *${data.papeleria ?? 'la papelería'}* ya está listo para recoger.\n\n` +
-        `📍 ${data.direccion ?? 'Ver en la app'}\n` +
-        `⏰ Tienes 24 horas para recogerlo.\n\n` +
-        `_Pliego — Imprime cerca de ti_`
-      )
-    case 'otp':
-      return (
-        `🔐 *Tu código de Pliego es: ${data.codigo}*\n\n` +
-        `Válido por 10 minutos. No lo compartas con nadie.`
-      )
+      return {
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: 'pliego_pedido_listo',
+          language: { code: 'es_MX' },
+          components: [{
+            type: 'body',
+            parameters: [
+              { type: 'text', text: data.papeleria ?? 'la papelería' },
+              { type: 'text', text: data.direccion ?? 'Ver ubicación en la app' },
+            ]
+          }]
+        }
+      }
     default:
-      return data.mensaje ?? 'Mensaje de Pliego'
+      return null
   }
+}
+
+// Fallback: texto libre (funciona solo dentro de ventana de 24h o con verificación activa)
+function buildTextPayload(tipo: string, to: string, data: Record<string, string>) {
+  let body = ''
+  switch (tipo) {
+    case 'nuevo_pedido':
+      body = `🖨️ Nuevo pedido en Pliego\n\n👤 Cliente: ${data.cliente ?? 'Cliente'}\n📄 Archivo: ${data.archivo ?? 'documento.pdf'} (${data.paginas ?? '?'} páginas)\n🖨️ Tipo: ${data.tipo_impresion ?? 'B/N Bond'}\n📋 Copias: ${data.copias ?? '1'}${data.instrucciones ? '\n📝 ' + data.instrucciones : ''}\n\nEntra a pliego.live para descargarlo y marcarlo como listo.`
+      break
+    case 'pedido_listo':
+      body = `✅ Tu impresión está lista\n\nTu pedido en ${data.papeleria ?? 'la papelería'} ya está listo para recoger.\n\n📍 ${data.direccion ?? 'Ver en la app'}\n⏰ Tienes 24 horas para recogerlo.\n\nPliego — Imprime cerca de ti`
+      break
+    case 'otp':
+      body = `🔐 Tu código de verificación de Pliego es: ${data.codigo}\n\nVálido por 10 minutos. No lo compartas con nadie.`
+      break
+    default:
+      body = data.mensaje ?? 'Mensaje de Pliego'
+  }
+  return { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { body } }
 }
 
 Deno.serve(async (req) => {
@@ -53,7 +88,7 @@ Deno.serve(async (req) => {
     const PHONE_NUM_ID = Deno.env.get('META_PHONE_NUMBER_ID')
 
     if (!META_TOKEN || !PHONE_NUM_ID) {
-      console.error('Faltan secrets: META_WHATSAPP_TOKEN y META_PHONE_NUMBER_ID son requeridos')
+      console.error('Faltan secrets META_WHATSAPP_TOKEN / META_PHONE_NUMBER_ID')
       return json({ error: 'Meta WhatsApp no configurado' }, 500)
     }
 
@@ -62,7 +97,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    const { user_id, whatsapp: directWhatsapp, tipo, data = {} } = await req.json()
+    const { user_id, whatsapp: directWhatsapp, tipo, data = {}, use_template = true } = await req.json()
 
     if (!tipo) return json({ error: 'tipo es requerido' }, 400)
 
@@ -82,29 +117,31 @@ Deno.serve(async (req) => {
 
     if (!toNumber) return json({ error: 'No se encontró número de WhatsApp' }, 400)
 
-    // Normalizar número mexicano
     let normalized = toNumber.replace(/\D/g, '')
     if (normalized.length === 10) normalized = '52' + normalized
     if (!normalized.startsWith('52')) normalized = '52' + normalized
 
-    const mensaje = buildMessage(tipo, data)
+    const url = `https://graph.facebook.com/v19.0/${PHONE_NUM_ID}/messages`
+    const headers = { 'Authorization': `Bearer ${META_TOKEN}`, 'Content-Type': 'application/json' }
 
-    // Enviar vía Meta Cloud API
-    const res = await fetch(`https://graph.facebook.com/v19.0/${PHONE_NUM_ID}/messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${META_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to: normalized,
-        type: 'text',
-        text: { body: mensaje }
-      })
-    })
+    // Intentar con plantilla primero si use_template=true
+    if (use_template && tipo !== 'otp') {
+      const templatePayload = buildTemplatePayload(tipo, normalized, data)
+      if (templatePayload) {
+        const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(templatePayload) })
+        const result = await res.json()
+        if (res.ok) {
+          console.log(`✅ [template] WhatsApp enviado a ${normalized} (${tipo}) — ${result.messages?.[0]?.id}`)
+          return json({ ok: true, method: 'template', id: result.messages?.[0]?.id, to: normalized })
+        }
+        // Si falla la plantilla (aún no aprobada), caer en texto libre
+        console.warn(`⚠️ Plantilla falló (${result.error?.code}), usando texto libre`)
+      }
+    }
 
+    // Fallback: texto libre
+    const textPayload = buildTextPayload(tipo, normalized, data)
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(textPayload) })
     const result = await res.json()
 
     if (!res.ok) {
@@ -112,8 +149,8 @@ Deno.serve(async (req) => {
       return json({ error: result.error?.message ?? 'Error de Meta' }, 500)
     }
 
-    console.log(`✅ WhatsApp enviado a ${normalized} (tipo: ${tipo}) — ID: ${result.messages?.[0]?.id}`)
-    return json({ ok: true, id: result.messages?.[0]?.id, to: normalized })
+    console.log(`✅ [text] WhatsApp enviado a ${normalized} (${tipo}) — ${result.messages?.[0]?.id}`)
+    return json({ ok: true, method: 'text', id: result.messages?.[0]?.id, to: normalized })
 
   } catch (e) {
     console.error('Error interno send-whatsapp:', e)
