@@ -27,3 +27,13 @@
 - META_PHONE_NUMBER_ID → 1238205789369369
 - META_WABA_ID → 1551671766302944
 - META_WEBHOOK_VERIFY_TOKEN → string aleatorio que tú defines
+
+## Número de Producción (Real)
+- **Número:** +52 19981806121
+- **Phone Number ID:** 1093693860503768
+- **WhatsApp Business Account ID:** 4506343626317089
+- **Estado:** Pendiente de registrar
+
+## ⚠️ Actualizar en Supabase Secrets cuando esté registrado:
+- META_PHONE_NUMBER_ID → cambiar a: 1093693860503768
+- META_WABA_ID → cambiar a: 4506343626317089
