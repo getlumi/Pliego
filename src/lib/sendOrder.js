@@ -6,6 +6,7 @@
 // 4) Cobra la cuota de servicio ($2) del wallet.
 
 import { supabase } from './supabase'
+import { PDFDocument } from 'pdf-lib'
 
 // Deriva color_mode / paper_size (columnas legadas del esquema) a partir
 // del service_type elegido, para tipos predefinidos y personalizados.
@@ -30,7 +31,6 @@ async function buildUploadFile(files) {
     return { blob: f, name: f.name, contentType: f.type || 'application/octet-stream' }
   }
 
-  const { PDFDocument } = await import('pdf-lib')
   const merged = await PDFDocument.create()
 
   for (const f of printable) {
