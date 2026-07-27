@@ -1,7 +1,13 @@
 // Pliego · Edge Function: send-whatsapp
-// Envía mensajes de WhatsApp vía Meta Cloud API
-// Usa plantillas aprobadas cuando están disponibles, texto libre como fallback
-// Secrets: META_WHATSAPP_TOKEN, META_PHONE_NUMBER_ID
+// NOTA: el nombre de la función se conserva para no tener que tocar el
+// frontend (sendOrder.js, PrintshopPage.jsx ya la invocan así). El canal
+// real de envío es SMS (SMS Masivos) mientras se aprueba la verificación
+// de negocio de Meta para WhatsApp Cloud API.
+// Cuando Meta apruebe: revertir este archivo a la versión con Meta Cloud
+// API (ver historial de git, commit previo a esta migración) — las
+// plantillas pliego_nuevo_pedido / pliego_pedido_listo / pliego_otp ya
+// están creadas y listas en Meta, no se tocaron.
+// Secrets: SMSMASIVOS_API_KEY
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -16,80 +22,35 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 
-// Construye el payload para plantilla aprobada por Meta
-function buildTemplatePayload(tipo: string, to: string, data: Record<string, string>) {
-  switch (tipo) {
-    case 'nuevo_pedido':
-      return {
-        messaging_product: 'whatsapp',
-        to,
-        type: 'template',
-        template: {
-          name: 'pliego_nuevo_pedido',
-          language: { code: 'es_MX' },
-          components: [{
-            type: 'body',
-            parameters: [
-              { type: 'text', text: data.cliente ?? 'Cliente' },
-              { type: 'text', text: data.archivo ?? 'documento.pdf' },
-              { type: 'text', text: data.paginas ?? '1' },
-              { type: 'text', text: data.tipo_impresion ?? 'B/N Bond' },
-              { type: 'text', text: data.copias ?? '1' },
-            ]
-          }]
-        }
-      }
-    case 'pedido_listo':
-      return {
-        messaging_product: 'whatsapp',
-        to,
-        type: 'template',
-        template: {
-          name: 'pliego_pedido_listo',
-          language: { code: 'es_MX' },
-          components: [{
-            type: 'body',
-            parameters: [
-              { type: 'text', text: data.papeleria ?? 'la papelería' },
-              { type: 'text', text: data.direccion ?? 'Ver ubicación en la app' },
-            ]
-          }]
-        }
-      }
-    default:
-      return null
-  }
-}
+const SMS_MASIVOS_BASE = 'https://api.smsmasivos.com.mx'
 
-// Fallback: texto libre (funciona solo dentro de ventana de 24h o con verificación activa)
-function buildTextPayload(tipo: string, to: string, data: Record<string, string>) {
-  let body = ''
+// Mismos textos que ya usábamos como fallback de texto libre en Meta,
+// reutilizados tal cual para el canal SMS.
+function buildMessage(tipo: string, data: Record<string, string>): string {
   switch (tipo) {
     case 'nuevo_pedido':
-      body = `🖨️ Nuevo pedido en Pliego\n\n👤 Cliente: ${data.cliente ?? 'Cliente'}\n📄 Archivo: ${data.archivo ?? 'documento.pdf'} (${data.paginas ?? '?'} páginas)\n🖨️ Tipo: ${data.tipo_impresion ?? 'B/N Bond'}\n📋 Copias: ${data.copias ?? '1'}${data.instrucciones ? '\n📝 ' + data.instrucciones : ''}\n\nEntra a pliego.live para descargarlo y marcarlo como listo.`
-      break
+      return `Pliego: nuevo pedido de ${data.cliente ?? 'Cliente'}. ` +
+        `Archivo: ${data.archivo ?? 'documento.pdf'} (${data.paginas ?? '?'} pag). ` +
+        `Tipo: ${data.tipo_impresion ?? 'B/N Bond'}. Copias: ${data.copias ?? '1'}.` +
+        `${data.instrucciones ? ' Nota: ' + data.instrucciones : ''} ` +
+        `Entra a pliego.live para descargarlo.`
     case 'pedido_listo':
-      body = `✅ Tu impresión está lista\n\nTu pedido en ${data.papeleria ?? 'la papelería'} ya está listo para recoger.\n\n📍 ${data.direccion ?? 'Ver en la app'}\n⏰ Tienes 24 horas para recogerlo.\n\nPliego — Imprime cerca de ti`
-      break
-    case 'otp':
-      body = `🔐 Tu código de verificación de Pliego es: ${data.codigo}\n\nVálido por 10 minutos. No lo compartas con nadie.`
-      break
+      return `Pliego: tu impresion en ${data.papeleria ?? 'la papeleria'} ya esta lista. ` +
+        `${data.direccion ?? 'Ver ubicacion en la app'}. Tienes 24 horas para recogerla.`
     default:
-      body = data.mensaje ?? 'Mensaje de Pliego'
+      return data.mensaje ?? 'Mensaje de Pliego'
   }
-  return { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { body } }
 }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const META_TOKEN   = Deno.env.get('META_WHATSAPP_TOKEN')
-    const PHONE_NUM_ID = Deno.env.get('META_PHONE_NUMBER_ID')
+    const SMS_API_KEY = Deno.env.get('SMSMASIVOS_API_KEY')
 
-    if (!META_TOKEN || !PHONE_NUM_ID) {
-      console.error('Faltan secrets META_WHATSAPP_TOKEN / META_PHONE_NUMBER_ID')
-      return json({ error: 'Meta WhatsApp no configurado' }, 500)
+    if (!SMS_API_KEY) {
+      console.error('Falta secret SMSMASIVOS_API_KEY')
+      return json({ error: 'SMS Masivos no configurado' }, 500)
     }
 
     const supabase = createClient(
@@ -97,11 +58,11 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    const { user_id, whatsapp: directWhatsapp, tipo, data = {}, use_template = true } = await req.json()
+    const { user_id, whatsapp: directPhone, tipo, data = {} } = await req.json()
 
     if (!tipo) return json({ error: 'tipo es requerido' }, 400)
 
-    let toNumber = directWhatsapp
+    let toNumber = directPhone
 
     if (!toNumber && user_id) {
       const { data: userRow } = await supabase
@@ -115,42 +76,34 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!toNumber) return json({ error: 'No se encontró número de WhatsApp' }, 400)
+    if (!toNumber) return json({ error: 'No se encontró número de teléfono' }, 400)
 
-    let normalized = toNumber.replace(/\D/g, '')
-    if (normalized.length === 10) normalized = '52' + normalized
-    if (!normalized.startsWith('52')) normalized = '52' + normalized
+    // Número a 10 dígitos para SMS Masivos
+    let digits = toNumber.replace(/\D/g, '')
+    if (digits.length === 12 && digits.startsWith('52')) digits = digits.slice(2)
+    if (digits.length === 11 && digits.startsWith('1'))  digits = digits.slice(1)
 
-    const url = `https://graph.facebook.com/v19.0/${PHONE_NUM_ID}/messages`
-    const headers = { 'Authorization': `Bearer ${META_TOKEN}`, 'Content-Type': 'application/json' }
+    const message = buildMessage(tipo, data)
 
-    // Intentar con plantilla primero si use_template=true
-    if (use_template && tipo !== 'otp') {
-      const templatePayload = buildTemplatePayload(tipo, normalized, data)
-      if (templatePayload) {
-        const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(templatePayload) })
-        const result = await res.json()
-        if (res.ok) {
-          console.log(`✅ [template] WhatsApp enviado a ${normalized} (${tipo}) — ${result.messages?.[0]?.id}`)
-          return json({ ok: true, method: 'template', id: result.messages?.[0]?.id, to: normalized })
-        }
-        // Si falla la plantilla (aún no aprobada), caer en texto libre
-        console.warn(`⚠️ Plantilla falló (${result.error?.code}), usando texto libre`)
-      }
+    const r = await fetch(`${SMS_MASIVOS_BASE}/sms/send`, {
+      method: 'POST',
+      headers: { 'apikey': SMS_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        numbers: digits,
+        country_code: 52,
+        name: `pliego_${tipo}`,
+      }),
+    })
+    const result = await r.json()
+
+    if (!r.ok || result.success === false) {
+      console.error('Error SMS Masivos /sms/send:', result)
+      return json({ error: result.message ?? 'Error enviando SMS' }, 500)
     }
 
-    // Fallback: texto libre
-    const textPayload = buildTextPayload(tipo, normalized, data)
-    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(textPayload) })
-    const result = await res.json()
-
-    if (!res.ok) {
-      console.error('Meta API error:', result)
-      return json({ error: result.error?.message ?? 'Error de Meta' }, 500)
-    }
-
-    console.log(`✅ [text] WhatsApp enviado a ${normalized} (${tipo}) — ${result.messages?.[0]?.id}`)
-    return json({ ok: true, method: 'text', id: result.messages?.[0]?.id, to: normalized })
+    console.log(`✅ [SMS] enviado a ${digits} (${tipo}) — ${result.request_id}`)
+    return json({ ok: true, method: 'sms', to: digits })
 
   } catch (e) {
     console.error('Error interno send-whatsapp:', e)

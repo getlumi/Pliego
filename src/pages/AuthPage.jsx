@@ -30,7 +30,7 @@ export default function AuthPage({ onAuth }) {
         if (!phone.trim())       throw new Error('Por favor escribe tu WhatsApp')
         if (password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres')
 
-        // 1) Enviar OTP al WhatsApp
+        // 1) Enviar OTP por SMS (temporal, hasta que Meta apruebe WhatsApp)
         const { data: otpData, error: otpError } = await supabase.functions.invoke('send-otp', {
           body: { action: 'send', phone: phone.replace(/\s/g,'') }
         })
@@ -235,9 +235,9 @@ export default function AuthPage({ onAuth }) {
                 borderRadius:14, padding:'12px 16px',
                 display:'flex', gap:10, alignItems:'flex-start',
               }}>
-                <i className="ti ti-brand-whatsapp" style={{ fontSize:20, color:'#25D366', flexShrink:0, marginTop:2 }} />
+                <i className="ti ti-message-2" style={{ fontSize:20, color:'#0369A1', flexShrink:0, marginTop:2 }} />
                 <p style={{ fontSize:13, color:'#0369A1', fontWeight:600, lineHeight:1.4 }}>
-                  Enviamos un código de 6 dígitos a tu WhatsApp {phone}
+                  Enviamos un código de 6 dígitos por SMS al {phone}
                 </p>
               </div>
               <Field label="CÓDIGO DE VERIFICACIÓN" icon="ti-shield-check">
