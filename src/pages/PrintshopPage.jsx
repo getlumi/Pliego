@@ -5,11 +5,14 @@ import TutorialPage from './TutorialPage'
 import { DAY_KEYS, DAY_LABELS, DEFAULT_HOURS } from '../lib/hours'
 
 const SERVICE_OPTIONS = [
-  { type: 'bn_bond',       icon: 'ti-file-text', label: 'B/N · Bond carta',     defaultPrice: 1 },
-  { type: 'color_bond',    icon: 'ti-palette',   label: 'Color · Bond carta',   defaultPrice: 5 },
-  { type: 'opalina_bn',    icon: 'ti-sparkles',  label: 'Opalina · B/N',        defaultPrice: 3 },
-  { type: 'opalina_color', icon: 'ti-sparkles',  label: 'Opalina · Color',      defaultPrice: 8 },
-  { type: 'doble_carta',   icon: 'ti-files',     label: 'Doble carta / oficio', defaultPrice: 2 },
+  { type: 'bn_bond',               icon: 'ti-file-text', label: 'B/N · Bond carta',             defaultPrice: 1  },
+  { type: 'color_bond',            icon: 'ti-palette',   label: 'Color · Solo texto',            defaultPrice: 5  },
+  { type: 'color_imagen_cuarto',   icon: 'ti-photo',     label: 'Color · Imagen 1/4 de hoja',    defaultPrice: 6  },
+  { type: 'color_imagen_medio',    icon: 'ti-photo',     label: 'Color · Imagen 1/2 hoja carta', defaultPrice: 10 },
+  { type: 'color_imagen_completa', icon: 'ti-photo',     label: 'Color · Imagen hoja completa',  defaultPrice: 15 },
+  { type: 'opalina_bn',            icon: 'ti-sparkles',  label: 'Opalina · B/N',                 defaultPrice: 3  },
+  { type: 'opalina_color',         icon: 'ti-sparkles',  label: 'Opalina · Color',               defaultPrice: 8  },
+  { type: 'doble_carta',           icon: 'ti-files',     label: 'Doble carta / oficio',          defaultPrice: 2  },
 ]
 
 const STATUS_LABEL = { nuevo: 'Nuevo', en_proceso: 'En proceso', listo: 'Listo', entregado: 'Entregado' }

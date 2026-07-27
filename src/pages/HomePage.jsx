@@ -93,11 +93,14 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   }
 
   const serviceIcons = {
-    bn_bond:      { icon: 'ti-file-text',  label: 'B/N' },
-    color_bond:   { icon: 'ti-palette',    label: 'Color' },
-    opalina_bn:   { icon: 'ti-sparkles',   label: 'Opalina B/N' },
-    opalina_color:{ icon: 'ti-sparkles',   label: 'Opalina Color' },
-    doble_carta:  { icon: 'ti-files',      label: 'Doble carta' },
+    bn_bond:               { icon: 'ti-file-text',  label: 'B/N' },
+    color_bond:            { icon: 'ti-palette',    label: 'Color texto' },
+    color_imagen_cuarto:   { icon: 'ti-photo',      label: 'Color 1/4 hoja' },
+    color_imagen_medio:    { icon: 'ti-photo',      label: 'Color 1/2 hoja' },
+    color_imagen_completa: { icon: 'ti-photo',      label: 'Color hoja completa' },
+    opalina_bn:            { icon: 'ti-sparkles',   label: 'Opalina B/N' },
+    opalina_color:         { icon: 'ti-sparkles',   label: 'Opalina Color' },
+    doble_carta:           { icon: 'ti-files',      label: 'Doble carta' },
   }
 
   const Stars = ({ rating }) => (

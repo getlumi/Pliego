@@ -354,7 +354,7 @@ function OrdersTab() {
 
   return (
     <div className="scroll-content">
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:8 }}>
         <div className="card" style={{ textAlign:'center' }}>
           <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Total pedidos</p>
           <p style={{ fontSize:24, fontWeight:900 }}>{orders.length}</p>
@@ -509,7 +509,7 @@ function UsersTab() {
         </div>
       )}
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:8 }}>
         <div className="card" style={{ textAlign:'center' }}>
           <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Total</p>
           <p style={{ fontSize:22, fontWeight:900 }}>{users.length}</p>
@@ -713,7 +713,7 @@ function FinancesTab() {
       {loading || !data ? <p style={{ textAlign:'center', color:'var(--text-muted)', padding:32 }}>Cargando...</p> : <>
 
         {/* KPIs */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:8 }}>
           <div className="card" style={{ background:'var(--gradient-dark)', textAlign:'center' }}>
             <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)' }}>Recargas brutas</p>
             <p style={{ fontSize:26, fontWeight:900, color:'#fff' }}>${data.totalRecargas.toFixed(2)}</p>

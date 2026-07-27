@@ -74,6 +74,19 @@ input, select, textarea {
 }
 .page::-webkit-scrollbar { display: none; }
 
+/* Panel de Admin: en escritorio se expande a un ancho cómodo de lectura,
+   en vez de quedarse encerrado en el ancho de teléfono (430px). En móvil
+   (max-width: 899px) se comporta exactamente igual que el resto de la app. */
+@media (min-width: 900px) {
+  .admin-frame {
+    max-width: 1180px;
+    min-height: 92vh;
+    margin: 4vh 0;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-md);
+  }
+}
+
 .scroll-content {
   padding: 18px 16px;
   display: flex;

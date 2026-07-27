@@ -148,7 +148,7 @@ export default function App() {
 
   // Admin: panel de administración de Pliego
   if (isAdmin) return (
-    <div className="app-shell"><div className="phone-frame">
+    <div className="app-shell"><div className="phone-frame admin-frame">
       <AdminPage session={session} onSignOut={() => supabase.auth.signOut()} />
     </div></div>
   )
