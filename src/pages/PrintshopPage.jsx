@@ -137,7 +137,7 @@ export default function PrintshopPage({ session }) {
   const loadOrders = async (shopId) => {
     const { data } = await supabase
       .from('orders')
-      .select('id, created_at, status, file_name, file_url, file_count, copies, orientation, color_mode, paper_size, service_type, estimated_cost, special_instructions, ready_at, delivered_at, user_name, expires_at')
+      .select('id, created_at, status, file_name, file_url, file_count, copies, orientation, color_mode, paper_size, service_type, estimated_cost, special_instructions, ready_at, delivered_at, user_name, expires_at, user_id')
       .eq('printshop_id', shopId)
       .order('created_at', { ascending: false })
     setOrders(data ?? [])
