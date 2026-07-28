@@ -161,7 +161,7 @@ export default function App() {
       </div></div>
     )
     return (
-      <div className="app-shell"><div className="phone-frame">
+      <div className="app-shell"><div className="phone-frame shop-frame">
         <PrintshopPage session={session} />
       </div></div>
     )

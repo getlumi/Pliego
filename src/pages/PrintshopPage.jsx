@@ -257,7 +257,7 @@ export default function PrintshopPage({ session }) {
       )}
 
       {/* Tabs */}
-      <div style={{ display:'flex', gap:5, padding:'14px 12px 0' }}>
+      <div className="shop-tabs" style={{ display:'flex', gap:5, padding:'14px 12px 0' }}>
         {[
           {id:'orders',   label:'Pedidos',   icon:'ti-list-details'},
           {id:'earnings', label:'Ganancias', icon:'ti-cash'},
@@ -704,6 +704,7 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
               {delivered.length} entregado{delivered.length>1?'s':''} oculto{delivered.length>1?'s':''}
             </p>
           )}
+          <div className="orders-grid">
           {activeOrders.map(o => (
         <div key={o.id} className="card" style={{
           border: o.status === 'nuevo' ? '1.5px solid var(--amber)' :
@@ -818,7 +819,8 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
             </button>
           </div>
         </div>
-      ))}</>
+      ))}
+          </div></>
       )}
     </div>
   )

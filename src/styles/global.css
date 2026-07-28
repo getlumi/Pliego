@@ -78,12 +78,33 @@ input, select, textarea {
    en vez de quedarse encerrado en el ancho de teléfono (430px). En móvil
    (max-width: 899px) se comporta exactamente igual que el resto de la app. */
 @media (min-width: 900px) {
-  .admin-frame {
+  .admin-frame, .shop-frame {
     max-width: 1180px;
     min-height: 92vh;
     margin: 4vh 0;
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-md);
+  }
+}
+
+/* Tarjetas de pedidos en el panel de papelería: apiladas en móvil (igual
+   que antes), en cuadrícula responsive en escritorio para aprovechar el
+   ancho extra del .shop-frame en vez de estirarse en una sola columna. */
+.orders-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+@media (min-width: 900px) {
+  .orders-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 14px;
+    align-items: start;
+  }
+  .shop-tabs {
+    max-width: 480px;
+    margin: 0 auto;
   }
 }
 
