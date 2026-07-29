@@ -249,7 +249,7 @@ export default function PrintshopPage({ session }) {
                 <i className="ti ti-clock" style={{ fontSize:14, verticalAlign:-1 }} /> Verificación en proceso
               </p>
               <p style={{ fontSize:12, color:'var(--text-secondary)' }}>
-                Estamos revisando tus documentos. Te avisaremos por WhatsApp en menos de 24 horas. Mientras tanto puedes configurar tu papelería.
+                Estamos revisando tus documentos. Te avisaremos por SMS en menos de 24 horas. Mientras tanto puedes configurar tu papelería.
               </p>
             </div>
           )}
@@ -468,7 +468,7 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
         </button>
 
         <p style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center' }}>
-          Tu solicitud será revisada en menos de 24 horas. Te avisaremos por WhatsApp.
+          Tu solicitud será revisada en menos de 24 horas. Te avisaremos por SMS.
         </p>
       </div>
     </div>
@@ -1023,7 +1023,7 @@ function EarningsTab({ shop }) {
             </div>
             <div style={{ textAlign:'right' }}>
               <p style={{ fontSize:15, fontWeight:900, color:'var(--green)' }}>${(o.estimated_cost ?? 0).toFixed(2)}</p>
-              <p style={{ fontSize:10, color:'var(--text-muted)' }}>-$2.00 cuota</p>
+              <p style={{ fontSize:10, color:'var(--text-muted)' }}>1 crédito cobrado al cliente (no a ti)</p>
             </div>
           </div>
           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>

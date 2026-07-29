@@ -20,6 +20,10 @@ alter table public.wallet_transactions
 --    p_amount sigue siendo pesos reales (para Finanzas).
 --    p_credits es nuevo y opcional — créditos a sumar (recargas y
 --    crédito de bienvenida lo usan; otros movimientos no).
+--    Primero borramos la versión vieja (firma de 5 argumentos) para que
+--    no queden dos funciones "credit_wallet" ambiguas al mismo tiempo.
+drop function if exists credit_wallet(uuid, numeric, text, text, text);
+
 create or replace function credit_wallet(
   p_user_id     uuid,
   p_amount      numeric,
@@ -57,5 +61,5 @@ begin
 end;
 $$;
 
-revoke execute on function credit_wallet from public, anon, authenticated;
-grant execute on function credit_wallet to service_role;
+revoke execute on function credit_wallet(uuid, numeric, text, text, text, integer) from public, anon, authenticated;
+grant execute on function credit_wallet(uuid, numeric, text, text, text, integer) to service_role;

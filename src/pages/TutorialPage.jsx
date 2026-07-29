@@ -26,13 +26,13 @@ const TUTORIAL_USER = [
   {
     icon:  'ti-send',
     title: '3. Envía tu pedido',
-    desc:  'Revisa el precio y toca "Enviar pedido". Se descuentan $2 de tu saldo como cuota de servicio. El resto lo pagas en efectivo al recoger.',
-    tip:   '💡 Necesitas saldo en tu wallet para enviar. Recarga desde la sección "Saldo".',
+    desc:  'Revisa el precio y toca "Enviar pedido". Se descuenta 1 crédito de tu saldo como cuota de servicio. El resto lo pagas en efectivo al recoger.',
+    tip:   '💡 Necesitas créditos disponibles para enviar. Recarga desde la sección "Saldo".',
   },
   {
     icon:  'ti-wallet',
     title: '4. Recarga tu saldo',
-    desc:  'En la sección "Saldo" puedes recargar con tarjeta de crédito/débito o en cualquier OXXO. Elige el paquete de $20 (10 impresiones) o $50 (30 impresiones).',
+    desc:  'En la sección "Saldo" puedes recargar con tarjeta de crédito/débito o en cualquier OXXO. Elige el paquete de $26 (4 créditos) o $55 (10 créditos, mejor precio por crédito).',
     tip:   '💡 Para OXXO: genera el voucher, ve a cualquier OXXO y muestra el número de referencia al cajero.',
   },
   {
@@ -89,7 +89,7 @@ const TUTORIAL_PRINTSHOP = [
     color:   '#1A1A1A',
     title:   '4. Tus ganancias',
     desc:    'En la tab "Ganancias" ves el total que has cobrado en efectivo. Ese dinero es 100% tuyo — los clientes te pagan directo.',
-    tip:     '💡 Pliego cobra $2 al cliente por el servicio de la plataforma, tú no pierdes nada.',
+    tip:     '💡 Pliego cobra una cuota de servicio en créditos al cliente, tú no pierdes nada.',
   },
   {
     icon:    'ti-star',
