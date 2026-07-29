@@ -110,8 +110,9 @@ Deno.serve(async (req) => {
       p_user_id:     user_id,
       p_amount:      amountMXN,
       p_payment_id:  intentId,
-      p_description: `Recarga ${prints} impresiones · Stripe`,
+      p_description: `Recarga ${prints} créditos · Stripe`,
       p_method:      method,
+      p_credits:     Number(prints),
     })
 
     if (creditError) {
@@ -124,8 +125,8 @@ Deno.serve(async (req) => {
       return json({ ok: true, already_processed: true })
     }
 
-    console.log(`✅ Acreditado $${amountMXN} a usuario ${user_id}`)
-    return json({ ok: true, credited: amountMXN })
+    console.log(`✅ Acreditado $${amountMXN} MXN (${prints} créditos) a usuario ${user_id}`)
+    return json({ ok: true, credited: amountMXN, credits: Number(prints) })
 
   } catch (e) {
     console.error('Error:', e)

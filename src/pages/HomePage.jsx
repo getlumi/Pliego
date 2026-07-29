@@ -40,7 +40,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   }, [session])
 
   const loadUser = async () => {
-    let { data } = await supabase.from('users').select('name, wallet_balance').eq('id', session.user.id).maybeSingle()
+    let { data } = await supabase.from('users').select('name, credits_balance').eq('id', session.user.id).maybeSingle()
     if (!data) {
       const meta = session.user.user_metadata ?? {}
       // Intenta crear el perfil si aún no existe (insert ignorado si ya lo creó otra parte del flujo)
@@ -49,10 +49,11 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
         name: meta.name ?? 'Usuario',
         phone: meta.phone ?? '',
         wallet_balance: 0,
+        credits_balance: 0,
         privacy_accepted_at: new Date().toISOString(),
         onboarding_seen: true,
       })
-      const retry = await supabase.from('users').select('name, wallet_balance').eq('id', session.user.id).maybeSingle()
+      const retry = await supabase.from('users').select('name, credits_balance').eq('id', session.user.id).maybeSingle()
       data = retry.data
     }
     setUser(data)
@@ -166,7 +167,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
             color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
           }}>
             <i className="ti ti-wallet" style={{ fontSize: 16 }} />
-            ${(user?.wallet_balance ?? 0).toFixed(2)}
+            {user?.credits_balance ?? 0} créditos
           </button>
         </div>
       </div>
@@ -393,7 +394,7 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
           <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8 }}>
             Elige un tipo de impresión en "Subir documento" para enviar
           </p>
-        ) : (user?.wallet_balance ?? 0) < 2 ? (
+        ) : (user?.credits_balance ?? 0) < 1 ? (
           <div style={{
             marginTop: 8, padding: '12px 14px', borderRadius: 'var(--radius-md)',
             background: 'var(--amber-light)', border: '1px solid var(--amber)',
@@ -403,7 +404,7 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Te falta saldo para enviar</p>
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.5 }}>
-                Cada pedido usa $2 de tu cuenta. Recarga desde $20 y sigue imprimiendo sin complicaciones.
+                Cada pedido usa 1 crédito. Recarga desde $26 y sigue imprimiendo sin complicaciones.
               </p>
               <button onClick={e => { e.stopPropagation(); onNavigate('wallet') }} style={{
                 background: 'var(--green)', color: '#fff', border: 'none',

@@ -3,7 +3,7 @@
 //    Si lo único que hay es un Word, se sube tal cual.
 // 2) Sube el archivo a Storage.
 // 3) Crea la fila en `orders`.
-// 4) Cobra la cuota de servicio ($2) del wallet.
+// 4) Cobra 1 crédito del saldo de créditos (credits_balance).
 
 import { supabase } from './supabase'
 import { PDFDocument } from 'pdf-lib'
@@ -57,13 +57,16 @@ async function buildUploadFile(files) {
 // result: { success: true, orderId } | { success: false, error: string }
 export async function sendOrder({ session, draft, selectedService, totalPages, total }) {
   try {
-    // 1) Verificar saldo para la cuota de servicio ($2)
+    // 1) Verificar saldo de créditos (1 crédito por pedido)
     const { data: userRow, error: userError } = await supabase
-      .from('users').select('wallet_balance, name').eq('id', session.user.id).maybeSingle()
+      .from('users').select('credits_balance, name').eq('id', session.user.id).maybeSingle()
     if (userError || !userRow) return { success: false, error: 'No se pudo verificar tu saldo. Intenta de nuevo.' }
 
-    const SERVICE_FEE = 2.00
-    if (userRow.wallet_balance < SERVICE_FEE) {
+    const SERVICE_FEE_CREDITS = 1
+    // Valor en pesos del crédito consumido, solo para reportes de Finanzas del Admin
+    // (orders.service_fee) — no se cobra pesos reales aquí, ya se cobraron al recargar.
+    const SERVICE_FEE_MXN_EQUIV = 5.50
+    if (userRow.credits_balance < SERVICE_FEE_CREDITS) {
       return { success: false, error: 'INSUFFICIENT_BALANCE' }
     }
 
@@ -92,7 +95,7 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
       color_mode,
       service_type: selectedService?.service_type ?? 'bn_bond',
       special_instructions: draft.instructions || null,
-      service_fee: SERVICE_FEE,
+      service_fee: SERVICE_FEE_MXN_EQUIV,
       estimated_cost: total,
       user_name: userRow.name ?? null,
     })
@@ -101,12 +104,13 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
       return { success: false, error: 'No se pudo crear el pedido. Intenta de nuevo.' }
     }
 
-    // 4) Cobrar la cuota de servicio
-    await supabase.from('users').update({ wallet_balance: userRow.wallet_balance - SERVICE_FEE }).eq('id', session.user.id)
+    // 4) Cobrar 1 crédito
+    await supabase.from('users').update({ credits_balance: userRow.credits_balance - SERVICE_FEE_CREDITS }).eq('id', session.user.id)
     await supabase.from('wallet_transactions').insert({
       user_id: session.user.id,
       type: 'servicio',
-      amount: -SERVICE_FEE,
+      amount: -SERVICE_FEE_MXN_EQUIV,
+      credits: -SERVICE_FEE_CREDITS,
       payment_method: 'sistema',
       order_id: orderId,
     })

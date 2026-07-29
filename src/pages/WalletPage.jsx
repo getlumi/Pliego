@@ -2,11 +2,9 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 const PACKAGES = [
-  { id: 'basic',   amount: 20, prints: 10, pricePerPrint: '2.00' },
-  { id: 'popular', amount: 50, prints: 30, pricePerPrint: '1.67', badge: 'Mejor precio' },
+  { id: 'basic',   amount: 26, prints: 4,  pricePerPrint: '6.50' },
+  { id: 'popular', amount: 55, prints: 10, pricePerPrint: '5.50', badge: 'Mejor precio' },
 ]
-
-const SERVICE_FEE = 2
 
 export default function WalletPage({ session }) {
   const [balance, setBalance]       = useState(null)
@@ -24,14 +22,14 @@ export default function WalletPage({ session }) {
     const channel = supabase
       .channel(`wallet:${session.user.id}`)
       .on('postgres_changes', { event:'UPDATE', schema:'public', table:'users', filter:`id=eq.${session.user.id}` },
-        payload => setBalance(payload.new.wallet_balance))
+        payload => setBalance(payload.new.credits_balance))
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [session])
 
   const loadData = async () => {
-    const { data: u } = await supabase.from('users').select('wallet_balance').eq('id', session.user.id).maybeSingle()
-    setBalance(u?.wallet_balance ?? 0)
+    const { data: u } = await supabase.from('users').select('credits_balance').eq('id', session.user.id).maybeSingle()
+    setBalance(u?.credits_balance ?? 0)
     const { data: txs } = await supabase.from('wallet_transactions').select('*')
       .eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(20)
     setTransactions(txs ?? [])
@@ -68,9 +66,9 @@ export default function WalletPage({ session }) {
   return (
     <div className="page">
       <div style={{ background:'var(--gradient-dark)', padding:'48px 20px 32px' }}>
-        <p style={{ fontSize:12, color:'rgba(255,255,255,0.6)', fontWeight:600, marginBottom:4 }}>Tu saldo disponible</p>
-        <p style={{ fontSize:40, fontWeight:900, color:'#fff' }}>${balance === null ? '...' : Number(balance).toFixed(2)}</p>
-        <p style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginTop:4 }}>Cada impresión usa $2.00 de tu saldo</p>
+        <p style={{ fontSize:12, color:'rgba(255,255,255,0.6)', fontWeight:600, marginBottom:4 }}>Tus créditos disponibles</p>
+        <p style={{ fontSize:40, fontWeight:900, color:'#fff' }}>{balance === null ? '...' : Number(balance)}</p>
+        <p style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginTop:4 }}>Cada impresión usa 1 crédito</p>
       </div>
 
       <div className="scroll-content">
@@ -91,8 +89,8 @@ export default function WalletPage({ session }) {
                   <span style={{ position:'absolute', top:-10, left:'50%', transform:'translateX(-50%)', fontSize:11, background:'var(--green)', color:'#fff', padding:'2px 8px', borderRadius:'var(--radius-full)', fontWeight:700, whiteSpace:'nowrap' }}>{p.badge}</span>
                 )}
                 <p style={{ fontSize:26, fontWeight:900, color: selectedPkg === p.id ? 'var(--green)' : 'var(--text-primary)' }}>${p.amount}</p>
-                <p style={{ fontSize:13, color:'var(--text-secondary)', marginTop:2 }}>{p.prints} impresiones</p>
-                <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>${p.pricePerPrint} c/u</p>
+                <p style={{ fontSize:13, color:'var(--text-secondary)', marginTop:2 }}>{p.prints} créditos</p>
+                <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>${p.pricePerPrint}/crédito</p>
               </button>
             ))}
           </div>
@@ -178,7 +176,7 @@ export default function WalletPage({ session }) {
           <div className="card" style={{ textAlign:'center', padding:32 }}>
             <i className="ti ti-circle-check-filled" style={{ fontSize:56, color:'var(--green)', display:'block', marginBottom:16 }} />
             <p style={{ fontSize:20, fontWeight:900, marginBottom:8 }}>¡Pago exitoso!</p>
-            <p style={{ fontSize:14, color:'var(--text-secondary)', marginBottom:20 }}>Tu saldo fue acreditado.</p>
+            <p style={{ fontSize:14, color:'var(--text-secondary)', marginBottom:20 }}>Tus créditos ya están disponibles.</p>
             <button onClick={() => setCardStep(null)} className="btn-primary">Listo</button>
           </div>
         )}
@@ -188,22 +186,26 @@ export default function WalletPage({ session }) {
           <div className="card">
             <p style={{ fontSize:14, fontWeight:800, marginBottom:12 }}>Movimientos recientes</p>
             <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {transactions.map(tx => (
+              {transactions.map(tx => {
+                const credits = tx.credits ?? (tx.type === 'servicio' ? -1 : null)
+                const isPositive = (credits ?? 0) > 0
+                return (
                 <div key={tx.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', paddingBottom:10, borderBottom:'1px solid var(--border-light)' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <div style={{ width:32, height:32, borderRadius:10, flexShrink:0, background: tx.amount > 0 ? 'var(--green-light)' : 'var(--red-light)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <i className={`ti ${tx.amount > 0 ? 'ti-arrow-down-left' : 'ti-printer'}`} style={{ fontSize:16, color: tx.amount > 0 ? 'var(--green)' : 'var(--red)' }} />
+                    <div style={{ width:32, height:32, borderRadius:10, flexShrink:0, background: isPositive ? 'var(--green-light)' : 'var(--red-light)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <i className={`ti ${isPositive ? 'ti-arrow-down-left' : 'ti-printer'}`} style={{ fontSize:16, color: isPositive ? 'var(--green)' : 'var(--red)' }} />
                     </div>
                     <div>
-                      <p style={{ fontSize:13, fontWeight:600 }}>{tx.amount > 0 ? `Recarga · ${tx.payment_method === 'oxxo' ? 'OXXO' : 'Tarjeta'}` : 'Impresión'}</p>
+                      <p style={{ fontSize:13, fontWeight:600 }}>{tx.type === 'recarga' ? `Recarga · ${tx.payment_method === 'oxxo' ? 'OXXO' : 'Tarjeta'}` : 'Impresión'}</p>
                       <p style={{ fontSize:11, color:'var(--text-muted)' }}>{fmtDate(tx.created_at)}</p>
                     </div>
                   </div>
-                  <p style={{ fontSize:15, fontWeight:700, color: tx.amount > 0 ? 'var(--green)' : 'var(--text-primary)' }}>
-                    {tx.amount > 0 ? '+' : ''}${Math.abs(tx.amount).toFixed(2)}
+                  <p style={{ fontSize:15, fontWeight:700, color: isPositive ? 'var(--green)' : 'var(--text-primary)' }}>
+                    {credits != null ? `${isPositive ? '+' : ''}${credits} crédito${Math.abs(credits) !== 1 ? 's' : ''}` : '—'}
                   </p>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}

@@ -550,7 +550,7 @@ function UsersTab() {
                     )}
                   </div>
                   <p style={{ fontSize:12, color:'var(--text-secondary)' }}>{u.phone}</p>
-                  <p style={{ fontSize:11, color:'var(--text-muted)' }}>{new Date(u.created_at).toLocaleDateString('es-MX')} · ${(u.wallet_balance ?? 0).toFixed(2)}</p>
+                  <p style={{ fontSize:11, color:'var(--text-muted)' }}>{new Date(u.created_at).toLocaleDateString('es-MX')} · ${(u.wallet_balance ?? 0).toFixed(2)} recargados · {u.credits_balance ?? 0} créditos</p>
                 </div>
                 {!u.is_admin && (
                   <div style={{ display:'flex', flexDirection:'column', gap:6, flexShrink:0 }}>

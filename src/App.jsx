@@ -77,6 +77,7 @@ export default function App() {
           name: meta.name ?? 'Usuario',
           phone: meta.phone ?? authUser?.user?.email?.split('@')[0] ?? '',
           wallet_balance: 0,
+          credits_balance: 0,
           privacy_accepted_at: new Date().toISOString(),
           onboarding_seen: false,
         })
