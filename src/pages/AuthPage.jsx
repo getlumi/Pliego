@@ -4,11 +4,11 @@ import { supabase } from '../lib/supabase'
 // Ladas soportadas. México primero y por defecto — el resto queda listo
 // para cuando Pliego se expanda a otros países de LATAM.
 const LADAS = [
-  { code: '52', label: '🇲🇽 +52 México' },
-  { code: '57', label: '🇨🇴 +57 Colombia' },
-  { code: '51', label: '🇵🇪 +51 Perú' },
-  { code: '54', label: '🇦🇷 +54 Argentina' },
-  { code: '56', label: '🇨🇱 +56 Chile' },
+  { code: '52', label: '🇲🇽 +52' },
+  { code: '57', label: '🇨🇴 +57' },
+  { code: '51', label: '🇵🇪 +51' },
+  { code: '54', label: '🇦🇷 +54' },
+  { code: '56', label: '🇨🇱 +56' },
 ]
 
 // Valida que sean EXACTAMENTE 10 dígitos y rechaza patrones obviamente
@@ -19,9 +19,8 @@ const LADAS = [
 function isValidPhoneFormat(digits) {
   if (!/^\d{10}$/.test(digits)) return false
   if (/^(\d)\1{9}$/.test(digits)) return false // 0000000000, 1111111111...
-  const ascending  = '0123456789'.includes(digits) || '1234567890'.includes(digits)
-  const descending = '9876543210'.includes(digits) || '0987654321'.includes(digits)
-  if (digits.length === 10 && (ascending || descending)) return false
+  if (digits === '0123456789' || digits === '1234567890') return false
+  if (digits === '9876543210' || digits === '0987654321') return false
   return true
 }
 

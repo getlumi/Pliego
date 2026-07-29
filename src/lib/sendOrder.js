@@ -90,8 +90,13 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
       contentType, upsert: false,
     })
     if (uploadError) {
-      await supabase.rpc('refund_credit', { p_order_id: orderId })
-      return { success: false, error: 'No se pudo subir tu documento. Se te devolvió el crédito, intenta de nuevo.' }
+      const { data: refunded } = await supabase.rpc('refund_credit', { p_order_id: orderId })
+      return {
+        success: false,
+        error: refunded
+          ? 'No se pudo subir tu documento. Se te devolvió el crédito, intenta de nuevo.'
+          : 'No se pudo subir tu documento. Contacta a soporte si tu saldo no se ajusta solo.',
+      }
     }
 
     // 4) Crear el pedido
@@ -115,8 +120,13 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
     })
     if (orderError) {
       await supabase.storage.from('documents').remove([path])
-      await supabase.rpc('refund_credit', { p_order_id: orderId })
-      return { success: false, error: 'No se pudo crear el pedido. Se te devolvió el crédito, intenta de nuevo.' }
+      const { data: refunded } = await supabase.rpc('refund_credit', { p_order_id: orderId })
+      return {
+        success: false,
+        error: refunded
+          ? 'No se pudo crear el pedido. Se te devolvió el crédito, intenta de nuevo.'
+          : 'No se pudo crear el pedido. Contacta a soporte si tu saldo no se ajusta solo.',
+      }
     }
 
     // 5) Notificar al dueño de la papelería (SMS/WhatsApp según el canal activo)
