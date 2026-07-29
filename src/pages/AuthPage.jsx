@@ -1,8 +1,33 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+// Ladas soportadas. México primero y por defecto — el resto queda listo
+// para cuando Pliego se expanda a otros países de LATAM.
+const LADAS = [
+  { code: '52', label: '🇲🇽 +52 México' },
+  { code: '57', label: '🇨🇴 +57 Colombia' },
+  { code: '51', label: '🇵🇪 +51 Perú' },
+  { code: '54', label: '🇦🇷 +54 Argentina' },
+  { code: '56', label: '🇨🇱 +56 Chile' },
+]
+
+// Valida que sean EXACTAMENTE 10 dígitos y rechaza patrones obviamente
+// falsos (todos el mismo dígito, o secuencias como 1234567890). Esto no
+// verifica que el número exista de verdad en la red — eso requiere un
+// servicio de validación HLR aparte — pero evita gastar SMS en errores de
+// captura obvios antes de intentar enviar nada.
+function isValidPhoneFormat(digits) {
+  if (!/^\d{10}$/.test(digits)) return false
+  if (/^(\d)\1{9}$/.test(digits)) return false // 0000000000, 1111111111...
+  const ascending  = '0123456789'.includes(digits) || '1234567890'.includes(digits)
+  const descending = '9876543210'.includes(digits) || '0987654321'.includes(digits)
+  if (digits.length === 10 && (ascending || descending)) return false
+  return true
+}
+
 export default function AuthPage({ onAuth }) {
   const [mode,     setMode]     = useState('login')
+  const [countryCode, setCountryCode] = useState('52')
   const [phone,    setPhone]    = useState('')
   const [password, setPassword] = useState('')
   const [name,     setName]     = useState('')
@@ -20,19 +45,21 @@ export default function AuthPage({ onAuth }) {
     setError('')
     setLoading(true)
     try {
-      const email = `${phone.replace(/\s/g,'')}@pliego.com`
+      const cleanPhone = phone.replace(/\D/g, '')
+      const email = `${cleanPhone}@pliego.com`
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw new Error('Número o contraseña incorrectos')
         onAuth(intent)
       } else {
         if (!name.trim())        throw new Error('Por favor escribe tu nombre')
-        if (!phone.trim())       throw new Error('Por favor escribe tu WhatsApp')
+        if (!phone.trim())       throw new Error('Por favor escribe tu número')
+        if (!isValidPhoneFormat(cleanPhone)) throw new Error('Escribe un número válido de 10 dígitos')
         if (password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres')
 
         // 1) Enviar OTP por SMS (temporal, hasta que Meta apruebe WhatsApp)
         const { data: otpData, error: otpError } = await supabase.functions.invoke('send-otp', {
-          body: { action: 'send', phone: phone.replace(/\s/g,'') }
+          body: { action: 'send', phone: cleanPhone, country_code: countryCode }
         })
         if (otpError || otpData?.error) throw new Error('No pudimos enviar el código. Verifica tu número.')
 
@@ -51,22 +78,23 @@ export default function AuthPage({ onAuth }) {
     setOtpLoading(true)
     try {
       if (otpCode.length !== 6) throw new Error('El código debe tener 6 dígitos')
+      const cleanPhone = phone.replace(/\D/g, '')
 
       // 1) Verificar OTP
       const { data: verifyData, error: verifyError } = await supabase.functions.invoke('send-otp', {
-        body: { action: 'verify', phone: phone.replace(/\s/g,''), code: otpCode }
+        body: { action: 'verify', phone: cleanPhone, code: otpCode }
       })
       if (verifyError || !verifyData?.ok) throw new Error('Código incorrecto o expirado')
 
       // 2) Crear la cuenta
       const { data: regData, error: regError } = await supabase.functions.invoke('smart-task', {
-        body: { name, phone: phone.replace(/\s/g,''), password }
+        body: { name, phone: cleanPhone, password, country_code: countryCode }
       })
       if (regError) throw new Error('No se pudo crear tu cuenta. Intenta de nuevo.')
       if (regData?.error) throw new Error(regData.error)
 
       // 3) Iniciar sesión
-      const email = `${phone.replace(/\s/g,'')}@pliego.com`
+      const email = `${cleanPhone}@pliego.com`
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) throw new Error('Tu cuenta se creó. Ahora entra con "Entrar".')
       onAuth(intent)
@@ -187,10 +215,17 @@ export default function AuthPage({ onAuth }) {
             </Field>
           )}
 
-          <Field label="WHATSAPP" icon="ti-phone">
+          <Field label="TU NÚMERO" icon="ti-phone">
+            <select
+              value={countryCode} onChange={e => setCountryCode(e.target.value)}
+              style={{ ...inputStyle, flex: '0 0 auto', width: 'auto', fontSize: 15, paddingRight: 4 }}
+            >
+              {LADAS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+            </select>
+            <span style={{ color: 'var(--border)' }}>|</span>
             <input
-              type="tel" placeholder="998 123 4567"
-              value={phone} onChange={e => setPhone(e.target.value)}
+              type="tel" placeholder="998 123 4567" inputMode="numeric" maxLength={14}
+              value={phone} onChange={e => setPhone(e.target.value.replace(/[^\d\s]/g, ''))}
               onKeyDown={e => e.key === 'Enter' && handleSubmit()}
               style={inputStyle} autoComplete="tel"
             />

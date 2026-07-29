@@ -63,16 +63,20 @@ Deno.serve(async (req) => {
     if (!tipo) return json({ error: 'tipo es requerido' }, 400)
 
     let toNumber = directPhone
+    let ladaCode  = '52'
 
     if (!toNumber && user_id) {
       const { data: userRow } = await supabase
-        .from('users').select('phone').eq('id', user_id).maybeSingle()
+        .from('users').select('phone, country_code').eq('id', user_id).maybeSingle()
       if (userRow?.phone) {
         toNumber = userRow.phone
+        ladaCode = userRow.country_code ?? '52'
       } else {
         const { data: shopRow } = await supabase
           .from('printshops').select('whatsapp').eq('owner_id', user_id).maybeSingle()
         toNumber = shopRow?.whatsapp
+        // Las papelerías no tienen country_code propio todavía (tabla
+        // printshops no lo guarda) — por ahora siempre son de México.
       }
     }
 
@@ -91,7 +95,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         message,
         numbers: digits,
-        country_code: 52,
+        country_code: Number(ladaCode.replace(/\D/g, '') || '52'),
         name: `pliego_${tipo}`,
       }),
     })

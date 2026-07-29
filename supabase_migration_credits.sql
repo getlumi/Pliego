@@ -63,3 +63,110 @@ $$;
 
 revoke execute on function credit_wallet(uuid, numeric, text, text, text, integer) from public, anon, authenticated;
 grant execute on function credit_wallet(uuid, numeric, text, text, text, integer) to service_role;
+
+-- =============================================
+-- 4) DESCUENTO ATÓMICO DE CRÉDITO (corrige race condition)
+-- Antes: sendOrder.js leía credits_balance y luego escribía saldo-1 en dos
+-- pasos separados sin chequear error — dos pedidos casi simultáneos podían
+-- descontar solo 1 crédito entre ambos, o fallar en silencio sin cobrar.
+-- Ahora: una sola operación atómica en la base de datos. Solo actúa sobre
+-- auth.uid() (el propio usuario autenticado) — no se puede pasar el UUID
+-- de otra persona para vaciarle el saldo.
+-- =============================================
+create or replace function deduct_credit(
+  p_order_id   uuid,
+  p_amount_mxn numeric default 5.50
+) returns boolean
+language plpgsql
+security definer
+as $$
+declare
+  updated_rows int;
+  v_user_id    uuid := auth.uid();
+begin
+  if v_user_id is null then
+    raise exception 'No autenticado';
+  end if;
+
+  update public.users
+    set credits_balance = credits_balance - 1
+    where id = v_user_id and credits_balance >= 1;
+
+  get diagnostics updated_rows = row_count;
+
+  if updated_rows = 0 then
+    return false; -- saldo insuficiente, no se descontó nada
+  end if;
+
+  insert into public.wallet_transactions
+    (user_id, type, amount, credits, payment_method, order_id)
+  values
+    (v_user_id, 'servicio', -p_amount_mxn, -1, 'sistema', p_order_id);
+
+  return true;
+end;
+$$;
+
+grant execute on function deduct_credit(uuid, numeric) to authenticated;
+revoke execute on function deduct_credit(uuid, numeric) from public, anon;
+
+-- Reembolso: solo si existe un cargo real de ese pedido y no se ha
+-- reembolsado antes (evita doble reembolso). Se usa cuando el pedido se
+-- cobró pero falló un paso posterior (subida de archivo o insert del
+-- pedido), para no dejar a alguien pagando por un pedido que no se creó.
+create or replace function refund_credit(
+  p_order_id uuid
+) returns boolean
+language plpgsql
+security definer
+as $$
+declare
+  v_user_id          uuid := auth.uid();
+  v_charge_exists    boolean;
+  v_already_refunded boolean;
+begin
+  if v_user_id is null then
+    raise exception 'No autenticado';
+  end if;
+
+  select exists(
+    select 1 from public.wallet_transactions
+    where order_id = p_order_id and user_id = v_user_id
+      and type = 'servicio' and credits = -1
+  ) into v_charge_exists;
+
+  if not v_charge_exists then
+    return false;
+  end if;
+
+  select exists(
+    select 1 from public.wallet_transactions
+    where order_id = p_order_id and user_id = v_user_id
+      and type = 'reembolso'
+  ) into v_already_refunded;
+
+  if v_already_refunded then
+    return false;
+  end if;
+
+  update public.users
+    set credits_balance = credits_balance + 1
+    where id = v_user_id;
+
+  insert into public.wallet_transactions
+    (user_id, type, amount, credits, payment_method, order_id, description)
+  values
+    (v_user_id, 'reembolso', 5.50, 1, 'sistema', p_order_id, 'Reembolso: no se pudo completar el pedido');
+
+  return true;
+end;
+$$;
+
+grant execute on function refund_credit(uuid) to authenticated;
+revoke execute on function refund_credit(uuid) from public, anon;
+
+-- =============================================
+-- 5) Selector de lada / código de país
+-- =============================================
+alter table public.users
+  add column if not exists country_code text not null default '52';

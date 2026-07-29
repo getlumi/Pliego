@@ -18,6 +18,17 @@ const json = (body: unknown, status = 200) =>
 
 const SMS_MASIVOS_BASE = 'https://api.smsmasivos.com.mx'
 
+// Misma validación que en el frontend, mantenida aquí como defensa
+// adicional: si alguien llama esta función directamente (sin pasar por la
+// app), no queremos gastar un envío real en un número claramente inválido.
+function isValidPhoneFormat(digits) {
+  if (!/^\d{10}$/.test(digits)) return false
+  if (/^(\d)\1{9}$/.test(digits)) return false
+  if (digits === '1234567890' || digits === '0123456789') return false
+  if (digits === '9876543210' || digits === '0987654321') return false
+  return true
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -29,16 +40,22 @@ Deno.serve(async (req) => {
       return json({ error: 'SMS Masivos no configurado' }, 500)
     }
 
-    const { action, phone, code: inputCode } = await req.json()
+    const { action, phone, code: inputCode, country_code } = await req.json()
 
     if (!phone) return json({ error: 'phone es requerido' }, 400)
 
-    // Número a 10 dígitos, sin lada de país (SMS Masivos pide phone_number
-    // a 10 dígitos + country_code=52 por separado)
+    // El número siempre debe llegar como 10 dígitos exactos — el frontend ya
+    // lo separa de la lada. Si por algún motivo llega con prefijo, lo
+    // limpiamos como respaldo, pero la validación real exige 10 dígitos.
     let digits = phone.replace(/\D/g, '')
     if (digits.length === 12 && digits.startsWith('52')) digits = digits.slice(2)
     if (digits.length === 11 && digits.startsWith('1'))  digits = digits.slice(1)
-    // digits debe quedar en 10 dígitos aquí
+
+    if (!isValidPhoneFormat(digits)) {
+      return json({ error: 'Número inválido — debe tener 10 dígitos' }, 400)
+    }
+
+    const ladaCode = (country_code ?? '52').replace(/\D/g, '') || '52'
 
     // ── ENVIAR OTP ─────────────────────────────────────────────────────────
     if (action === 'send') {
@@ -47,7 +64,7 @@ Deno.serve(async (req) => {
         headers: { 'apikey': SMS_API_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phone_number:  digits,
-          country_code:  52,
+          country_code:  Number(ladaCode),
           company:       'Pliego',
           template:      'f',        // "{{company}} Tu codigo es: {{code}}"
           code_length:   6,

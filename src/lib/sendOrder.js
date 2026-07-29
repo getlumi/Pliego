@@ -1,9 +1,14 @@
 // Pliego · lógica de "Enviar pedido"
-// 1) Combina imágenes + PDFs en un solo PDF (universal, abre en cualquier lado).
-//    Si lo único que hay es un Word, se sube tal cual.
-// 2) Sube el archivo a Storage.
-// 3) Crea la fila en `orders`.
-// 4) Cobra 1 crédito del saldo de créditos (credits_balance).
+// 1) Cobra 1 crédito de forma ATÓMICA (función SQL deduct_credit) antes de
+//    hacer cualquier trabajo — evita condiciones de carrera y descuentos
+//    silenciosos que fallan sin avisar.
+// 2) Combina imágenes + PDFs en un solo PDF (universal, abre en cualquier
+//    lado). Si lo único que hay es un Word, se sube tal cual.
+// 3) Sube el archivo a Storage.
+// 4) Crea la fila en `orders`.
+// Si el paso 2 o 3 falla DESPUÉS de cobrar, se reembolsa el crédito
+// automáticamente (refund_credit) para no dejar a nadie pagando por un
+// pedido que nunca se creó.
 
 import { supabase } from './supabase'
 import { PDFDocument } from 'pdf-lib'
@@ -56,31 +61,40 @@ async function buildUploadFile(files) {
 
 // result: { success: true, orderId } | { success: false, error: string }
 export async function sendOrder({ session, draft, selectedService, totalPages, total }) {
+  const orderId = crypto.randomUUID()
+  let credited = false
+
   try {
-    // 1) Verificar saldo de créditos (1 crédito por pedido)
+    // 1) Obtener nombre (para el pedido y la notificación)
     const { data: userRow, error: userError } = await supabase
-      .from('users').select('credits_balance, name').eq('id', session.user.id).maybeSingle()
-    if (userError || !userRow) return { success: false, error: 'No se pudo verificar tu saldo. Intenta de nuevo.' }
+      .from('users').select('name').eq('id', session.user.id).maybeSingle()
+    if (userError || !userRow) return { success: false, error: 'No se pudo verificar tu cuenta. Intenta de nuevo.' }
 
-    const SERVICE_FEE_CREDITS = 1
-    // Valor en pesos del crédito consumido, solo para reportes de Finanzas del Admin
-    // (orders.service_fee) — no se cobra pesos reales aquí, ya se cobraron al recargar.
     const SERVICE_FEE_MXN_EQUIV = 5.50
-    if (userRow.credits_balance < SERVICE_FEE_CREDITS) {
-      return { success: false, error: 'INSUFFICIENT_BALANCE' }
-    }
 
-    // 2) Combinar archivos y subir
+    // 2) Cobrar 1 crédito de forma ATÓMICA antes de hacer cualquier trabajo.
+    //    Si no hay saldo, ni siquiera se sube el archivo.
+    const { data: chargeOk, error: chargeError } = await supabase.rpc('deduct_credit', {
+      p_order_id: orderId,
+      p_amount_mxn: SERVICE_FEE_MXN_EQUIV,
+    })
+    if (chargeError) return { success: false, error: 'No se pudo verificar tu saldo. Intenta de nuevo.' }
+    if (!chargeOk) return { success: false, error: 'INSUFFICIENT_BALANCE' }
+    credited = true
+
+    // 3) Combinar archivos y subir
     const { blob, name, contentType } = await buildUploadFile(draft.files)
-    const orderId = crypto.randomUUID()
     const path = `${session.user.id}/${orderId}/${name}`
 
     const { error: uploadError } = await supabase.storage.from('documents').upload(path, blob, {
       contentType, upsert: false,
     })
-    if (uploadError) return { success: false, error: 'No se pudo subir tu documento. Intenta de nuevo.' }
+    if (uploadError) {
+      await supabase.rpc('refund_credit', { p_order_id: orderId })
+      return { success: false, error: 'No se pudo subir tu documento. Se te devolvió el crédito, intenta de nuevo.' }
+    }
 
-    // 3) Crear el pedido
+    // 4) Crear el pedido
     const { color_mode, paper_size } = deriveLegacyFields(selectedService?.service_type)
     const { error: orderError } = await supabase.from('orders').insert({
       id: orderId,
@@ -101,26 +115,15 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
     })
     if (orderError) {
       await supabase.storage.from('documents').remove([path])
-      return { success: false, error: 'No se pudo crear el pedido. Intenta de nuevo.' }
+      await supabase.rpc('refund_credit', { p_order_id: orderId })
+      return { success: false, error: 'No se pudo crear el pedido. Se te devolvió el crédito, intenta de nuevo.' }
     }
 
-    // 4) Cobrar 1 crédito
-    await supabase.from('users').update({ credits_balance: userRow.credits_balance - SERVICE_FEE_CREDITS }).eq('id', session.user.id)
-    await supabase.from('wallet_transactions').insert({
-      user_id: session.user.id,
-      type: 'servicio',
-      amount: -SERVICE_FEE_MXN_EQUIV,
-      credits: -SERVICE_FEE_CREDITS,
-      payment_method: 'sistema',
-      order_id: orderId,
-    })
-
-    // 5) Notificar al dueño de la papelería via WhatsApp
+    // 5) Notificar al dueño de la papelería (SMS/WhatsApp según el canal activo)
     try {
       const { data: shopRow } = await supabase
         .from('printshops').select('owner_id, name').eq('id', draft.shopId).maybeSingle()
       if (shopRow?.owner_id) {
-        // Obtener nombre del servicio legible
         const serviceLabel = selectedService?.label || selectedService?.service_type || 'B/N Bond'
         await supabase.functions.invoke('send-whatsapp', {
           body: {
@@ -137,10 +140,14 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
           }
         })
       }
-    } catch (_) { /* WhatsApp no crítico, no bloquea el pedido */ }
+    } catch (_) { /* Notificación no crítica, no bloquea el pedido */ }
 
     return { success: true, orderId }
   } catch (e) {
+    // Si ya se cobró el crédito antes de que algo tronara, devuélvelo
+    if (credited) {
+      try { await supabase.rpc('refund_credit', { p_order_id: orderId }) } catch (_) {}
+    }
     return { success: false, error: e instanceof Error ? e.message : 'Error desconocido' }
   }
 }
