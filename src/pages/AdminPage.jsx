@@ -407,6 +407,11 @@ function UsersTab() {
   const [shopName, setShopName] = useState('')
   const [converting, setConverting] = useState(false)
   const [convertError, setConvertError] = useState('')
+  const [creditModal, setCreditModal] = useState(null) // { user }
+  const [creditDelta, setCreditDelta] = useState('')
+  const [creditReason, setCreditReason] = useState('')
+  const [adjustingCredit, setAdjustingCredit] = useState(false)
+  const [creditError, setCreditError] = useState('')
 
   const load = async () => {
     setLoading(true)
@@ -456,6 +461,29 @@ function UsersTab() {
     await load()
   }
 
+  const openCreditModal = (user) => {
+    setCreditDelta('')
+    setCreditReason('')
+    setCreditError('')
+    setCreditModal(user)
+  }
+
+  const adjustCredits = async () => {
+    const delta = parseInt(creditDelta, 10)
+    if (!delta || isNaN(delta)) { setCreditError('Escribe un número distinto de cero (ej. 3 o -2)'); return }
+    setAdjustingCredit(true)
+    setCreditError('')
+    const { error } = await supabase.rpc('admin_adjust_credits', {
+      p_user_id: creditModal.id,
+      p_delta: delta,
+      p_reason: creditReason.trim() || null,
+    })
+    setAdjustingCredit(false)
+    if (error) { setCreditError('Error: ' + error.message); return }
+    setCreditModal(null)
+    await load()
+  }
+
   const shopOwnerIds = new Set(shops.map(s => s.owner_id))
   const totalBalance = users.reduce((sum, u) => sum + (u.wallet_balance ?? 0), 0)
   const activeUsers  = users.filter(u => u.is_active !== false)
@@ -501,6 +529,59 @@ function UsersTab() {
             </button>
             <button
               onClick={() => setConvertModal(null)}
+              style={{ width:'100%', background:'none', border:'none', color:'var(--text-muted)', fontSize:13, cursor:'pointer', padding:6 }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal ajustar créditos */}
+      {creditModal && (
+        <div style={{
+          position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:1000,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:24,
+        }}>
+          <div style={{ background:'#fff', borderRadius:20, padding:28, width:'100%', maxWidth:320 }}>
+            <p style={{ fontSize:16, fontWeight:800, marginBottom:4 }}>Ajustar créditos</p>
+            <p style={{ fontSize:13, color:'var(--text-secondary)', marginBottom:16 }}>
+              <strong>{creditModal.name}</strong> tiene actualmente <strong>{creditModal.credits_balance ?? 0} créditos</strong>.
+            </p>
+            <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>
+              CANTIDAD (positivo para sumar, negativo para restar)
+            </label>
+            <input
+              type="number"
+              value={creditDelta}
+              onChange={e => setCreditDelta(e.target.value)}
+              placeholder="Ej. 3 o -2"
+              style={{ width:'100%', padding:'10px 12px', fontSize:16, border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)', marginBottom:8, boxSizing:'border-box' }}
+            />
+            <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>
+              MOTIVO (opcional)
+            </label>
+            <input
+              type="text"
+              value={creditReason}
+              onChange={e => setCreditReason(e.target.value)}
+              placeholder="Ej. Garantía anti-no-show, caso especial"
+              style={{ width:'100%', padding:'10px 12px', fontSize:16, border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)', marginBottom:16, boxSizing:'border-box' }}
+            />
+            {creditError && (
+              <p style={{ fontSize:12, color:'var(--red)', marginBottom:10, fontWeight:600 }}>{creditError}</p>
+            )}
+            <button
+              onClick={adjustCredits}
+              disabled={adjustingCredit}
+              className="btn-primary"
+              style={{ marginBottom:8 }}
+            >
+              <i className="ti ti-coins" style={{ fontSize:16 }} />
+              {adjustingCredit ? 'Guardando...' : 'Confirmar ajuste'}
+            </button>
+            <button
+              onClick={() => setCreditModal(null)}
               style={{ width:'100%', background:'none', border:'none', color:'var(--text-muted)', fontSize:13, cursor:'pointer', padding:6 }}
             >
               Cancelar
@@ -583,6 +664,20 @@ function UsersTab() {
                         Papelería
                       </button>
                     )}
+                    <button
+                      onClick={() => openCreditModal(u)}
+                      style={{
+                        padding:'6px 10px', fontSize:11, fontWeight:700,
+                        borderRadius:'var(--radius-md)', cursor:'pointer',
+                        border:'1px solid var(--border)',
+                        background:'#fff',
+                        color:'var(--text-secondary)',
+                        display:'flex', alignItems:'center', gap:4,
+                      }}
+                    >
+                      <i className="ti ti-coins" style={{ fontSize:12 }} />
+                      Créditos
+                    </button>
                   </div>
                 )}
               </div>

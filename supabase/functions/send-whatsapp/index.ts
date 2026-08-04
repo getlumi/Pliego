@@ -28,12 +28,16 @@ const SMS_MASIVOS_BASE = 'https://api.smsmasivos.com.mx'
 // reutilizados tal cual para el canal SMS.
 function buildMessage(tipo: string, data: Record<string, string>): string {
   switch (tipo) {
-    case 'nuevo_pedido':
+    case 'nuevo_pedido': {
+      const warning = data.garantia === 'no'
+        ? ' ADVERTENCIA: NO imprimas hasta que el cliente esté en tu local (no cubierto por garantia).'
+        : ''
       return `Pliego: nuevo pedido de ${data.cliente ?? 'Cliente'}. ` +
         `Archivo: ${data.archivo ?? 'documento.pdf'} (${data.paginas ?? '?'} pag). ` +
         `Tipo: ${data.tipo_impresion ?? 'B/N Bond'}. Copias: ${data.copias ?? '1'}.` +
-        `${data.instrucciones ? ' Nota: ' + data.instrucciones : ''} ` +
+        `${data.instrucciones ? ' Nota: ' + data.instrucciones : ''}${warning} ` +
         `Entra a pliego.live para descargarlo.`
+    }
     case 'pedido_listo':
       return `Pliego: tu impresion en ${data.papeleria ?? 'la papeleria'} ya esta lista. ` +
         `${data.direccion ?? 'Ver ubicacion en la app'}. Tienes 24 horas para recogerla.`

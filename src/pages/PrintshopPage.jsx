@@ -140,7 +140,7 @@ export default function PrintshopPage({ session }) {
   const loadOrders = async (shopId) => {
     const { data } = await supabase
       .from('orders')
-      .select('id, created_at, status, file_name, file_url, file_count, copies, orientation, color_mode, paper_size, service_type, estimated_cost, special_instructions, ready_at, delivered_at, user_name, expires_at, user_id')
+      .select('id, created_at, status, file_name, file_url, file_count, copies, orientation, color_mode, paper_size, service_type, estimated_cost, special_instructions, ready_at, delivered_at, user_name, expires_at, user_id, guarantee_covered, guarantee_credits')
       .eq('printshop_id', shopId)
       .order('created_at', { ascending: false })
     setOrders(data ?? [])
@@ -631,6 +631,17 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
       : status === 'entregado' ? { delivered_at: new Date().toISOString() } : {}
     await supabase.from('orders').update({ status, ...extra }).eq('id', orderId)
 
+    // Arranca el reloj de 24h de la garantía anti-no-show (si el pedido
+    // quedó cubierto al momento de mandarlo)
+    if (status === 'listo' && order?.guarantee_covered) {
+      supabase.rpc('start_guarantee_clock', { p_order_id: orderId }).catch(() => {})
+    }
+
+    // Libera o revierte la garantía cuando el cliente sí recoge su pedido
+    if (status === 'entregado' && order?.guarantee_covered) {
+      supabase.rpc('release_guarantee_hold', { p_order_id: orderId }).catch(() => {})
+    }
+
     // Push al usuario cuando su impresión está lista
     if (status === 'listo' && order?.user_id) {
       supabase.functions.invoke('send-whatsapp', {
@@ -734,6 +745,21 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
               {STATUS_LABEL[o.status]}
             </span>
           </div>
+
+          {/* Alerta de garantía: si NO está cubierto, no debe imprimirse por
+              adelantado — solo cuando el cliente esté físicamente presente */}
+          {o.guarantee_covered === false && (
+            <div style={{
+              display:'flex', alignItems:'center', gap:8,
+              background:'var(--red-light)', border:'1.5px solid var(--red)',
+              borderRadius:'var(--radius-md)', padding:'8px 12px', marginBottom:10,
+            }}>
+              <i className="ti ti-alert-triangle" style={{ fontSize:18, color:'var(--red)', flexShrink:0 }} />
+              <p style={{ fontSize:12, fontWeight:700, color:'var(--red)', lineHeight:1.3 }}>
+                No cubierto por garantía — no imprimas hasta que el cliente esté en tu local
+              </p>
+            </div>
+          )}
 
           {/* Nombre del archivo */}
           <p style={{ fontSize:13, fontWeight:700, marginBottom:8, color:'var(--text-secondary)' }}>

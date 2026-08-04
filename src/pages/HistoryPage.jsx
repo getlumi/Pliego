@@ -78,6 +78,58 @@ export default function HistoryPage({ session }) {
   )
 }
 
+function GuaranteeBanner({ orderId }) {
+  const [hold, setHold]   = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [extending, setExtending] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    supabase.from('credit_holds').select('status, deadline, extension_used')
+      .eq('order_id', orderId).maybeSingle()
+      .then(({ data }) => { if (active) { setHold(data); setLoading(false) } })
+    return () => { active = false }
+  }, [orderId])
+
+  if (loading || !hold || hold.status !== 'activo' || !hold.deadline) return null
+
+  const msLeft = new Date(hold.deadline).getTime() - Date.now()
+  if (msLeft <= 0) return null
+  const hoursLeft = Math.max(1, Math.ceil(msLeft / (1000 * 60 * 60)))
+
+  const handleExtend = async (e) => {
+    e.stopPropagation()
+    setExtending(true)
+    const { data: ok } = await supabase.rpc('extend_guarantee_deadline', { p_order_id: orderId })
+    if (ok) {
+      setHold(h => ({ ...h, deadline: new Date(new Date(h.deadline).getTime() + 2*60*60*1000).toISOString(), extension_used: true }))
+    }
+    setExtending(false)
+  }
+
+  return (
+    <div style={{
+      display:'flex', alignItems:'center', gap:8, flexWrap:'wrap',
+      background:'var(--amber-light)', borderRadius:'var(--radius-md)',
+      padding:'8px 12px', marginBottom:10,
+    }}>
+      <i className="ti ti-clock-exclamation" style={{ fontSize:16, color:'#92530a', flexShrink:0 }} />
+      <p style={{ fontSize:12, fontWeight:700, color:'#92530a', flex:1 }}>
+        Tienes {hoursLeft}h para recoger tu impresión, o se descontará tu crédito.
+      </p>
+      {!hold.extension_used && (
+        <button onClick={handleExtend} disabled={extending} style={{
+          fontSize:11, fontWeight:700, padding:'5px 10px', borderRadius:'var(--radius-full)',
+          border:'1.5px solid #92530a', background:'#fff', color:'#92530a',
+          cursor: extending ? 'default' : 'pointer', flexShrink:0,
+        }}>
+          {extending ? '...' : '+2 horas'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 function OrderRow({ order: o, onRate }) {
   const [open, setOpen] = useState(false)
   const sc = STATUS_COLOR[o.status] ?? { bg:'var(--bg)', text:'var(--text-primary)' }
@@ -103,6 +155,11 @@ function OrderRow({ order: o, onRate }) {
             ¡Tu impresión está lista! Pasa a recogerla.
           </p>
         </div>
+      )}
+
+      {/* Garantía anti-no-show: horas restantes + botón de extensión */}
+      {o.status === 'listo' && o.guarantee_covered && (
+        <GuaranteeBanner orderId={o.id} />
       )}
 
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
