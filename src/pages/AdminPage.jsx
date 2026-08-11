@@ -211,8 +211,8 @@ function VerificationsTab() {
 
       {/* Resumen y acción final */}
       <div className="card" style={{
-        background: canApprove() ? 'var(--green-light)' : hasRejected() ? 'var(--red-light)' : 'var(--bg)',
-        border: canApprove() ? '1px solid var(--green)' : hasRejected() ? '1px solid #F09595' : '1px solid var(--border)',
+        background: canApprove() ? 'var(--accent-light)' : hasRejected() ? 'var(--red-light)' : 'var(--bg)',
+        border: canApprove() ? '1px solid var(--accent)' : hasRejected() ? '1px solid #F09595' : '1px solid var(--border)',
       }}>
         <p style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>
           {canApprove() ? '✓ Todos los documentos correctos — listo para aprobar' :
@@ -222,7 +222,7 @@ function VerificationsTab() {
         <button onClick={saveDecision} disabled={saving || Object.values(docStatuses).every(s => s === 'pending')}
           style={{
             width:'100%', padding:12, marginTop:8, borderRadius:'var(--radius-md)', border:'none',
-            background: canApprove() ? 'var(--green)' : hasRejected() ? 'var(--red)' : 'var(--border)',
+            background: canApprove() ? 'var(--accent)' : hasRejected() ? 'var(--red)' : 'var(--border)',
             color: '#fff', fontWeight:700, fontSize:14, cursor:'pointer',
           }}>
           {saving ? 'Guardando...' : canApprove() ? '✓ Aprobar papelería' : hasRejected() ? '✗ Enviar rechazo' : 'Guardar cambios'}

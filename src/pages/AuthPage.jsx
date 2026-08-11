@@ -49,6 +49,19 @@ export default function AuthPage({ onAuth }) {
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw new Error('Número o contraseña incorrectos')
+
+        // Si la cuenta es de papelería pero se intenta entrar en modo
+        // "Soy usuario", no se permite — debe entrar en modo "Soy negocio".
+        if (intent === 'consumer') {
+          const { data: { user } } = await supabase.auth.getUser()
+          const { data: shop } = await supabase
+            .from('printshops').select('id').eq('owner_id', user.id).maybeSingle()
+          if (shop) {
+            await supabase.auth.signOut()
+            throw new Error('Esta cuenta es de negocio. Cambia a "Soy negocio" para entrar.')
+          }
+        }
+
         onAuth(intent)
       } else {
         if (!name.trim())        throw new Error('Por favor escribe tu nombre')

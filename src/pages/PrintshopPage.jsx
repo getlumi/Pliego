@@ -1016,7 +1016,7 @@ function EarningsTab({ shop }) {
           </div>
           <div style={{ textAlign:'right' }}>
             <p style={{ fontSize:11, color:'rgba(255,255,255,0.6)', marginBottom:2 }}>Total cobrado en efectivo</p>
-            <p style={{ fontSize:28, fontWeight:900, color:'#fff' }}>${totalBruto.toFixed(2)}</p>
+            <p style={{ fontSize:28, fontWeight:900, color:'var(--accent)' }}>${totalBruto.toFixed(2)}</p>
           </div>
         </div>
         <p style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginTop:8 }}>
@@ -1105,11 +1105,11 @@ function PrintshopProfileTab({ shop, session, onSupport, onTutorial }) {
 
       {pushStatus === 'granted' ? (
         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px',
-          background:'var(--green-light)', borderRadius:'var(--radius-md)', marginBottom:8 }}>
-          <i className="ti ti-bell-check" style={{ fontSize:20, color:'var(--green-dark)' }} />
+          background:'var(--accent-light)', borderRadius:'var(--radius-md)', marginBottom:8 }}>
+          <i className="ti ti-bell-check" style={{ fontSize:20, color:'#16803C' }} />
           <div>
-            <p style={{ fontSize:13, fontWeight:700, color:'var(--green-dark)' }}>Notificaciones activas</p>
-            <p style={{ fontSize:11, color:'var(--green-dark)', opacity:0.8 }}>Te avisamos cuando llegue un pedido nuevo</p>
+            <p style={{ fontSize:13, fontWeight:700, color:'#16803C' }}>Notificaciones activas</p>
+            <p style={{ fontSize:11, color:'#16803C', opacity:0.8 }}>Te avisamos cuando llegue un pedido nuevo</p>
           </div>
         </div>
       ) : pushStatus === 'denied' ? (

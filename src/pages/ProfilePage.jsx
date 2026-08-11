@@ -46,11 +46,11 @@ export default function ProfilePage({ session, onNavigate }) {
         {/* Notificaciones push */}
         {pushStatus === 'granted' ? (
           <div style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px',
-            background:'var(--green-light)', borderRadius:'var(--radius-md)', marginBottom:8 }}>
-            <i className="ti ti-bell-check" style={{ fontSize:20, color:'var(--green-dark)' }} />
+            background:'var(--accent-light)', borderRadius:'var(--radius-md)', marginBottom:8 }}>
+            <i className="ti ti-bell-check" style={{ fontSize:20, color:'#16803C' }} />
             <div>
-              <p style={{ fontSize:13, fontWeight:700, color:'var(--green-dark)' }}>Notificaciones activas</p>
-              <p style={{ fontSize:11, color:'var(--green-dark)', opacity:0.8 }}>Te avisaremos cuando tu pedido esté listo</p>
+              <p style={{ fontSize:13, fontWeight:700, color:'#16803C' }}>Notificaciones activas</p>
+              <p style={{ fontSize:11, color:'#16803C', opacity:0.8 }}>Te avisaremos cuando tu pedido esté listo</p>
             </div>
           </div>
         ) : pushStatus === 'denied' ? (
