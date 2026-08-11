@@ -12,6 +12,8 @@ export function createEmptyDraft() {
     copies: 1,
     instructions: '',
     activeIndex: 0,
+    containsId: false,   // true si algún archivo es una identificación capturada
+                          // (frente+reverso) — usa vencimiento de 24h, no 3 días
   }
 }
 

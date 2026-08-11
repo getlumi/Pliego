@@ -13,6 +13,7 @@ const SERVICE_OPTIONS = [
   { type: 'opalina_bn',            icon: 'ti-sparkles',  label: 'Opalina · B/N',                 defaultPrice: 3  },
   { type: 'opalina_color',         icon: 'ti-sparkles',  label: 'Opalina · Color',               defaultPrice: 8  },
   { type: 'doble_carta',           icon: 'ti-files',     label: 'Doble carta / oficio',          defaultPrice: 2  },
+  { type: 'identificacion_2_lados',icon: 'ti-id',        label: 'Identificación (frente y reverso)', defaultPrice: 8 },
 ]
 
 const STATUS_LABEL = { nuevo: 'Nuevo', en_proceso: 'En proceso', listo: 'Listo', entregado: 'Entregado' }

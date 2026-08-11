@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { serviceLabel, serviceIcon } from '../lib/services'
+import IneCapture from './IneCapture'
 
 // La caja de "ajustes especiales con IA" está temporalmente oculta:
 // por ahora la app solo soporta documentos ya listos para imprimir.
@@ -31,11 +32,20 @@ async function detectPageCount(file) {
 }
 
 export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, onClearDraft }) {
-  const { files, orientation, fit, copies, instructions, activeIndex, shopId, serviceId } = draft
+  const { files, orientation, fit, copies, instructions, activeIndex, shopId, serviceId, containsId } = draft
   const [shop, setShop] = useState(null)
   const [loadingShop, setLoadingShop] = useState(true)
   const [justSent, setJustSent] = useState(false)
+  const [showIneCapture, setShowIneCapture] = useState(false)
   const fileInputRef = useRef(null)
+
+  const handleIneDone = (file) => {
+    setShowIneCapture(false)
+    onUpdateDraft({
+      files: [...files, { file, previewUrl: null, pageCount: 1, pageCountAuto: false }],
+      containsId: true,
+    })
+  }
 
   const sendInstruction = () => {
     setJustSent(true)
@@ -76,7 +86,8 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     if (copy[idx].previewUrl) URL.revokeObjectURL(copy[idx].previewUrl)
     copy.splice(idx, 1)
     const newActive = Math.max(0, activeIndex >= idx ? activeIndex - 1 : activeIndex)
-    onUpdateDraft({ files: copy, activeIndex: newActive })
+    const stillHasId = copy.some(f => f.file.name === 'identificacion.pdf')
+    onUpdateDraft({ files: copy, activeIndex: newActive, containsId: stillHasId })
   }
 
   const setFilePageCount = (idx, pageCount) => {
@@ -161,6 +172,28 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
             style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }}
           />
         </div>
+
+        <button
+          onClick={() => setShowIneCapture(true)}
+          className="card"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+            border: '1.5px solid var(--border)', cursor: 'pointer', width: '100%', textAlign: 'left',
+            background: '#fff',
+          }}
+        >
+          <div style={{
+            width: 40, height: 40, borderRadius: 10, background: 'var(--accent-light)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <i className="ti ti-camera" style={{ fontSize: 20, color: '#16803C' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 14, fontWeight: 700 }}>Agregar identificación (frente y reverso)</p>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Toma la foto con la cámara — armamos el documento por ti</p>
+          </div>
+          <i className="ti ti-chevron-right" style={{ fontSize: 18, color: 'var(--text-muted)' }} />
+        </button>
 
         {files.length > 0 && (
           <>
@@ -425,9 +458,16 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
         )}
 
         <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-          <i className="ti ti-shield-check" style={{ fontSize: 13 }} /> Tu documento se elimina automáticamente en 3 días
+          <i className="ti ti-shield-check" style={{ fontSize: 13 }} />
+          {containsId
+            ? ' Por ser una identificación, tu documento se elimina automáticamente en 24 horas'
+            : ' Tu documento se elimina automáticamente en 3 días'}
         </p>
       </div>
+
+      {showIneCapture && (
+        <IneCapture onDone={handleIneDone} onCancel={() => setShowIneCapture(false)} />
+      )}
     </div>
   )
 }

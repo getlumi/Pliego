@@ -93,6 +93,9 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
     // 3) Crear el pedido PRIMERO — necesario para que el cobro (paso 4)
     //    pueda referenciar un order_id que ya existe de verdad.
     const { color_mode, paper_size } = deriveLegacyFields(selectedService?.service_type)
+    const expiresAt = draft.containsId
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      : undefined // sin especificar → la base de datos aplica su default de 3 días
     const { error: orderError } = await supabase.from('orders').insert({
       id: orderId,
       user_id: session.user.id,
@@ -109,6 +112,7 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
       service_fee: SERVICE_FEE_MXN_EQUIV,
       estimated_cost: total,
       user_name: userRow.name ?? null,
+      ...(expiresAt ? { expires_at: expiresAt } : {}),
     })
     if (orderError) {
       return { success: false, error: 'No se pudo crear el pedido. Intenta de nuevo.' }

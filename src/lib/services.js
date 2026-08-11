@@ -11,6 +11,7 @@ export const SERVICE_LABELS = {
   opalina_bn:            { icon: 'ti-sparkles',  label: 'Opalina · B/N' },
   opalina_color:         { icon: 'ti-sparkles',  label: 'Opalina · Color' },
   doble_carta:           { icon: 'ti-files',     label: 'Doble carta / oficio' },
+  identificacion_2_lados:{ icon: 'ti-id',        label: 'Identificación (frente y reverso)' },
 }
 
 export function serviceLabel(service) {
