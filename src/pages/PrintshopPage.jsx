@@ -1103,41 +1103,6 @@ function PrintshopProfileTab({ shop, session, onSupport, onTutorial }) {
         <p style={{ fontSize:13, color:'var(--text-secondary)' }}>Panel de papelería</p>
       </div>
 
-      {pushStatus === 'granted' ? (
-        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px',
-          background:'var(--accent-light)', borderRadius:'var(--radius-md)', marginBottom:8 }}>
-          <i className="ti ti-bell-check" style={{ fontSize:20, color:'#16803C' }} />
-          <div>
-            <p style={{ fontSize:13, fontWeight:700, color:'#16803C' }}>Notificaciones activas</p>
-            <p style={{ fontSize:11, color:'#16803C', opacity:0.8 }}>Te avisamos cuando llegue un pedido nuevo</p>
-          </div>
-        </div>
-      ) : pushStatus === 'denied' ? (
-        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px',
-          background:'var(--red-light)', borderRadius:'var(--radius-md)', marginBottom:8 }}>
-          <i className="ti ti-bell-off" style={{ fontSize:20, color:'var(--red)' }} />
-          <div>
-            <p style={{ fontSize:13, fontWeight:700, color:'var(--red)' }}>Notificaciones bloqueadas</p>
-            <p style={{ fontSize:11, color:'var(--red)', opacity:0.8 }}>Actívalas en configuración de tu navegador</p>
-          </div>
-        </div>
-      ) : isIOSNotPWA ? (
-        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px',
-          background:'#FFF8E1', border:'1px solid #F59E0B', borderRadius:'var(--radius-md)', marginBottom:8 }}>
-          <i className="ti ti-device-mobile" style={{ fontSize:20, color:'#854F0B' }} />
-          <div>
-            <p style={{ fontSize:13, fontWeight:700, color:'#854F0B' }}>Instala la app para notificaciones</p>
-            <p style={{ fontSize:11, color:'#854F0B', opacity:0.8 }}>Toca Compartir → "Añadir a inicio" en Safari</p>
-          </div>
-        </div>
-      ) : (
-        <button className="btn-primary" onClick={activatePush}
-          disabled={pushStatus === 'requesting'} style={{ marginBottom:8 }}>
-          <i className="ti ti-bell" style={{ fontSize:18 }} />
-          {pushStatus === 'requesting' ? 'Activando...' : '🔔 Activar notificaciones de pedidos'}
-        </button>
-      )}
-
       <button className="btn-primary" onClick={onTutorial}>
         <i className="ti ti-help" style={{ fontSize:18 }} /> Ver tutorial
       </button>
