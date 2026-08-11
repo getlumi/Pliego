@@ -67,7 +67,7 @@ export default function WalletPage({ session }) {
     <div className="page">
       <div style={{ background:'var(--gradient-dark)', padding:'48px 20px 32px' }}>
         <p style={{ fontSize:12, color:'rgba(255,255,255,0.6)', fontWeight:600, marginBottom:4 }}>Tus créditos disponibles</p>
-        <p style={{ fontSize:40, fontWeight:900, color:'#fff' }}>{balance === null ? '...' : Number(balance)}</p>
+        <p style={{ fontSize:40, fontWeight:900, color:'var(--accent)' }}>{balance === null ? '...' : Number(balance)}</p>
         <p style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginTop:4 }}>Cada impresión usa 1 crédito</p>
       </div>
 

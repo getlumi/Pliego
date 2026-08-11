@@ -4,6 +4,11 @@
   --green-deeper:   #000000;
   --green-light:    #EFEFEC;
   --green-lighter:  #F7F7F5;
+  /* Verde real de marca — usar SOLO como acento puntual (notificaciones,
+     estados de éxito, énfasis pequeño). Nunca como color de fondo dominante.
+     Referencia: material de Instagram (íconos, glow, texto de énfasis). */
+  --accent:         #22C55E;
+  --accent-light:   #DCFCE7;
   --amber:          #EF9F27;
   --amber-light:    #FAEEDA;
   --bg:             #F5F5F3;
@@ -147,7 +152,7 @@ input, select, textarea {
   transition: color 0.2s;
   flex: 1;
 }
-.nav-item.active { color: var(--green); }
+.nav-item.active { color: var(--accent); }
 .nav-item i { font-size: 22px; }
 .nav-item span { font-size: 10px; font-weight: 600; }
 
@@ -168,7 +173,7 @@ input, select, textarea {
   align-items: center;
   justify-content: center;
   margin-top: -20px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 0 0 2px rgba(34,197,94,0.25);
   cursor: pointer;
   transition: transform 0.2s;
 }
@@ -194,7 +199,7 @@ input, select, textarea {
   font-size: 11px;
   font-weight: 600;
 }
-.badge-green  { background: var(--green-light);  color: #1A1A1A; }
+.badge-green  { background: var(--accent-light);  color: #16803C; }
 .badge-amber  { background: var(--amber-light);   color: #633806; }
 .badge-red    { background: var(--red-light);     color: #A32D2D; }
 
