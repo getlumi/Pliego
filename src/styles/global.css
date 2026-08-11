@@ -6,9 +6,10 @@
   --green-lighter:  #F7F7F5;
   /* Verde real de marca — usar SOLO como acento puntual (notificaciones,
      estados de éxito, énfasis pequeño). Nunca como color de fondo dominante.
-     Referencia: material de Instagram (íconos, glow, texto de énfasis). */
-  --accent:         #22C55E;
-  --accent-light:   #DCFCE7;
+     Estimado visual del material de Instagram/lanzamiento — para exactitud
+     real, sacar el hex con gotero de color sobre el archivo original. */
+  --accent:         #8BC53F;
+  --accent-light:   #EAF6D8;
   --amber:          #EF9F27;
   --amber-light:    #FAEEDA;
   --bg:             #F5F5F3;
