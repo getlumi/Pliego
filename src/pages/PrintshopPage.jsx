@@ -334,7 +334,7 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
   const submitStep1 = async () => {
     setError('')
     if (!name.trim())     return setError('Escribe el nombre de tu negocio')
-    if (!whatsapp.trim()) return setError('Escribe tu número de WhatsApp')
+    if (!whatsapp.trim()) return setError('Escribe tu número de teléfono')
     if (!coords)          return setError('Necesitamos tu ubicación para registrarte')
 
     setSaving(true)
@@ -499,7 +499,7 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
           <input type="text" placeholder="Ej. Papelería Lupita" value={name} onChange={e => setName(e.target.value)}
             style={{ width:'100%', marginBottom:14, padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
 
-          <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>WHATSAPP PARA AVISOS DE PEDIDOS</label>
+          <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>TELÉFONO PARA AVISOS DE PEDIDOS (SMS)</label>
           <input type="tel" placeholder="998 123 4567" value={whatsapp} onChange={e => setWhatsapp(e.target.value)}
             style={{ width:'100%', marginBottom:14, padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
 

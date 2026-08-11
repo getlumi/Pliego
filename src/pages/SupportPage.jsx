@@ -16,6 +16,7 @@ const SUBJECTS_USER = [
 
 const SUBJECTS_PRINTSHOP = [
   'No me llegan pedidos',
+  'Cliente no pasó por su pedido (garantía)',
   'El botón de pedidos no funciona',
   'No puedo descargar un documento',
   'Problema con mi verificación de documentos',

@@ -8,6 +8,7 @@ const PACKAGES = [
 
 export default function WalletPage({ session }) {
   const [balance, setBalance]       = useState(null)
+  const [held, setHeld]             = useState(0)
   const [transactions, setTransactions] = useState([])
   const [selectedPkg, setSelectedPkg]   = useState('popular')
   const [loading, setLoading]       = useState(false)
@@ -22,14 +23,15 @@ export default function WalletPage({ session }) {
     const channel = supabase
       .channel(`wallet:${session.user.id}`)
       .on('postgres_changes', { event:'UPDATE', schema:'public', table:'users', filter:`id=eq.${session.user.id}` },
-        payload => setBalance(payload.new.credits_balance))
+        payload => { setBalance(payload.new.credits_balance); setHeld(payload.new.credits_held ?? 0) })
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [session])
 
   const loadData = async () => {
-    const { data: u } = await supabase.from('users').select('credits_balance').eq('id', session.user.id).maybeSingle()
+    const { data: u } = await supabase.from('users').select('credits_balance, credits_held').eq('id', session.user.id).maybeSingle()
     setBalance(u?.credits_balance ?? 0)
+    setHeld(u?.credits_held ?? 0)
     const { data: txs } = await supabase.from('wallet_transactions').select('*')
       .eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(20)
     setTransactions(txs ?? [])
@@ -67,8 +69,16 @@ export default function WalletPage({ session }) {
     <div className="page">
       <div style={{ background:'var(--gradient-dark)', padding:'48px 20px 32px' }}>
         <p style={{ fontSize:12, color:'rgba(255,255,255,0.6)', fontWeight:600, marginBottom:4 }}>Tus créditos disponibles</p>
-        <p style={{ fontSize:40, fontWeight:900, color:'var(--accent)' }}>{balance === null ? '...' : Number(balance)}</p>
-        <p style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginTop:4 }}>Cada impresión usa 1 crédito</p>
+        <p style={{ fontSize:40, fontWeight:900, color:'var(--accent)' }}>
+          {balance === null ? '...' : Math.max(0, Number(balance) - Number(held))}
+        </p>
+        {held > 0 ? (
+          <p style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginTop:4 }}>
+            + {held} apartado{held !== 1 ? 's' : ''} en garantía de pedido{held !== 1 ? 's' : ''} activo{held !== 1 ? 's' : ''} ({Number(balance)} en total)
+          </p>
+        ) : (
+          <p style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginTop:4 }}>Cada impresión usa 1 crédito</p>
+        )}
       </div>
 
       <div className="scroll-content">
