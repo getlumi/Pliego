@@ -145,24 +145,45 @@ export default function AuthPage({ onAuth }) {
           {[
             { value:'consumer', icon:'ti-user',           label:'Soy usuario' },
             { value:'business', icon:'ti-building-store', label:'Soy negocio' },
-          ].map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => setIntent(opt.value)}
-              style={{
-                flex:1, padding:'12px 6px', borderRadius:16,
-                border:'2px solid rgba(255,255,255,0.8)',
-                background: intent === opt.value ? '#fff' : 'transparent',
-                color:       intent === opt.value ? '#111' : '#fff',
-                cursor:'pointer', display:'flex', flexDirection:'column',
-                alignItems:'center', gap:6,
-                fontSize:13, fontWeight:800, fontFamily:'inherit',
-              }}
-            >
-              <i className={`ti ${opt.icon}`} style={{ fontSize:22, color: intent === opt.value ? '#111' : '#fff' }} />
-              {opt.label}
-            </button>
-          ))}
+          ].map(opt => {
+            const isActive = intent === opt.value
+            return (
+              <button
+                key={opt.value}
+                onClick={() => setIntent(opt.value)}
+                style={{
+                  flex:1, padding:'12px 6px', borderRadius:16,
+                  position:'relative',
+                  // Inactivo: claramente "apagado" — borde tenue, sin relleno,
+                  // ícono/texto atenuados. Activo: relleno blanco + borde
+                  // verde de marca, para que la diferencia no dependa solo
+                  // de un color invertido (causa común de selección
+                  // equivocada — ver brief de marca).
+                  border: isActive ? '2px solid var(--accent)' : '1.5px solid rgba(255,255,255,0.18)',
+                  background: isActive ? '#fff' : 'transparent',
+                  color:       isActive ? '#111' : 'rgba(255,255,255,0.45)',
+                  cursor:'pointer', display:'flex', flexDirection:'column',
+                  alignItems:'center', gap:6,
+                  fontSize:13, fontWeight:800, fontFamily:'inherit',
+                  transition:'all 0.15s',
+                }}
+              >
+                {isActive && (
+                  <div style={{
+                    position:'absolute', top:-7, right:-7,
+                    width:20, height:20, borderRadius:'50%',
+                    background:'var(--accent)', display:'flex',
+                    alignItems:'center', justifyContent:'center',
+                    border:'2px solid #0A0A0A',
+                  }}>
+                    <i className="ti ti-check" style={{ fontSize:12, color:'#fff', fontWeight:900 }} />
+                  </div>
+                )}
+                <i className={`ti ${opt.icon}`} style={{ fontSize:22, color: isActive ? '#111' : 'rgba(255,255,255,0.45)' }} />
+                {opt.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -177,8 +198,9 @@ export default function AuthPage({ onAuth }) {
             display:'flex', alignItems:'center', justifyContent:'center', gap:8,
             background:'#111', color:'#fff', borderRadius:10,
             padding:'8px 14px', fontSize:13, fontWeight:700, marginBottom:16,
+            border:'1.5px solid var(--accent)',
           }}>
-            <i className="ti ti-building-store" style={{ fontSize:15 }} />
+            <i className="ti ti-building-store" style={{ fontSize:15, color:'var(--accent)' }} />
             Registrando como negocio
           </div>
         )}
