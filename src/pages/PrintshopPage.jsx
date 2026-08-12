@@ -1465,7 +1465,7 @@ function ToggleSwitch({ checked, onChange, disabled }) {
         style={{ opacity:0, width:0, height:0 }} />
       <span style={{
         position:'absolute', inset:0, borderRadius:12,
-        background: checked ? 'var(--green)' : '#D9D9D6',
+        background: checked ? 'var(--accent)' : '#D9D9D6',
         transition:'0.2s',
       }}>
         <span style={{

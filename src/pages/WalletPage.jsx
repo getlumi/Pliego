@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 const PACKAGES = [
-  { id: 'basic',   amount: 26, prints: 4,  pricePerPrint: '6.50' },
-  { id: 'popular', amount: 55, prints: 10, pricePerPrint: '5.50', badge: 'Mejor precio' },
+  { id: 'basic',   amount: 26, prints: 4 },
+  { id: 'popular', amount: 55, prints: 10, badge: 'Mejor precio' },
 ]
 
 export default function WalletPage({ session }) {
@@ -90,17 +90,16 @@ export default function WalletPage({ session }) {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
             {PACKAGES.map(p => (
               <button key={p.id} onClick={() => { setSelectedPkg(p.id); setOxxoData(null); setCardStep(null) }} style={{
-                border: selectedPkg === p.id ? '2px solid var(--green)' : '1.5px solid var(--border)',
+                border: selectedPkg === p.id ? '2px solid var(--accent)' : '1.5px solid var(--border)',
                 borderRadius:'var(--radius-md)', padding:16, textAlign:'center',
-                background: selectedPkg === p.id ? 'var(--green-light)' : '#fff',
+                background: selectedPkg === p.id ? 'var(--accent-light)' : '#fff',
                 cursor:'pointer', position:'relative',
               }}>
                 {p.badge && (
-                  <span style={{ position:'absolute', top:-10, left:'50%', transform:'translateX(-50%)', fontSize:11, background:'var(--green)', color:'#fff', padding:'2px 8px', borderRadius:'var(--radius-full)', fontWeight:700, whiteSpace:'nowrap' }}>{p.badge}</span>
+                  <span style={{ position:'absolute', top:-10, left:'50%', transform:'translateX(-50%)', fontSize:11, background:'var(--accent)', color:'#16803C', padding:'2px 8px', borderRadius:'var(--radius-full)', fontWeight:700, whiteSpace:'nowrap' }}>{p.badge}</span>
                 )}
-                <p style={{ fontSize:26, fontWeight:900, color: selectedPkg === p.id ? 'var(--green)' : 'var(--text-primary)' }}>${p.amount}</p>
+                <p style={{ fontSize:26, fontWeight:900, color: selectedPkg === p.id ? '#16803C' : 'var(--text-primary)' }}>${p.amount}</p>
                 <p style={{ fontSize:13, color:'var(--text-secondary)', marginTop:2 }}>{p.prints} créditos</p>
-                <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>${p.pricePerPrint}/crédito</p>
               </button>
             ))}
           </div>

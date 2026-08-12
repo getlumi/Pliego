@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 
 // Proporción real de una credencial (INE, licencia, etc.): 85.6mm × 54mm
 const CARD_RATIO = 85.6 / 54 // ≈ 1.586
@@ -6,10 +7,13 @@ const CARD_RATIO = 85.6 / 54 // ≈ 1.586
 // PLIEGO · Captura guiada de identificación (frente y reverso)
 // Flujo: cámara con marco guía → tomar → revisar (aceptar/repetir) →
 // repetir para el reverso → arma un PDF de una hoja con ambas imágenes.
-// El resultado se agrega al carrito como un archivo más.
+// Se renderiza vía Portal directo a document.body para escapar de
+// cualquier `overflow: hidden` de contenedores padre (.phone-frame) que
+// puede recortar el fondo de la pantalla en móvil cuando la barra del
+// navegador cambia de tamaño.
 export default function IneCapture({ onDone, onCancel }) {
   const [step, setStep] = useState('frente') // frente | revisar_frente | reverso | revisar_reverso | procesando
-  const [frontImg, setFrontImg] = useState(null) // dataURL recortado
+  const [frontImg, setFrontImg] = useState(null)
   const [backImg, setBackImg]   = useState(null)
   const [error, setError]       = useState('')
   const videoRef  = useRef(null)
@@ -40,19 +44,17 @@ export default function IneCapture({ onDone, onCancel }) {
     const video = videoRef.current
     if (!video || video.videoWidth === 0) return
 
-    // Recorta al centro respetando la proporción de credencial, tomando
-    // como referencia el marco guía visible en pantalla (80% del ancho).
     const vw = video.videoWidth, vh = video.videoHeight
     const guideW = vw * 0.82
     const guideH = guideW / CARD_RATIO
     const sx = (vw - guideW) / 2
-    const sy = (vh - guideH) / 2
+    const sy = (vh - guideH) / 2 - vh * 0.04 // misma corrección visual que el marco (ligeramente arriba del centro)
 
     const canvas = canvasRef.current
     canvas.width = 900
     canvas.height = Math.round(900 / CARD_RATIO)
     const ctx = canvas.getContext('2d')
-    ctx.drawImage(video, sx, sy, guideW, guideH, 0, 0, canvas.width, canvas.height)
+    ctx.drawImage(video, sx, Math.max(0, sy), guideW, guideH, 0, 0, canvas.width, canvas.height)
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
     streamRef.current?.getTracks().forEach(t => t.stop())
@@ -68,7 +70,6 @@ export default function IneCapture({ onDone, onCancel }) {
 
   const accept = async () => {
     if (step === 'revisar_frente') { setStep('reverso'); return }
-    // Ambas caras listas — armar el PDF
     setStep('procesando')
     try {
       const { PDFDocument } = await import('pdf-lib')
@@ -101,52 +102,62 @@ export default function IneCapture({ onDone, onCancel }) {
 
   const label = step === 'frente' || step === 'revisar_frente' ? 'frente' : 'reverso'
 
-  return (
+  const content = (
     <div style={{
-      position: 'fixed', inset: 0, background: '#000', zIndex: 2000,
+      position: 'fixed', inset: 0, background: '#000', zIndex: 999999,
       display: 'flex', flexDirection: 'column',
+      height: '100dvh',
     }}>
-      <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Header, con espacio seguro arriba (notch) */}
+      <div style={{
+        padding: 'max(16px, env(safe-area-inset-top)) 20px 12px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
+      }}>
         <p style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>
           {step === 'procesando' ? 'Generando documento...' : `Identificación · ${label}`}
         </p>
         <button onClick={onCancel} aria-label="Cancelar" style={{
           width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.15)',
-          border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}>
           <i className="ti ti-x" style={{ fontSize: 16, color: '#fff' }} />
         </button>
       </div>
 
       {error && (
-        <div style={{ margin: '0 20px 12px', padding: '10px 14px', background: 'var(--red-light)', borderRadius: 10 }}>
+        <div style={{ margin: '0 20px 12px', padding: '10px 14px', background: 'var(--red-light)', borderRadius: 10, flexShrink: 0 }}>
           <p style={{ fontSize: 13, color: 'var(--red)', fontWeight: 600 }}>{error}</p>
         </div>
       )}
 
       {isCapturing && (
         <>
-          <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          {/* Zona de cámara: el marco vive en el 60% superior, dejando
+              espacio de sobra abajo para los controles */}
+          <div style={{ flex: '1 1 auto', position: 'relative', overflow: 'hidden', minHeight: 0 }}>
             <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            {/* Marco guía con proporción real de credencial */}
             <div style={{
-              position: 'absolute', width: '82%', aspectRatio: `${CARD_RATIO}`,
+              position: 'absolute', top: '46%', left: '50%', transform: 'translate(-50%, -50%)',
+              width: '82%', aspectRatio: `${CARD_RATIO}`,
               border: '3px solid #8BC53F', borderRadius: 14,
               boxShadow: '0 0 0 2000px rgba(0,0,0,0.55)',
               pointerEvents: 'none',
             }} />
-            <p style={{
-              position: 'absolute', bottom: 24, left: 20, right: 20, textAlign: 'center',
-              color: '#fff', fontSize: 13, fontWeight: 600, textShadow: '0 1px 4px rgba(0,0,0,0.8)',
-            }}>
-              Coloca la {label} de tu identificación dentro del marco{'\n'}
+          </div>
+
+          {/* Panel de controles elevado, con espacio seguro abajo */}
+          <div style={{
+            flexShrink: 0, background: '#0A0A0A',
+            padding: '18px 20px max(20px, env(safe-area-inset-bottom))',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+          }}>
+            <p style={{ textAlign: 'center', color: '#fff', fontSize: 13, fontWeight: 600, lineHeight: 1.4 }}>
+              Coloca la {label} de tu identificación dentro del marco<br/>
               Evita luz directa o flash para que no se refleje
             </p>
-          </div>
-          <div style={{ padding: '20px 20px 32px', display: 'flex', justifyContent: 'center' }}>
             <button onClick={capture} aria-label="Tomar foto" style={{
               width: 68, height: 68, borderRadius: '50%', background: '#fff',
-              border: '4px solid rgba(255,255,255,0.4)', cursor: 'pointer',
+              border: '4px solid #8BC53F', cursor: 'pointer', flexShrink: 0,
             }} />
           </div>
         </>
@@ -154,28 +165,33 @@ export default function IneCapture({ onDone, onCancel }) {
 
       {isReviewing && (
         <>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ flex: '1 1 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 20px', minHeight: 0 }}>
             <img
               src={step === 'revisar_frente' ? frontImg : backImg}
               alt={`Identificación ${label}`}
-              style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12, border: '2px solid #8BC53F' }}
+              style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12, border: '2px solid #8BC53F', objectFit: 'contain' }}
             />
           </div>
-          <p style={{ textAlign: 'center', color: '#fff', fontSize: 13, marginBottom: 12 }}>¿Se ve legible y completa?</p>
-          <div style={{ padding: '0 20px 32px', display: 'flex', gap: 12 }}>
-            <button onClick={retake} style={{
-              flex: 1, padding: 14, borderRadius: 14, border: '1.5px solid rgba(255,255,255,0.4)',
-              background: 'transparent', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-            }}>
-              <i className="ti ti-refresh" style={{ fontSize: 16, marginRight: 6 }} /> Tomar de nuevo
-            </button>
-            <button onClick={accept} style={{
-              flex: 1, padding: 14, borderRadius: 14, border: 'none',
-              background: '#8BC53F', color: '#0A0A0A', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-            }}>
-              <i className="ti ti-check" style={{ fontSize: 16, marginRight: 6 }} />
-              {step === 'revisar_frente' ? 'Sí, seguir al reverso' : 'Sí, terminar'}
-            </button>
+          <div style={{
+            flexShrink: 0, background: '#0A0A0A',
+            padding: '14px 20px max(20px, env(safe-area-inset-bottom))',
+          }}>
+            <p style={{ textAlign: 'center', color: '#fff', fontSize: 13, fontWeight: 600, marginBottom: 14 }}>¿Se ve legible y completa?</p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={retake} style={{
+                flex: 1, padding: 14, borderRadius: 14, border: '1.5px solid rgba(255,255,255,0.4)',
+                background: 'transparent', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              }}>
+                <i className="ti ti-refresh" style={{ fontSize: 16, marginRight: 6 }} /> Tomar de nuevo
+              </button>
+              <button onClick={accept} style={{
+                flex: 1, padding: 14, borderRadius: 14, border: 'none',
+                background: '#8BC53F', color: '#0A0A0A', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              }}>
+                <i className="ti ti-check" style={{ fontSize: 16, marginRight: 6 }} />
+                {step === 'revisar_frente' ? 'Seguir al reverso' : 'Terminar'}
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -189,4 +205,6 @@ export default function IneCapture({ onDone, onCancel }) {
       <canvas ref={canvasRef} style={{ display: 'none' }} />
     </div>
   )
+
+  return createPortal(content, document.body)
 }

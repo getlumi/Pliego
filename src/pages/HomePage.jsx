@@ -417,8 +417,8 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
             </div>
           </div>
         ) : (
-          <button onClick={handleSend} disabled={sending} className="btn-primary" style={{ marginTop: 8 }}>
-            <i className="ti ti-send" style={{ fontSize: 16 }} />
+          <button onClick={handleSend} disabled={sending} className="btn-primary" style={{ marginTop: 8, border: '1px solid var(--accent)' }}>
+            <i className="ti ti-send" style={{ fontSize: 16, color: 'var(--accent)' }} />
             {sending ? 'Enviando...' : `Enviar pedido · $${total.toFixed(2)}`}
           </button>
         )
