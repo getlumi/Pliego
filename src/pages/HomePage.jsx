@@ -40,7 +40,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   }, [session])
 
   const loadUser = async () => {
-    let { data } = await supabase.from('users').select('name, credits_balance').eq('id', session.user.id).maybeSingle()
+    let { data } = await supabase.from('users').select('name, credits_balance, avatar_url').eq('id', session.user.id).maybeSingle()
     if (!data) {
       const meta = session.user.user_metadata ?? {}
       // Intenta crear el perfil si aún no existe (insert ignorado si ya lo creó otra parte del flujo)
@@ -155,10 +155,22 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
           </div>
           <p style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>Pliego</p>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 600, marginBottom: 6 }}>
-            Hola, {user?.name?.split(' ')[0] ?? ''}
-          </p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>
+              Hola, {user?.name?.split(' ')[0] ?? ''}
+            </p>
+            <button onClick={() => onNavigate('profile')} aria-label="Ir a tu perfil" style={{
+              width: 28, height: 28, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
+              background: 'rgba(255,255,255,0.2)', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, fontWeight: 900, color: '#fff',
+            }}>
+              {user?.avatar_url
+                ? <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : (user?.name?.[0]?.toUpperCase() ?? '?')}
+            </button>
+          </div>
           <button onClick={() => onNavigate('wallet')} style={{
             background: 'rgba(255,255,255,0.15)',
             border: '1px solid rgba(255,255,255,0.25)',
