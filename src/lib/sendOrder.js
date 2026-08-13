@@ -79,10 +79,11 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
   let path = null
 
   try {
-    // 1) Obtener nombre (para el pedido y la notificación)
+    // 1) Obtener nombre y estado de suscripción (para el pedido y el cobro)
     const { data: userRow, error: userError } = await supabase
-      .from('users').select('name').eq('id', session.user.id).maybeSingle()
+      .from('users').select('name, subscription_status').eq('id', session.user.id).maybeSingle()
     if (userError || !userRow) return { success: false, error: 'No se pudo verificar tu cuenta. Intenta de nuevo.' }
+    const isSubscriber = userRow.subscription_status === 'active'
 
     const SERVICE_FEE_MXN_EQUIV = 5.50
 
@@ -109,7 +110,7 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
       color_mode,
       service_type: selectedService?.service_type ?? 'bn_bond',
       special_instructions: draft.instructions || null,
-      service_fee: SERVICE_FEE_MXN_EQUIV,
+      service_fee: isSubscriber ? 0 : SERVICE_FEE_MXN_EQUIV,
       estimated_cost: total,
       user_name: userRow.name ?? null,
       ...(expiresAt ? { expires_at: expiresAt } : {}),
@@ -119,21 +120,25 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
     }
     orderCreated = true
 
-    // 4) Cobrar 1 crédito de forma ATÓMICA. Si no alcanza, se borra el
-    //    pedido placeholder — nunca se llegó a subir ningún archivo.
-    const { data: chargeOk, error: chargeError } = await supabase.rpc('deduct_credit', {
-      p_order_id: orderId,
-      p_amount_mxn: SERVICE_FEE_MXN_EQUIV,
-    })
-    if (chargeError) {
-      await supabase.from('orders').delete().eq('id', orderId)
-      return { success: false, error: 'No se pudo verificar tu saldo. Intenta de nuevo.' }
+    // 4) Cobrar 1 crédito de forma ATÓMICA — SALVO que tenga mensualidad
+    //    ilimitada activa, en cuyo caso no se descuenta nada (ya pagó por
+    //    adelantado). Si no alcanza, se borra el pedido placeholder — nunca
+    //    se llegó a subir ningún archivo.
+    if (!isSubscriber) {
+      const { data: chargeOk, error: chargeError } = await supabase.rpc('deduct_credit', {
+        p_order_id: orderId,
+        p_amount_mxn: SERVICE_FEE_MXN_EQUIV,
+      })
+      if (chargeError) {
+        await supabase.from('orders').delete().eq('id', orderId)
+        return { success: false, error: 'No se pudo verificar tu saldo. Intenta de nuevo.' }
+      }
+      if (!chargeOk) {
+        await supabase.from('orders').delete().eq('id', orderId)
+        return { success: false, error: 'INSUFFICIENT_BALANCE' }
+      }
+      credited = true
     }
-    if (!chargeOk) {
-      await supabase.from('orders').delete().eq('id', orderId)
-      return { success: false, error: 'INSUFFICIENT_BALANCE' }
-    }
-    credited = true
 
     // 5) Armar el archivo de verdad y subirlo a Storage
     const { blob, contentType } = await buildUploadFile(draft.files)
@@ -151,26 +156,34 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
       }
     }
 
-    // 6) Decidir si el pedido queda cubierto por la garantía anti-no-show
-    //    y apartar los créditos necesarios (o marcar que debe esperar al
-    //    cliente en persona si no alcanza).
-    const { data: guaranteeResult, error: guaranteeError } = await supabase.rpc('place_guarantee_hold', {
-      p_order_id: orderId,
-      p_printshop_id: draft.shopId,
-      p_estimated_cost: total,
-    })
-    if (guaranteeError) {
-      const { data: refunded } = await supabase.rpc('refund_credit', { p_order_id: orderId })
-      await supabase.storage.from('documents').remove([path])
-      await supabase.from('orders').delete().eq('id', orderId)
-      return {
-        success: false,
-        error: refunded
-          ? 'No se pudo procesar tu pedido. Se te devolvió el crédito, intenta de nuevo.'
-          : 'No se pudo procesar tu pedido. Contacta a soporte si tu saldo no se ajusta solo.',
+    // 6) Decidir si el pedido queda cubierto por la garantía anti-no-show.
+    //    Para suscriptores de mensualidad: TODO — el tope fijo de $50 y la
+    //    suspensión/reactivación se construyen en la Parte 2. Por ahora,
+    //    de forma segura y conservadora, sus pedidos NO quedan cubiertos
+    //    (la papelería ve la alerta normal de "no imprimir hasta que
+    //    llegue") en vez de aplicar una regla a medias o incorrecta.
+    let guaranteeCovered = false
+    if (!isSubscriber) {
+      const { data: guaranteeResult, error: guaranteeError } = await supabase.rpc('place_guarantee_hold', {
+        p_order_id: orderId,
+        p_printshop_id: draft.shopId,
+        p_estimated_cost: total,
+      })
+      if (guaranteeError) {
+        const { data: refunded } = await supabase.rpc('refund_credit', { p_order_id: orderId })
+        await supabase.storage.from('documents').remove([path])
+        await supabase.from('orders').delete().eq('id', orderId)
+        return {
+          success: false,
+          error: refunded
+            ? 'No se pudo procesar tu pedido. Se te devolvió el crédito, intenta de nuevo.'
+            : 'No se pudo procesar tu pedido. Contacta a soporte si tu saldo no se ajusta solo.',
+        }
       }
+      guaranteeCovered = guaranteeResult?.covered ?? false
+    } else {
+      await supabase.from('orders').update({ guarantee_covered: false }).eq('id', orderId)
     }
-    const guaranteeCovered = guaranteeResult?.covered ?? false
 
     // 7) Notificar al dueño de la papelería (SMS/WhatsApp según el canal activo)
     try {

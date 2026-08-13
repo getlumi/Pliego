@@ -40,7 +40,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   }, [session])
 
   const loadUser = async () => {
-    let { data } = await supabase.from('users').select('name, credits_balance, avatar_url').eq('id', session.user.id).maybeSingle()
+    let { data } = await supabase.from('users').select('name, credits_balance, avatar_url, subscription_status').eq('id', session.user.id).maybeSingle()
     if (!data) {
       const meta = session.user.user_metadata ?? {}
       // Intenta crear el perfil si aún no existe (insert ignorado si ya lo creó otra parte del flujo)
@@ -179,7 +179,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
             color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
           }}>
             <i className="ti ti-wallet" style={{ fontSize: 16 }} />
-            {user?.credits_balance ?? 0} créditos
+            {user?.subscription_status === 'active' ? 'Ilimitado' : `${user?.credits_balance ?? 0} créditos`}
           </button>
         </div>
       </div>
@@ -406,7 +406,7 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
           <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8 }}>
             Elige un tipo de impresión en "Subir documento" para enviar
           </p>
-        ) : (user?.credits_balance ?? 0) < 1 ? (
+        ) : user?.subscription_status !== 'active' && (user?.credits_balance ?? 0) < 1 ? (
           <div style={{
             marginTop: 8, padding: '12px 14px', borderRadius: 'var(--radius-md)',
             background: 'var(--amber-light)', border: '1px solid var(--amber)',
@@ -416,7 +416,7 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Te falta saldo para enviar</p>
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.5 }}>
-                Cada pedido usa 1 crédito. Recarga desde $26 y sigue imprimiendo sin complicaciones.
+                Cada pedido usa 1 crédito. Recarga desde $26.5 o suscríbete al plan ilimitado.
               </p>
               <button onClick={e => { e.stopPropagation(); onNavigate('wallet') }} style={{
                 background: 'var(--green)', color: '#fff', border: 'none',

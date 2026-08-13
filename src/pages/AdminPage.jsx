@@ -631,7 +631,11 @@ function UsersTab() {
                     )}
                   </div>
                   <p style={{ fontSize:12, color:'var(--text-secondary)' }}>{u.phone}</p>
-                  <p style={{ fontSize:11, color:'var(--text-muted)' }}>{new Date(u.created_at).toLocaleDateString('es-MX')} · ${(u.wallet_balance ?? 0).toFixed(2)} recargados · {u.credits_balance ?? 0} créditos</p>
+                  <p style={{ fontSize:11, color:'var(--text-muted)' }}>
+                    {new Date(u.created_at).toLocaleDateString('es-MX')} · ${(u.wallet_balance ?? 0).toFixed(2)} recargados · {u.credits_balance ?? 0} créditos
+                    {u.subscription_status === 'active' && <span style={{ color:'#16803C', fontWeight:700 }}> · Ilimitado</span>}
+                    {u.subscription_status === 'past_due' && <span style={{ color:'var(--red)', fontWeight:700 }}> · Pago pendiente</span>}
+                  </p>
                 </div>
                 {!u.is_admin && (
                   <div style={{ display:'flex', flexDirection:'column', gap:6, flexShrink:0 }}>

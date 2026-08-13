@@ -16,10 +16,10 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 
-// Paquetes disponibles — $26 → 4 créditos, $55 → 10 créditos
+// Paquetes disponibles — $26.5 → 2 créditos, $55 → 5 créditos
 const PACKAGES: Record<string, { amount: number; prints: number; label: string }> = {
-  basic:   { amount: 26, prints: 4,  label: '4 créditos' },
-  popular: { amount: 55, prints: 10, label: '10 créditos' },
+  basic:   { amount: 26.5, prints: 2, label: '2 créditos' },
+  popular: { amount: 55,   prints: 5, label: '5 créditos' },
 }
 
 Deno.serve(async (req) => {
