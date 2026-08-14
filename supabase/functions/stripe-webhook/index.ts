@@ -1,9 +1,11 @@
-// Pliego · Edge Function: stripe-webhook v4
+// Pliego · Edge Function: stripe-webhook v5
 // Verifica la firma de Stripe antes de procesar el evento.
-// Maneja dos familias de eventos:
-// 1) payment_intent.succeeded — compras de paquetes de créditos (una sola
-//    vez). Se ignoran los payment_intent que vienen de una suscripción
-//    (traen campo `invoice`) — esos se procesan en el bloque 2.
+// Maneja tres familias de eventos:
+// 1) payment_intent.succeeded — puede ser: (a) pago de reactivación de
+//    cuenta suspendida ($50, metadata.purpose='reactivacion_suspension'),
+//    (b) compra de paquete de créditos (metadata.package_id), o (c) el
+//    payment_intent interno de una suscripción — se ignora aquí, se
+//    procesa en el bloque 2 vía invoice.paid.
 // 2) invoice.paid / customer.subscription.deleted / invoice.payment_failed
 //    — ciclo de vida de la suscripción mensual de $75.
 // Secrets requeridos: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
@@ -90,6 +92,43 @@ Deno.serve(async (req) => {
 
       if (intent.status !== 'succeeded') return json({ ok: true, status: intent.status })
 
+      // ── 1a) Pago de reactivación de cuenta suspendida ($50) ──────────────
+      if (intent.metadata?.purpose === 'reactivacion_suspension') {
+        const targetUserId = intent.metadata.user_id
+        if (!targetUserId) {
+          console.error('reactivacion_suspension sin user_id en metadata')
+          return json({ error: 'Falta user_id en metadata' }, 400)
+        }
+
+        const { error: reactivateError } = await supabase.rpc('resolve_suspension_payment', {
+          p_user_id: targetUserId,
+        })
+        if (reactivateError) {
+          console.error('Error al reactivar cuenta:', JSON.stringify(reactivateError))
+          return json({ error: 'No se pudo reactivar la cuenta' }, 500)
+        }
+
+        // Reanudar el cobro normal de la suscripción en Stripe (se había
+        // pausado con pause_collection al suspender — ver guarantee-cron)
+        const { data: userRow } = await supabase
+          .from('users').select('subscription_id').eq('id', targetUserId).maybeSingle()
+        if (userRow?.subscription_id) {
+          const resumeRes = await fetch(`https://api.stripe.com/v1/subscriptions/${userRow.subscription_id}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${STRIPE_SK}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({ 'pause_collection': '' }).toString(),
+          })
+          if (!resumeRes.ok) console.error('No se pudo reanudar el cobro de Stripe:', await resumeRes.text())
+        }
+
+        console.log(`✅ Cuenta reactivada para ${targetUserId}`)
+        return json({ ok: true, reactivated: true })
+      }
+
+      // ── 1b) Compra de paquete de créditos ─────────────────────────────────
       // Antes filtrábamos por `intent.invoice`, pero Stripe eliminó ese campo
       // del objeto PaymentIntent (API 2025-03-31.basil en adelante). Ahora
       // identificamos los pagos de paquete por su metadata — solo

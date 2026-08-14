@@ -157,13 +157,25 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
     }
 
     // 6) Decidir si el pedido queda cubierto por la garantía anti-no-show.
-    //    Para suscriptores de mensualidad: TODO — el tope fijo de $50 y la
-    //    suspensión/reactivación se construyen en la Parte 2. Por ahora,
-    //    de forma segura y conservadora, sus pedidos NO quedan cubiertos
-    //    (la papelería ve la alerta normal de "no imprimir hasta que
-    //    llegue") en vez de aplicar una regla a medias o incorrecta.
+    //    Créditos: cabe si hay saldo suficiente apartado (place_guarantee_hold).
+    //    Suscriptores: cabe si el pedido cuesta $50 o menos (tope fijo, sin
+    //    créditos de por medio) — place_guarantee_hold_subscription. Si no
+    //    pasan a tiempo, en vez de descontarse dinero se suspende la cuenta
+    //    (ver supabase_migration_suspension.sql).
     let guaranteeCovered = false
-    if (!isSubscriber) {
+    if (isSubscriber) {
+      const { data: guaranteeResult, error: guaranteeError } = await supabase.rpc('place_guarantee_hold_subscription', {
+        p_order_id: orderId,
+        p_printshop_id: draft.shopId,
+        p_estimated_cost: total,
+      })
+      if (guaranteeError) {
+        await supabase.storage.from('documents').remove([path])
+        await supabase.from('orders').delete().eq('id', orderId)
+        return { success: false, error: 'No se pudo procesar tu pedido. Intenta de nuevo.' }
+      }
+      guaranteeCovered = guaranteeResult?.covered ?? false
+    } else {
       const { data: guaranteeResult, error: guaranteeError } = await supabase.rpc('place_guarantee_hold', {
         p_order_id: orderId,
         p_printshop_id: draft.shopId,
@@ -181,8 +193,6 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
         }
       }
       guaranteeCovered = guaranteeResult?.covered ?? false
-    } else {
-      await supabase.from('orders').update({ guarantee_covered: false }).eq('id', orderId)
     }
 
     // 7) Notificar al dueño de la papelería (SMS/WhatsApp según el canal activo)

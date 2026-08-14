@@ -2,12 +2,16 @@
 // La llama pg_cron cada hora (ver supabase_migration_guarantee.sql, sección 10).
 // - Si son las 6am hora Cancún: manda avisos de "te quedan X horas" a
 //   garantías activas que aún no se han avisado.
-// - Siempre revisa garantías vencidas (deadline cumplido) y ejecuta el
-//   descuento automático.
+// - Siempre revisa garantías vencidas (deadline cumplido):
+//   · hold_type='credito'      → descuenta el crédito automáticamente.
+//   · hold_type='suscripcion'  → suspende la cuenta (ver
+//     supabase_migration_suspension.sql) y pausa el cobro de Stripe
+//     (pause_collection) — no se le sigue cobrando el $75/mes mientras
+//     está suspendido.
 // IMPORTANTE: esta función debe desplegarse con "Verify JWT" DESACTIVADO
 // en su configuración de Supabase — pg_cron/pg_net la llama sin token de
 // usuario, solo con la Service Role a nivel de base de datos.
-// Secrets: SMSMASIVOS_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+// Secrets: SMSMASIVOS_API_KEY, STRIPE_SECRET_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -15,6 +19,18 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
 const SMS_MASIVOS_BASE = 'https://api.smsmasivos.com.mx'
+
+async function pauseStripeSubscription(stripeSk: string, subscriptionId: string) {
+  const res = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${stripeSk}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({ 'pause_collection[behavior]': 'void' }).toString(),
+  })
+  return res.ok
+}
 
 async function sendSms(apiKey: string, phone: string, countryCode: string, message: string) {
   let digits = (phone ?? '').replace(/\D/g, '')
@@ -40,6 +56,7 @@ Deno.serve(async (_req) => {
   try {
     const SMS_API_KEY = Deno.env.get('SMSMASIVOS_API_KEY')
     if (!SMS_API_KEY) return json({ error: 'SMS Masivos no configurado' }, 500)
+    const STRIPE_SK = Deno.env.get('STRIPE_SECRET_KEY') ?? ''
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -66,8 +83,10 @@ Deno.serve(async (_req) => {
         const hoursLeft = Math.max(1, Math.round(
           (new Date(hold.deadline).getTime() - Date.now()) / (1000 * 60 * 60)
         ))
-        const message = `Pliego: te quedan ${hoursLeft}h para pasar por tu impresion. ` +
-          `Si no pasas, se descontaran ${hold.credits_held} credito(s) de tu cuenta.`
+        const message = hold.hold_type === 'suscripcion'
+          ? `Pliego: te quedan ${hoursLeft}h para pasar por tu documento. Si no pasas, tu cuenta se suspendera hasta que pagues $50 de reactivacion.`
+          : `Pliego: te quedan ${hoursLeft}h para pasar por tu impresion. ` +
+            `Si no pasas, se descontaran ${hold.credits_held} credito(s) de tu cuenta.`
 
         const result = await sendSms(SMS_API_KEY, hold.phone, hold.country_code, message)
         if (result.ok) {
@@ -94,16 +113,35 @@ Deno.serve(async (_req) => {
         results.errors.push(`expiry ${hold.order_id}: ${execErr.message}`)
         continue
       }
-      if (executed) {
-        results.expirations_executed++
-        // Notificar al cliente que se descontó (no bloqueante si falla)
+      if (!executed) continue
+
+      results.expirations_executed++
+
+      if (hold.hold_type === 'suscripcion') {
+        // Suspender el cobro de Stripe mientras la cuenta está suspendida
         const { data: userRow } = await supabase
-          .from('users').select('phone, country_code').eq('id', hold.user_id).maybeSingle()
+          .from('users').select('phone, country_code, subscription_id').eq('id', hold.user_id).maybeSingle()
+
+        if (userRow?.subscription_id && STRIPE_SK) {
+          const paused = await pauseStripeSubscription(STRIPE_SK, userRow.subscription_id)
+          if (!paused) results.errors.push(`pause_collection ${hold.order_id}: fallo al pausar Stripe`)
+        }
+
         if (userRow?.phone) {
-          const message = `Pliego: se descontaron ${hold.credits_held} credito(s) por no pasar ` +
-            `por tu impresion a tiempo. Si aun no la recoges, hazlo antes de que expire.`
+          const message = `Pliego: tu cuenta fue suspendida por no recoger tu documento a tiempo. ` +
+            `Paga $50 en la app para reactivarla.`
           await sendSms(SMS_API_KEY, userRow.phone, userRow.country_code, message)
         }
+        continue
+      }
+
+      // hold_type = 'credito' (comportamiento original)
+      const { data: userRow } = await supabase
+        .from('users').select('phone, country_code').eq('id', hold.user_id).maybeSingle()
+      if (userRow?.phone) {
+        const message = `Pliego: se descontaron ${hold.credits_held} credito(s) por no pasar ` +
+          `por tu impresion a tiempo. Si aun no la recoges, hazlo antes de que expire.`
+        await sendSms(SMS_API_KEY, userRow.phone, userRow.country_code, message)
       }
     }
 
