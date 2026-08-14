@@ -168,61 +168,92 @@ Deno.serve(async (req) => {
     }
 
     // ── 2) SUSCRIPCIÓN — cobro inicial o renovación exitosa ────────────────
+    // Puede ser de un CLIENTE (users.stripe_customer_id) o de una
+    // PAPELERÍA (printshops.stripe_customer_id) — mismo Price ID de
+    // Stripe para ambos, se distinguen por en cuál tabla aparece el
+    // customer_id.
     if (event.type === 'invoice.paid') {
       const invoice = event.data.object
       const subscriptionId = invoice.subscription
       const customerId     = invoice.customer
       if (!subscriptionId || !customerId) return json({ ok: true, ignored: 'no_subscription' })
 
-      const { data: userRow } = await supabase
-        .from('users').select('id').eq('stripe_customer_id', customerId).maybeSingle()
-      if (!userRow) {
-        console.error('No se encontró usuario para customer', customerId)
-        return json({ ok: true, ignored: 'user_not_found' })
-      }
-
       const amountMXN = (invoice.amount_paid ?? 0) / 100
       const periodEnd = invoice.lines?.data?.[0]?.period?.end
         ? new Date(invoice.lines.data[0].period.end * 1000).toISOString()
         : null
 
-      await supabase.from('users').update({
-        subscription_status: 'active',
-        subscription_id: subscriptionId,
-        subscription_period_end: periodEnd,
-      }).eq('id', userRow.id)
+      const { data: userRow } = await supabase
+        .from('users').select('id').eq('stripe_customer_id', customerId).maybeSingle()
 
-      // Registrar el ingreso en el historial (idempotente por payment_id único)
-      await supabase.rpc('credit_wallet', {
-        p_user_id:     userRow.id,
-        p_amount:      amountMXN,
-        p_payment_id:  invoice.id,
-        p_description: 'Mensualidad ilimitada · Stripe',
-        p_method:      'tarjeta',
-        p_credits:     0,
-      })
+      if (userRow) {
+        await supabase.from('users').update({
+          subscription_status: 'active',
+          subscription_id: subscriptionId,
+          subscription_period_end: periodEnd,
+        }).eq('id', userRow.id)
 
-      console.log(`✅ Suscripción activa para ${userRow.id}, hasta ${periodEnd}`)
-      return json({ ok: true, subscription: 'active' })
+        await supabase.rpc('credit_wallet', {
+          p_user_id:     userRow.id,
+          p_amount:      amountMXN,
+          p_payment_id:  invoice.id,
+          p_description: 'Mensualidad ilimitada · Stripe',
+          p_method:      'tarjeta',
+          p_credits:     0,
+        })
+
+        console.log(`✅ Suscripción activa (cliente) para ${userRow.id}, hasta ${periodEnd}`)
+        return json({ ok: true, subscription: 'active', kind: 'cliente' })
+      }
+
+      const { data: shopRow } = await supabase
+        .from('printshops').select('id').eq('stripe_customer_id', customerId).maybeSingle()
+
+      if (shopRow) {
+        await supabase.from('printshops').update({ subscription_id: subscriptionId }).eq('id', shopRow.id)
+        await supabase.rpc('record_printshop_subscription_payment', {
+          p_printshop_id: shopRow.id,
+          p_amount:       amountMXN,
+          p_payment_id:   invoice.id,
+          p_period_end:   periodEnd,
+        })
+        console.log(`✅ Suscripción activa (papelería) para ${shopRow.id}, hasta ${periodEnd}`)
+        return json({ ok: true, subscription: 'active', kind: 'papeleria' })
+      }
+
+      console.error('No se encontró usuario ni papelería para customer', customerId)
+      return json({ ok: true, ignored: 'not_found' })
     }
 
     // ── 3) SUSCRIPCIÓN — pago de renovación falló ──────────────────────────
     if (event.type === 'invoice.payment_failed') {
       const invoice = event.data.object
       const customerId = invoice.customer
+
       const { data: userRow } = await supabase
         .from('users').select('id').eq('stripe_customer_id', customerId).maybeSingle()
       if (userRow) {
         await supabase.from('users').update({ subscription_status: 'past_due' }).eq('id', userRow.id)
-        console.log(`⚠️ Pago de suscripción falló para ${userRow.id}`)
+        console.log(`⚠️ Pago de suscripción falló (cliente) para ${userRow.id}`)
+        return json({ ok: true, subscription: 'past_due', kind: 'cliente' })
       }
-      return json({ ok: true, subscription: 'past_due' })
+
+      const { data: shopRow } = await supabase
+        .from('printshops').select('id').eq('stripe_customer_id', customerId).maybeSingle()
+      if (shopRow) {
+        await supabase.from('printshops').update({ subscription_status: 'past_due' }).eq('id', shopRow.id)
+        console.log(`⚠️ Pago de suscripción falló (papelería) para ${shopRow.id}`)
+        return json({ ok: true, subscription: 'past_due', kind: 'papeleria' })
+      }
+
+      return json({ ok: true, ignored: 'not_found' })
     }
 
     // ── 4) SUSCRIPCIÓN — cancelada (al terminar el periodo pagado) ─────────
     if (event.type === 'customer.subscription.deleted') {
       const sub = event.data.object
       const customerId = sub.customer
+
       const { data: userRow } = await supabase
         .from('users').select('id').eq('stripe_customer_id', customerId).maybeSingle()
       if (userRow) {
@@ -230,9 +261,22 @@ Deno.serve(async (req) => {
           subscription_status: 'canceled',
           subscription_id: null,
         }).eq('id', userRow.id)
-        console.log(`Suscripción cancelada para ${userRow.id}`)
+        console.log(`Suscripción cancelada (cliente) para ${userRow.id}`)
+        return json({ ok: true, subscription: 'canceled', kind: 'cliente' })
       }
-      return json({ ok: true, subscription: 'canceled' })
+
+      const { data: shopRow } = await supabase
+        .from('printshops').select('id').eq('stripe_customer_id', customerId).maybeSingle()
+      if (shopRow) {
+        await supabase.from('printshops').update({
+          subscription_status: 'canceled',
+          subscription_id: null,
+        }).eq('id', shopRow.id)
+        console.log(`Suscripción cancelada (papelería) para ${shopRow.id}`)
+        return json({ ok: true, subscription: 'canceled', kind: 'papeleria' })
+      }
+
+      return json({ ok: true, ignored: 'not_found' })
     }
 
     return json({ ok: true, ignored: event.type })

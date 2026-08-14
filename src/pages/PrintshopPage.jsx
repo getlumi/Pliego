@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import SupportPage  from './SupportPage'
 import TutorialPage from './TutorialPage'
+import StripeCardForm from '../components/StripeCardForm'
 import { DAY_KEYS, DAY_LABELS, DEFAULT_HOURS } from '../lib/hours'
 
 const SERVICE_OPTIONS = [
@@ -167,10 +168,6 @@ export default function PrintshopPage({ session }) {
   )
 
 
-  if (showTutorial) return (
-    <TutorialPage type="printshop" onClose={() => setShowTutorial(false)} />
-  )
-
   if (showSupport) return (
     <SupportPage
       session={session}
@@ -178,6 +175,17 @@ export default function PrintshopPage({ session }) {
       printshopId={shop?.id}
       onBack={() => setShowSupport(false)}
     />
+  )
+
+  // Gracia vencida sin suscripción — bloqueo hasta que se suscriban.
+  // No borra nada de su información, solo deja de recibir pedidos.
+  // (Soporte, arriba, sigue accesible aunque esté bloqueada.)
+  if (shop.subscription_status === 'bloqueada') return (
+    <ShopBlockedScreen shop={shop} onReload={loadShop} onSupport={() => setShowSupport(true)} />
+  )
+
+  if (showTutorial) return (
+    <TutorialPage type="printshop" onClose={() => setShowTutorial(false)} />
   )
 
   return (
@@ -257,6 +265,13 @@ export default function PrintshopPage({ session }) {
         </div>
       )}
 
+      {/* Banner de periodo de gracia — solo si no está bloqueada ni suscrita */}
+      {shop.subscription_status === 'gracia' && (
+        <div style={{ margin:'0 16px', marginTop: 8 }}>
+          <GracePeriodBanner shop={shop} onReload={loadShop} />
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="shop-tabs" style={{ display:'flex', gap:5, padding:'14px 12px 0' }}>
         {[
@@ -287,7 +302,7 @@ export default function PrintshopPage({ session }) {
         : tab === 'reviews'
         ? <ReviewsTab shop={shop} />
         : tab === 'profile'
-        ? <PrintshopProfileTab shop={shop} session={session} onSupport={() => setShowSupport(true)} onTutorial={() => setShowTutorial(true)} />
+        ? <PrintshopProfileTab shop={shop} session={session} onSupport={() => setShowSupport(true)} onTutorial={() => setShowTutorial(true)} onReload={loadShop} />
         : <ConfigTab shop={shop} services={services}
             onServicesChange={setServices}
             onSaved={async () => {
@@ -1070,7 +1085,7 @@ function EarningsTab({ shop }) {
 // ============================================================
 // TAB: PERFIL (papelería)
 // ============================================================
-function PrintshopProfileTab({ shop, session, onSupport, onTutorial }) {
+function PrintshopProfileTab({ shop, session, onSupport, onTutorial, onReload }) {
   const initial = shop?.name?.[0]?.toUpperCase() ?? 'P'
   const [pushStatus, setPushStatus] = React.useState('idle')
 
@@ -1104,6 +1119,8 @@ function PrintshopProfileTab({ shop, session, onSupport, onTutorial }) {
         <p style={{ fontSize:13, color:'var(--text-secondary)' }}>Panel de papelería</p>
       </div>
 
+      <ShopSubscriptionCard shop={shop} onReload={onReload} />
+
       <button className="btn-primary" onClick={onTutorial}>
         <i className="ti ti-help" style={{ fontSize:18 }} /> Ver tutorial
       </button>
@@ -1115,6 +1132,195 @@ function PrintshopProfileTab({ shop, session, onSupport, onTutorial }) {
       </button>
     </div>
   )
+}
+
+// Ayudante para invocar Edge Functions con el token del usuario actual
+async function invokeShopFn(fnName, body) {
+  const { data: { session: s } } = await supabase.auth.getSession()
+  return supabase.functions.invoke(fnName, {
+    body,
+    headers: { Authorization: `Bearer ${s.access_token}` },
+  })
+}
+
+// Banner (no bloqueante) durante el periodo de gracia — cuenta días
+// restantes y ofrece suscribirse ya. Vive junto al banner de
+// verificación KYC, arriba de las tabs.
+function GracePeriodBanner({ shop, onReload }) {
+  const [step, setStep] = useState('info') // 'info' | 'form'
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [cardSecret, setCardSecret] = useState(null)
+
+  const daysLeft = shop.grace_period_ends_at
+    ? Math.max(0, Math.ceil((new Date(shop.grace_period_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : null
+
+  const handleSubscribe = async () => {
+    setError(''); setLoading(true)
+    const { data, error: fnErr } = await invokeShopFn('create-shop-subscription', {})
+    setLoading(false)
+    if (fnErr || data?.error) { setError(data?.error ?? 'No se pudo iniciar la suscripción'); return }
+    setCardSecret(data.client_secret)
+    setStep('form')
+  }
+
+  if (step === 'form' && cardSecret) {
+    return (
+      <StripeCardForm
+        clientSecret={cardSecret}
+        amount={75}
+        label="Suscripción mensual de tu papelería"
+        onSuccess={() => { setStep('info'); setCardSecret(null); onReload() }}
+        onCancel={() => { setStep('info'); setCardSecret(null) }}
+      />
+    )
+  }
+
+  return (
+    <div style={{ background:'var(--accent-light)', border:'1px solid var(--accent)', borderRadius:'var(--radius-md)', padding:'12px 14px' }}>
+      <p style={{ fontSize:13, fontWeight:800, color:'#14532D', marginBottom:4 }}>
+        <i className="ti ti-gift" style={{ fontSize:14, verticalAlign:-1 }} /> {shop.is_founding ? 'Periodo de gracia · Papelería fundadora' : 'Periodo de gracia'}
+      </p>
+      <p style={{ fontSize:12, color:'#3F6B2A', marginBottom:10, lineHeight:1.5 }}>
+        {daysLeft != null && daysLeft > 0
+          ? `Te quedan ${daysLeft} día${daysLeft !== 1 ? 's' : ''} gratis. Después, $75/mes para seguir recibiendo pedidos.`
+          : 'Tu periodo de gracia está por terminar. Suscríbete para no dejar de recibir pedidos.'}
+      </p>
+      {error && (
+        <p style={{ fontSize:12, color:'var(--red)', marginBottom:8 }}>{error}</p>
+      )}
+      <button onClick={handleSubscribe} disabled={loading} style={{
+        fontSize:12, fontWeight:700, padding:'8px 14px', borderRadius:'var(--radius-md)',
+        border:'none', background:'#16803C', color:'#fff', cursor: loading ? 'default' : 'pointer',
+      }}>
+        {loading ? 'Un momento...' : 'Suscribirme ahora por $75/mes'}
+      </button>
+    </div>
+  )
+}
+
+// Bloqueo total (excepto Soporte) cuando la gracia venció sin
+// suscripción. No borra información — solo deja de recibir pedidos
+// hasta pagar.
+function ShopBlockedScreen({ shop, onReload, onSupport }) {
+  const [step, setStep] = useState('info') // 'info' | 'form'
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [cardSecret, setCardSecret] = useState(null)
+
+  const handleSubscribe = async () => {
+    setError(''); setLoading(true)
+    const { data, error: fnErr } = await invokeShopFn('create-shop-subscription', {})
+    setLoading(false)
+    if (fnErr || data?.error) { setError(data?.error ?? 'No se pudo iniciar la suscripción'); return }
+    setCardSecret(data.client_secret)
+    setStep('form')
+  }
+
+  return (
+    <div className="page" style={{ display:'flex', flexDirection:'column' }}>
+      <div style={{ background:'var(--gradient-dark)', padding:'56px 20px 32px', textAlign:'center' }}>
+        <div style={{
+          width:64, height:64, borderRadius:18, background:'rgba(139,197,63,0.18)',
+          display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px',
+        }}>
+          <i className="ti ti-store" style={{ fontSize:30, color:'var(--accent)' }} />
+        </div>
+        <p style={{ fontSize:20, fontWeight:900, color:'#fff' }}>Tu periodo de gracia terminó</p>
+        <p style={{ fontSize:13, color:'rgba(255,255,255,0.6)', marginTop:6, maxWidth:280, marginLeft:'auto', marginRight:'auto' }}>
+          {shop.name} dejó de recibir pedidos de Pliego
+        </p>
+      </div>
+
+      <div className="scroll-content" style={{ flex:1 }}>
+        <div className="card">
+          <p style={{ fontSize:14, fontWeight:800, marginBottom:10 }}>Suscríbete para reactivarla</p>
+          <p style={{ fontSize:13, color:'var(--text-secondary)', lineHeight:1.6 }}>
+            $75/mes, sin comisión sobre lo que cobras — te quedas con el 100%
+            de cada impresión que entregas en efectivo. Tu información,
+            reseñas y configuración siguen guardadas tal cual las dejaste.
+          </p>
+        </div>
+
+        {error && (
+          <div style={{ background:'var(--red-light)', border:'1px solid #F09595', borderRadius:'var(--radius-md)', padding:'10px 14px' }}>
+            <p style={{ fontSize:13, color:'var(--red)' }}>{error}</p>
+          </div>
+        )}
+
+        {step === 'form' && cardSecret ? (
+          <StripeCardForm
+            clientSecret={cardSecret}
+            amount={75}
+            label="Suscripción mensual de tu papelería"
+            onSuccess={onReload}
+            onCancel={() => { setStep('info'); setCardSecret(null) }}
+          />
+        ) : (
+          <button onClick={handleSubscribe} disabled={loading} className="btn-primary">
+            <i className="ti ti-credit-card" style={{ fontSize:18 }} />
+            {loading ? 'Un momento...' : 'Suscribirme por $75/mes'}
+          </button>
+        )}
+
+        <button onClick={onSupport} style={{
+          width:'100%', background:'none', border:'none',
+          color:'var(--text-muted)', fontSize:12, cursor:'pointer', padding:8,
+        }}>
+          Contactar a soporte
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Estado de suscripción dentro de Perfil — una vez activa (o cancelada)
+function ShopSubscriptionCard({ shop, onReload }) {
+  const [cancelling, setCancelling] = useState(false)
+  const [error, setError] = useState('')
+
+  if (shop.subscription_status === 'gracia') return null // ya se muestra arriba en el banner
+
+  const handleCancel = async () => {
+    if (!window.confirm('¿Seguro que quieres cancelar? Sigues recibiendo pedidos hasta el final de tu periodo ya pagado.')) return
+    setCancelling(true); setError('')
+    const { data, error: fnErr } = await invokeShopFn('cancel-shop-subscription', {})
+    setCancelling(false)
+    if (fnErr || data?.error) { setError(data?.error ?? 'No se pudo cancelar. Intenta de nuevo.'); return }
+    onReload()
+  }
+
+  const fmtDate = iso => new Date(iso).toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' })
+
+  if (shop.subscription_status === 'active') return (
+    <div className="card" style={{ marginBottom:16 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+        <div style={{ width:36, height:36, borderRadius:10, background:'var(--accent-light)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+          <i className="ti ti-check" style={{ fontSize:18, color:'#16803C' }} />
+        </div>
+        <div>
+          <p style={{ fontSize:13, fontWeight:800 }}>Suscripción activa</p>
+          <p style={{ fontSize:11, color:'var(--text-secondary)' }}>
+            $75/mes{shop.subscription_period_end ? ` · se renueva el ${fmtDate(shop.subscription_period_end)}` : ''}
+          </p>
+        </div>
+      </div>
+      {error && <p style={{ fontSize:12, color:'var(--red)', marginBottom:8 }}>{error}</p>}
+      <button onClick={handleCancel} disabled={cancelling} className="btn-outline">
+        {cancelling ? 'Cancelando...' : 'Cancelar suscripción'}
+      </button>
+    </div>
+  )
+
+  if (shop.subscription_status === 'past_due') return (
+    <div className="card" style={{ marginBottom:16, background:'var(--red-light)', border:'1px solid #F09595' }}>
+      <p style={{ fontSize:13, fontWeight:800, color:'var(--red)', marginBottom:4 }}>Hubo un problema con tu pago</p>
+      <p style={{ fontSize:12, color:'var(--red)' }}>No pudimos renovar tu suscripción. Actualiza tu método de pago para seguir recibiendo pedidos.</p>
+    </div>
+  )
+
+  return null // 'canceled' / 'bloqueada' — el paywall se encarga cuando corresponda
 }
 
 function ConfigTab({ shop, services, onServicesChange, onSaved }) {

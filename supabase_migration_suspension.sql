@@ -262,7 +262,8 @@ revoke execute on function resolve_suspension_payment(uuid) from public, anon, a
 -- 6) Vistas del cron — se REEMPLAZAN para incluir hold_type/amount_mxn
 -- (el cron las necesita para decidir el mensaje y si debe pausar Stripe)
 -- ─────────────────────────────────────────────
-create or replace view public.guarantee_holds_due_warning as
+drop view if exists public.guarantee_holds_due_warning;
+create view public.guarantee_holds_due_warning as
 select ch.id, ch.order_id, ch.user_id, ch.credits_held, ch.deadline, ch.hold_type, ch.amount_mxn,
        u.phone, u.country_code
 from public.credit_holds ch
@@ -271,7 +272,8 @@ where ch.status = 'activo'
   and ch.ready_at is not null
   and ch.warned_at is null;
 
-create or replace view public.guarantee_holds_due_expiry as
+drop view if exists public.guarantee_holds_due_expiry;
+create view public.guarantee_holds_due_expiry as
 select ch.id, ch.order_id, ch.user_id, ch.credits_held, ch.hold_type, ch.amount_mxn
 from public.credit_holds ch
 where ch.status = 'activo'
