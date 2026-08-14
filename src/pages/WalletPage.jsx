@@ -14,6 +14,7 @@ export default function WalletPage({ session }) {
   const [subPeriodEnd, setSubPeriodEnd] = useState(null)
   const [transactions, setTransactions] = useState([])
   const [selectedPkg, setSelectedPkg]   = useState('mensualidad') // por defecto en el plan destacado
+  const [activeTab, setActiveTab]       = useState('mensual') // 'mensual' | 'creditos'
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState('')
   const [oxxoData, setOxxoData]     = useState(null) // voucher OXXO
@@ -159,58 +160,123 @@ export default function WalletPage({ session }) {
 
         {/* Selector de paquete / mensualidad — oculto si ya es suscriptor */}
         {!isSubscriber && (
-        <div className="card">
-          <p style={{ fontSize:14, fontWeight:800, marginBottom:14 }}>Recargar saldo</p>
+        <div className="card" style={{ padding: 16 }}>
 
-          {/* Mensualidad destacada */}
-          <button onClick={() => { setSelectedPkg('mensualidad'); setOxxoData(null); setCardStep(null) }} style={{
-            width:'100%', display:'flex', alignItems:'center', gap:12, textAlign:'left',
-            border: selectedPkg === 'mensualidad' ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-            borderRadius:'var(--radius-md)', padding:14, marginBottom:10, position:'relative',
-            background: selectedPkg === 'mensualidad' ? 'var(--accent-light)' : '#fff', cursor:'pointer',
-          }}>
-            <span style={{ position:'absolute', top:-9, left:14, fontSize:10, background:'var(--accent)', color:'#16803C', padding:'2px 8px', borderRadius:'var(--radius-full)', fontWeight:700 }}>Recomendado</span>
-            <div style={{ width:38, height:38, borderRadius:10, background: selectedPkg === 'mensualidad' ? '#fff' : 'var(--bg)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-              <i className="ti ti-infinity" style={{ fontSize:18, color:'#16803C' }} />
-            </div>
-            <div style={{ flex:1 }}>
-              <p style={{ fontSize:15, fontWeight:900 }}>$75<span style={{ fontSize:12, fontWeight:600, color:'var(--text-secondary)' }}>/mes</span></p>
-              <p style={{ fontSize:12, color:'var(--text-secondary)' }}>Ilimitado — nunca te quedas sin saldo</p>
-            </div>
-          </button>
-
-          <p style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center', marginBottom:14 }}>
-            Si imprimes 10 veces al mes, esto te sale más barato que comprar paquetes
-          </p>
-
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
-            {PACKAGES.map(p => (
-              <button key={p.id} onClick={() => { setSelectedPkg(p.id); setOxxoData(null); setCardStep(null) }} style={{
-                border: selectedPkg === p.id ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-                borderRadius:'var(--radius-md)', padding:16, textAlign:'center',
-                background: selectedPkg === p.id ? 'var(--accent-light)' : '#fff',
-                cursor:'pointer', position:'relative',
-              }}>
-                <p style={{ fontSize:26, fontWeight:900, color: selectedPkg === p.id ? '#16803C' : 'var(--text-primary)' }}>${p.amount}</p>
-                <p style={{ fontSize:13, color:'var(--text-secondary)', marginTop:2 }}>{p.prints} créditos</p>
-              </button>
-            ))}
+          {/* Pestañas segmentadas: Plan mensual vs Comprar créditos */}
+          <div style={{ display:'flex', background:'var(--bg)', borderRadius:'var(--radius-full)', padding:4, marginBottom:18, gap:4 }}>
+            <button
+              onClick={() => { setActiveTab('mensual'); setSelectedPkg('mensualidad'); setError(''); setOxxoData(null); setCardStep(null) }}
+              style={{
+                flex:1, border:'none', borderRadius:'var(--radius-full)', padding:'9px 10px',
+                background: activeTab === 'mensual' ? 'var(--dark)' : 'transparent',
+                color: activeTab === 'mensual' ? '#fff' : 'var(--text-secondary)',
+                fontSize:13, fontWeight:800, cursor:'pointer', transition:'background 0.15s, color 0.15s',
+              }}
+            >
+              Plan mensual
+            </button>
+            <button
+              onClick={() => { setActiveTab('creditos'); setSelectedPkg('popular'); setError(''); setOxxoData(null); setCardStep(null) }}
+              style={{
+                flex:1, border:'none', borderRadius:'var(--radius-full)', padding:'9px 10px',
+                background: activeTab === 'creditos' ? 'var(--dark)' : 'transparent',
+                color: activeTab === 'creditos' ? '#fff' : 'var(--text-secondary)',
+                fontSize:13, fontWeight:800, cursor:'pointer', transition:'background 0.15s, color 0.15s',
+              }}
+            >
+              Comprar créditos
+            </button>
           </div>
 
-          {error && (
-            <div style={{ background:'var(--red-light)', border:'1px solid #F09595', borderRadius:'var(--radius-md)', padding:'10px 14px', marginBottom:12, display:'flex', gap:8 }}>
-              <i className="ti ti-alert-circle" style={{ fontSize:16, color:'var(--red)', flexShrink:0 }} />
-              <p style={{ fontSize:13, color:'var(--red)' }}>{error}</p>
-            </div>
-          )}
+          {activeTab === 'mensual' ? (
+            <>
+              <div style={{
+                border:'1.5px solid var(--accent)', borderRadius:'var(--radius-lg)', padding:20,
+                background:'var(--accent-light)', position:'relative', marginBottom:14,
+              }}>
+                <span style={{ position:'absolute', top:-10, left:18, fontSize:10, background:'var(--accent)', color:'#16803C', padding:'3px 10px', borderRadius:'var(--radius-full)', fontWeight:800, letterSpacing:0.3 }}>
+                  RECOMENDADO
+                </span>
+                <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
+                  <div style={{ width:44, height:44, borderRadius:12, background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <i className="ti ti-infinity" style={{ fontSize:22, color:'#16803C' }} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize:30, fontWeight:900, lineHeight:1, color:'#14532D' }}>
+                      $75<span style={{ fontSize:14, fontWeight:700, color:'#16803C' }}>/mes</span>
+                    </p>
+                    <p style={{ fontSize:12.5, color:'#3F6B2A', marginTop:3, fontWeight:600 }}>Ilimitado — nunca te quedas sin saldo</p>
+                  </div>
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {['Impresiones sin límite todo el mes', 'Sin apartar créditos por adelantado', 'Cancela cuando quieras'].map(txt => (
+                    <div key={txt} style={{ display:'flex', alignItems:'center', gap:7 }}>
+                      <i className="ti ti-circle-check-filled" style={{ fontSize:14, color:'#16803C', flexShrink:0 }} />
+                      <p style={{ fontSize:12.5, color:'#2E4D1F' }}>{txt}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-          {selectedPkg === 'mensualidad' ? (
-            <button onClick={handleSubscribe} disabled={loading} className="btn-primary">
-              <i className="ti ti-credit-card" style={{ fontSize:18 }} />
-              {loading ? 'Un momento...' : 'Suscribirme por $75/mes'}
-            </button>
+              <p style={{ fontSize:11.5, color:'var(--text-muted)', textAlign:'center', marginBottom:14 }}>
+                Si imprimes 10 veces al mes, esto te sale más barato que comprar paquetes
+              </p>
+
+              {error && (
+                <div style={{ background:'var(--red-light)', border:'1px solid #F09595', borderRadius:'var(--radius-md)', padding:'10px 14px', marginBottom:12, display:'flex', gap:8 }}>
+                  <i className="ti ti-alert-circle" style={{ fontSize:16, color:'var(--red)', flexShrink:0 }} />
+                  <p style={{ fontSize:13, color:'var(--red)' }}>{error}</p>
+                </div>
+              )}
+
+              <button onClick={handleSubscribe} disabled={loading} className="btn-primary">
+                <i className="ti ti-credit-card" style={{ fontSize:18 }} />
+                {loading ? 'Un momento...' : 'Suscribirme'}
+              </button>
+            </>
           ) : (
             <>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
+                {PACKAGES.map(p => {
+                  const perCredit = (p.amount / p.prints).toFixed(2)
+                  const isSelected = selectedPkg === p.id
+                  const isPopular = p.id === 'popular'
+                  return (
+                    <button key={p.id} onClick={() => { setSelectedPkg(p.id); setOxxoData(null); setCardStep(null); setError('') }} style={{
+                      border: isSelected ? '2px solid var(--accent)' : '1.5px solid var(--border)',
+                      borderRadius:'var(--radius-lg)', padding:'18px 14px', textAlign:'center',
+                      background: isSelected ? 'var(--accent-light)' : '#fff',
+                      cursor:'pointer', position:'relative', display:'flex', flexDirection:'column', alignItems:'center', gap:2,
+                    }}>
+                      {isPopular && (
+                        <span style={{ position:'absolute', top:-9, left:'50%', transform:'translateX(-50%)', fontSize:9.5, background: isSelected ? 'var(--accent)' : 'var(--dark)', color: isSelected ? '#16803C' : '#fff', padding:'3px 9px', borderRadius:'var(--radius-full)', fontWeight:800, whiteSpace:'nowrap' }}>
+                          MÁS POPULAR
+                        </span>
+                      )}
+                      <div style={{ width:34, height:34, borderRadius:10, background: isSelected ? '#fff' : 'var(--bg)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:4 }}>
+                        <i className={`ti ${isPopular ? 'ti-bolt' : 'ti-stack-2'}`} style={{ fontSize:17, color: isSelected ? '#16803C' : 'var(--text-secondary)' }} />
+                      </div>
+                      <p style={{ fontSize:24, fontWeight:900, color: isSelected ? '#16803C' : 'var(--text-primary)', lineHeight:1.1 }}>
+                        ${p.amount}
+                      </p>
+                      <p style={{ fontSize:12.5, fontWeight:700, color: isSelected ? '#2E4D1F' : 'var(--text-secondary)' }}>
+                        {p.prints} créditos
+                      </p>
+                      <p style={{ fontSize:10.5, color: isSelected ? '#3F6B2A' : 'var(--text-muted)', marginTop:1 }}>
+                        ${perCredit} c/u
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {error && (
+                <div style={{ background:'var(--red-light)', border:'1px solid #F09595', borderRadius:'var(--radius-md)', padding:'10px 14px', marginBottom:12, display:'flex', gap:8 }}>
+                  <i className="ti ti-alert-circle" style={{ fontSize:16, color:'var(--red)', flexShrink:0 }} />
+                  <p style={{ fontSize:13, color:'var(--red)' }}>{error}</p>
+                </div>
+              )}
+
               <button onClick={handleCard} disabled={loading} className="btn-primary" style={{ marginBottom:10 }}>
                 <i className="ti ti-credit-card" style={{ fontSize:18 }} />
                 {loading && cardStep !== 'form' ? 'Un momento...' : `Pagar $${pkg?.amount} con tarjeta`}

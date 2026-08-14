@@ -90,10 +90,14 @@ Deno.serve(async (req) => {
 
       if (intent.status !== 'succeeded') return json({ ok: true, status: intent.status })
 
-      // Los payment_intent de una suscripción traen `invoice` — esos se
-      // procesan más abajo con invoice.paid, no aquí (evita cobrar doble).
-      if (intent.invoice) {
-        return json({ ok: true, ignored: 'subscription_payment_intent' })
+      // Antes filtrábamos por `intent.invoice`, pero Stripe eliminó ese campo
+      // del objeto PaymentIntent (API 2025-03-31.basil en adelante). Ahora
+      // identificamos los pagos de paquete por su metadata — solo
+      // create-stripe-payment le pone `package_id`; los payment_intent que
+      // vienen de una suscripción no lo tienen y se procesan más abajo con
+      // invoice.paid (evita cobrar doble).
+      if (!intent.metadata?.package_id) {
+        return json({ ok: true, ignored: 'no_package_metadata' })
       }
 
       const { user_id, amount, prints } = intent.metadata ?? {}

@@ -82,19 +82,22 @@ Deno.serve(async (req) => {
     }
 
     // 2) Crear la suscripción, con el primer cobro pendiente de confirmar
+    // NOTA: desde la API de Stripe 2025-03-31.basil, el campo `payment_intent`
+    // del Invoice fue eliminado — ahora se usa `confirmation_secret`, que
+    // contiene el mismo client_secret de PaymentIntent que antes.
     const { ok, data: subscription } = await stripeFetch('subscriptions', STRIPE_SK, new URLSearchParams({
       'customer': customerId,
       'items[0][price]': PRICE_ID,
       'payment_behavior': 'default_incomplete',
       'payment_settings[save_default_payment_method]': 'on_subscription',
-      'expand[0]': 'latest_invoice.payment_intent',
+      'expand[0]': 'latest_invoice.confirmation_secret',
       'metadata[user_id]': user.id,
     }))
 
     if (!ok) return json({ error: subscription.error?.message ?? 'No se pudo crear la suscripción' }, 500)
 
-    const paymentIntent = subscription.latest_invoice?.payment_intent
-    if (!paymentIntent?.client_secret) {
+    const confirmationSecret = subscription.latest_invoice?.confirmation_secret
+    if (!confirmationSecret?.client_secret) {
       return json({ error: 'No se pudo iniciar el cobro de la suscripción' }, 500)
     }
 
@@ -103,7 +106,7 @@ Deno.serve(async (req) => {
     }).eq('id', user.id)
 
     return json({
-      client_secret: paymentIntent.client_secret,
+      client_secret: confirmationSecret.client_secret,
       subscription_id: subscription.id,
     })
 
