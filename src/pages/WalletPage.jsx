@@ -201,7 +201,7 @@ export default function WalletPage({ session }) {
                     <p style={{ fontSize:30, fontWeight:900, lineHeight:1, color:'#14532D' }}>
                       $75<span style={{ fontSize:14, fontWeight:700, color:'#16803C' }}>/mes</span>
                     </p>
-                    <p style={{ fontSize:12.5, color:'#3F6B2A', marginTop:3, fontWeight:600 }}>Ilimitado — nunca te quedas sin saldo</p>
+                    <p style={{ fontSize:12.5, color:'#3F6B2A', marginTop:3, fontWeight:600 }}>El plan de quienes no se complican</p>
                   </div>
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
@@ -215,7 +215,7 @@ export default function WalletPage({ session }) {
               </div>
 
               <p style={{ fontSize:11.5, color:'var(--text-muted)', textAlign:'center', marginBottom:14 }}>
-                Si imprimes 10 veces al mes, esto te sale más barato que comprar paquetes
+                Pagas una vez al mes y ya — sin calcular, sin contar créditos
               </p>
 
               {error && (

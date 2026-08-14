@@ -32,7 +32,7 @@ const TUTORIAL_USER = [
   {
     icon:  'ti-wallet',
     title: '4. Recarga tu saldo',
-    desc:  'En la sección "Saldo" puedes recargar con tarjeta de crédito/débito o en cualquier OXXO. Elige el paquete de $26.5 (2 créditos), $55 (5 créditos), o el plan Ilimitado de $75/mes si imprimes seguido.',
+    desc:  'En la sección "Saldo" puedes recargar con tarjeta de crédito/débito o en cualquier OXXO. Elige el paquete de $26.5 (2 créditos), $55 (5 créditos), o el plan Ilimitado de $75/mes — el plan de quienes no se complican.',
     tip:   '💡 Para OXXO: genera el voucher, ve a cualquier OXXO y muestra el número de referencia al cajero.',
   },
   {
