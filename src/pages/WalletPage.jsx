@@ -12,7 +12,6 @@ export default function WalletPage({ session }) {
   const [held, setHeld]             = useState(0)
   const [subStatus, setSubStatus]   = useState(null) // 'none' | 'active' | 'past_due' | 'canceled'
   const [subPeriodEnd, setSubPeriodEnd] = useState(null)
-  const [transactions, setTransactions] = useState([])
   const [selectedPkg, setSelectedPkg]   = useState('mensualidad') // por defecto en el plan destacado
   const [activeTab, setActiveTab]       = useState('mensual') // 'mensual' | 'creditos'
   const [loading, setLoading]       = useState(false)
@@ -46,9 +45,6 @@ export default function WalletPage({ session }) {
     setHeld(u?.credits_held ?? 0)
     setSubStatus(u?.subscription_status ?? 'none')
     setSubPeriodEnd(u?.subscription_period_end ?? null)
-    const { data: txs } = await supabase.from('wallet_transactions').select('*')
-      .eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(20)
-    setTransactions(txs ?? [])
   }
 
   const isSubscriber = subStatus === 'active'
@@ -97,7 +93,6 @@ export default function WalletPage({ session }) {
   }
 
   const pkg = PACKAGES.find(p => p.id === selectedPkg)
-  const fmtDate = iso => new Date(iso).toLocaleString('es-MX', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
   const fmtDateOnly = iso => new Date(iso).toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' })
 
   return (
@@ -238,7 +233,6 @@ export default function WalletPage({ session }) {
             <>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
                 {PACKAGES.map(p => {
-                  const perCredit = (p.amount / p.prints).toFixed(2)
                   const isSelected = selectedPkg === p.id
                   const isPopular = p.id === 'popular'
                   return (
@@ -261,9 +255,6 @@ export default function WalletPage({ session }) {
                       </p>
                       <p style={{ fontSize:12.5, fontWeight:700, color: isSelected ? '#2E4D1F' : 'var(--text-secondary)' }}>
                         {p.prints} créditos
-                      </p>
-                      <p style={{ fontSize:10.5, color: isSelected ? '#3F6B2A' : 'var(--text-muted)', marginTop:1 }}>
-                        ${perCredit} c/u
                       </p>
                     </button>
                   )
@@ -365,34 +356,6 @@ export default function WalletPage({ session }) {
           </div>
         )}
 
-        {/* Historial */}
-        {transactions.length > 0 && (
-          <div className="card">
-            <p style={{ fontSize:14, fontWeight:800, marginBottom:12 }}>Movimientos recientes</p>
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {transactions.map(tx => {
-                const credits = tx.credits ?? (tx.type === 'servicio' ? -1 : null)
-                const isPositive = (credits ?? 0) > 0
-                return (
-                <div key={tx.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', paddingBottom:10, borderBottom:'1px solid var(--border-light)' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <div style={{ width:32, height:32, borderRadius:10, flexShrink:0, background: isPositive ? 'var(--green-light)' : 'var(--red-light)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <i className={`ti ${isPositive ? 'ti-arrow-down-left' : 'ti-printer'}`} style={{ fontSize:16, color: isPositive ? 'var(--green)' : 'var(--red)' }} />
-                    </div>
-                    <div>
-                      <p style={{ fontSize:13, fontWeight:600 }}>{tx.type === 'recarga' ? `Recarga · ${tx.payment_method === 'oxxo' ? 'OXXO' : 'Tarjeta'}` : 'Impresión'}</p>
-                      <p style={{ fontSize:11, color:'var(--text-muted)' }}>{fmtDate(tx.created_at)}</p>
-                    </div>
-                  </div>
-                  <p style={{ fontSize:15, fontWeight:700, color: isPositive ? 'var(--green)' : 'var(--text-primary)' }}>
-                    {credits != null ? `${isPositive ? '+' : ''}${credits} crédito${Math.abs(credits) !== 1 ? 's' : ''}` : '—'}
-                  </p>
-                </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

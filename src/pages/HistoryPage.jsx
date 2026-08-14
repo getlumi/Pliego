@@ -17,6 +17,8 @@ const STATUS_COLOR = {
 export default function HistoryPage({ session }) {
   const [orders, setOrders]         = useState([])
   const [ratingOrder, setRatingOrder] = useState(null) // pedido para calificar
+  const [tab, setTab]               = useState('pedidos') // 'pedidos' | 'saldo'
+  const [transactions, setTransactions] = useState([])
 
   const load = () => {
     if (!session) return
@@ -28,8 +30,16 @@ export default function HistoryPage({ session }) {
       .then(({ data }) => setOrders(data ?? []))
   }
 
+  const loadTransactions = () => {
+    if (!session) return
+    supabase.from('wallet_transactions').select('*')
+      .eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(30)
+      .then(({ data }) => setTransactions(data ?? []))
+  }
+
   useEffect(() => {
     load()
+    loadTransactions()
     const channel = supabase
       .channel(`orders:user:${session?.user?.id}`)
       .on('postgres_changes', {
@@ -45,6 +55,10 @@ export default function HistoryPage({ session }) {
           return { ...o, ...payload.new }
         }))
       })
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'wallet_transactions',
+        filter: `user_id=eq.${session?.user?.id}`,
+      }, () => loadTransactions())
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [session])
@@ -65,14 +79,76 @@ export default function HistoryPage({ session }) {
         <p style={{ fontSize:13, color:'rgba(255,255,255,0.6)' }}>Últimos 3 días</p>
       </div>
       <div className="scroll-content">
-        {orders.length === 0 ? (
-          <div className="card" style={{ textAlign:'center', padding:32 }}>
-            <i className="ti ti-history" style={{ fontSize:40, color:'var(--text-muted)', display:'block', marginBottom:12 }} />
-            <p style={{ color:'var(--text-muted)', fontSize:14 }}>No tienes impresiones recientes</p>
-          </div>
-        ) : orders.map(o => (
-          <OrderRow key={o.id} order={o} onRate={setRatingOrder} />
-        ))}
+
+        {/* Pestañas: Pedidos vs Saldo */}
+        <div style={{ display:'flex', background:'var(--bg)', borderRadius:'var(--radius-full)', padding:4, gap:4, marginBottom:4 }}>
+          <button
+            onClick={() => setTab('pedidos')}
+            style={{
+              flex:1, border:'none', borderRadius:'var(--radius-full)', padding:'9px 10px',
+              background: tab === 'pedidos' ? 'var(--dark)' : 'transparent',
+              color: tab === 'pedidos' ? '#fff' : 'var(--text-secondary)',
+              fontSize:13, fontWeight:800, cursor:'pointer', transition:'background 0.15s, color 0.15s',
+            }}
+          >
+            Pedidos
+          </button>
+          <button
+            onClick={() => setTab('saldo')}
+            style={{
+              flex:1, border:'none', borderRadius:'var(--radius-full)', padding:'9px 10px',
+              background: tab === 'saldo' ? 'var(--dark)' : 'transparent',
+              color: tab === 'saldo' ? '#fff' : 'var(--text-secondary)',
+              fontSize:13, fontWeight:800, cursor:'pointer', transition:'background 0.15s, color 0.15s',
+            }}
+          >
+            Saldo
+          </button>
+        </div>
+
+        {tab === 'pedidos' ? (
+          orders.length === 0 ? (
+            <div className="card" style={{ textAlign:'center', padding:32 }}>
+              <i className="ti ti-history" style={{ fontSize:40, color:'var(--text-muted)', display:'block', marginBottom:12 }} />
+              <p style={{ color:'var(--text-muted)', fontSize:14 }}>No tienes impresiones recientes</p>
+            </div>
+          ) : orders.map(o => (
+            <OrderRow key={o.id} order={o} onRate={setRatingOrder} />
+          ))
+        ) : (
+          transactions.length === 0 ? (
+            <div className="card" style={{ textAlign:'center', padding:32 }}>
+              <i className="ti ti-receipt" style={{ fontSize:40, color:'var(--text-muted)', display:'block', marginBottom:12 }} />
+              <p style={{ color:'var(--text-muted)', fontSize:14 }}>Sin movimientos de saldo todavía</p>
+            </div>
+          ) : (
+            <div className="card">
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {transactions.map(tx => {
+                  const credits = tx.credits ?? (tx.type === 'servicio' ? -1 : null)
+                  const isPositive = (credits ?? 0) > 0
+                  const fmtDate = iso => new Date(iso).toLocaleString('es-MX', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
+                  return (
+                    <div key={tx.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', paddingBottom:10, borderBottom:'1px solid var(--border-light)' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                        <div style={{ width:32, height:32, borderRadius:10, flexShrink:0, background: isPositive ? 'var(--green-light)' : 'var(--red-light)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                          <i className={`ti ${isPositive ? 'ti-arrow-down-left' : 'ti-printer'}`} style={{ fontSize:16, color: isPositive ? 'var(--green)' : 'var(--red)' }} />
+                        </div>
+                        <div>
+                          <p style={{ fontSize:13, fontWeight:600 }}>{tx.type === 'recarga' ? `Recarga · ${tx.payment_method === 'oxxo' ? 'OXXO' : 'Tarjeta'}` : 'Impresión'}</p>
+                          <p style={{ fontSize:11, color:'var(--text-muted)' }}>{fmtDate(tx.created_at)}</p>
+                        </div>
+                      </div>
+                      <p style={{ fontSize:15, fontWeight:700, color: isPositive ? 'var(--green)' : 'var(--text-primary)' }}>
+                        {credits != null ? `${isPositive ? '+' : ''}${credits} crédito${Math.abs(credits) !== 1 ? 's' : ''}` : '—'}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        )}
       </div>
     </div>
   )
