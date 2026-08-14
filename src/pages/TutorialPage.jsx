@@ -26,25 +26,25 @@ const TUTORIAL_USER = [
   {
     icon:  'ti-send',
     title: '3. Envía tu pedido',
-    desc:  'Revisa el precio y toca "Enviar pedido". Se descuenta 1 crédito de tu saldo como cuota de servicio. El resto lo pagas en efectivo al recoger.',
+    desc:  'Revisa el precio y toca "Enviar pedido". Se descuenta 1 crédito de tu saldo como cuota de servicio (o nada si tienes el plan Ilimitado). El resto lo pagas en efectivo al recoger.',
     tip:   '💡 Necesitas créditos disponibles para enviar. Recarga desde la sección "Saldo".',
   },
   {
     icon:  'ti-wallet',
-    title: '4. Recarga tu saldo',
-    desc:  'En la sección "Saldo" puedes recargar con tarjeta de crédito/débito o en cualquier OXXO. Elige el paquete de $26.5 (2 créditos), $55 (5 créditos), o el plan Ilimitado de $75/mes — el plan de quienes no se complican.',
+    title: '4. Elige cómo pagar la cuota',
+    desc:  'En "Saldo" puedes comprar paquetes de créditos ($26.5 por 2, $55 por 5) que se gastan uno por pedido, o suscribirte al plan Ilimitado por $75/mes — el plan de quienes no se complican: pagas una vez y ya, sin volver a pensar en tu saldo.',
     tip:   '💡 Para OXXO: genera el voucher, ve a cualquier OXXO y muestra el número de referencia al cajero.',
   },
   {
     icon:  'ti-bell',
     title: '5. Espera el aviso',
     desc:  'Cuando tu impresión esté lista, te llega un SMS al número con el que te registraste. También puedes ver el estado en "Historial": Enviado → Imprimiendo → Listo para recoger.',
-    tip:   '💡 El historial muestra tus pedidos de los últimos 3 días.',
+    tip:   '💡 "Historial" también tiene una pestaña "Saldo" con todos tus movimientos de créditos y recargas.',
   },
   {
     icon:  'ti-shield-check',
-    title: '6. Tienes 24 horas para recoger',
-    desc:  'Cuando tu pedido cubre esta garantía, la papelería puede imprimirlo antes de que llegues, sin arriesgar nada. A cambio, tienes 24 horas desde que está "Listo" para pasar por él — si no pasas, se descuenta el crédito correspondiente de tu cuenta.',
+    title: '6. La garantía: imprime antes de llegar',
+    desc:  'Cuando tu pedido cabe en tu saldo (o cuesta $50 o menos con el plan Ilimitado), la papelería lo imprime antes de que llegues — no esperas en la fila. A cambio, tienes 24 horas desde que está "Listo" para pasar por él.\n\nSi usas créditos y no pasas a tiempo: se descuenta el crédito de tu cuenta.\nSi tienes el plan Ilimitado y no pasas a tiempo: tu cuenta se suspende hasta pagar una multa de $50 para reactivarla.',
     tip:   '💡 Puedes pedir 2 horas más una sola vez, desde el aviso en "Historial", si se te complica llegar a tiempo.',
   },
   {
@@ -87,7 +87,7 @@ const TUTORIAL_PRINTSHOP = [
     icon:    'ti-shield-check',
     color:   '#1A1A1A',
     title:   '3. La garantía anti-no-show',
-    desc:    'Cada pedido te dice si está cubierto por la garantía. Si NO lo está, verás una alerta roja — no imprimas hasta que el cliente esté físicamente en tu local. Si SÍ está cubierto, puedes imprimir con confianza: si el cliente no pasa a recoger en 24 horas, Pliego le descuenta el crédito y tú puedes reclamar tu pago por Soporte.',
+    desc:    'Cada pedido te dice si está cubierto por la garantía. Si NO lo está, verás una alerta roja — no imprimas hasta que el cliente esté físicamente en tu local. Si SÍ está cubierto, puedes imprimir con confianza: si el cliente no pasa a recoger en 24 horas, se le descuenta el crédito (o se suspende su cuenta si tiene el plan Ilimitado) y tú puedes reclamar tu pago por Soporte.',
     tip:     '💡 Escribe a Soporte con el tema "Cliente no pasó por su pedido" para reclamar tu pago en esos casos.',
   },
   {
@@ -101,8 +101,8 @@ const TUTORIAL_PRINTSHOP = [
     icon:    'ti-cash',
     color:   '#1A1A1A',
     title:   '5. Tus ganancias',
-    desc:    'En la tab "Ganancias" ves el total que has cobrado en efectivo. Ese dinero es 100% tuyo — los clientes te pagan directo.',
-    tip:     '💡 Pliego cobra una cuota de servicio en créditos al cliente, tú no pierdes nada.',
+    desc:    'En la tab "Ganancias" ves el total que has cobrado en efectivo. Ese dinero es 100% tuyo — los clientes te pagan directo, sin comisión de Pliego sobre lo que cobras.',
+    tip:     '💡 Pliego cobra una cuota de servicio al cliente (o su mensualidad), tú no pierdes nada de tus ventas.',
   },
   {
     icon:    'ti-star',
@@ -124,6 +124,13 @@ const TUTORIAL_PRINTSHOP = [
     title:   '8. Activa y desactiva cuando quieras',
     desc:    'El toggle "Recibiendo pedidos" en Config te permite pausar temporalmente sin desaparecer de la app. Úsalo cuando estés lleno, en descanso o fuera del local.',
     tip:     '💡 Los clientes ven si estás disponible u ocupado antes de elegirte.',
+  },
+  {
+    icon:    'ti-gift',
+    color:   '#1A1A1A',
+    title:   '9. Tu periodo de gracia',
+    desc:    'Pliego funciona con una mensualidad fija de $75 — sin comisión sobre lo que cobras, nunca. Si estás entre las primeras 10 papelerías de la zona, tienes 3 meses gratis para probarlo sin compromiso; si te registras después, 1 mes. Puedes suscribirte cuando quieras desde "Perfil", sin esperar a que se acabe tu gracia.',
+    tip:     '💡 Si tu periodo de gracia termina sin suscribirte, dejas de recibir pedidos hasta que te suscribas — no se borra nada de tu información.',
   },
 ]
 
