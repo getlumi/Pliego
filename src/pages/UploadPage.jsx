@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { serviceLabel, serviceIcon } from '../lib/services'
 import IneCapture from './IneCapture'
+import DocumentScanner from './DocumentScanner'
 
 // La caja de "ajustes especiales con IA" está temporalmente oculta:
 // por ahora la app solo soporta documentos ya listos para imprimir.
@@ -37,6 +38,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   const [loadingShop, setLoadingShop] = useState(true)
   const [justSent, setJustSent] = useState(false)
   const [showIneCapture, setShowIneCapture] = useState(false)
+  const [showDocScanner, setShowDocScanner] = useState(false)
   const fileInputRef = useRef(null)
 
   const handleIneDone = (file) => {
@@ -44,6 +46,13 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     onUpdateDraft({
       files: [...files, { file, previewUrl: null, pageCount: 1, pageCountAuto: false }],
       containsId: true,
+    })
+  }
+
+  const handleScanDone = (file, pageCount) => {
+    setShowDocScanner(false)
+    onUpdateDraft({
+      files: [...files, { file, previewUrl: null, pageCount, pageCountAuto: true }],
     })
   }
 
@@ -186,11 +195,33 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
             width: 40, height: 40, borderRadius: 10, background: 'var(--accent-light)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
-            <i className="ti ti-camera" style={{ fontSize: 20, color: '#16803C' }} />
+            <i className="ti ti-id-badge-2" style={{ fontSize: 20, color: '#16803C' }} />
           </div>
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 14, fontWeight: 700 }}>Agregar identificación (frente y reverso)</p>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Toma la foto con la cámara — armamos el documento por ti</p>
+          </div>
+          <i className="ti ti-chevron-right" style={{ fontSize: 18, color: 'var(--text-muted)' }} />
+        </button>
+
+        <button
+          onClick={() => setShowDocScanner(true)}
+          className="card"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+            border: '1.5px solid var(--border)', cursor: 'pointer', width: '100%', textAlign: 'left',
+            background: '#fff',
+          }}
+        >
+          <div style={{
+            width: 40, height: 40, borderRadius: 10, background: '#EEF2FF',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <i className="ti ti-scan" style={{ fontSize: 20, color: '#4F46E5' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 14, fontWeight: 700 }}>Escanea tu documento aquí</p>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Para cualquier hoja: contratos, recibos, tareas — una o varias páginas</p>
           </div>
           <i className="ti ti-chevron-right" style={{ fontSize: 18, color: 'var(--text-muted)' }} />
         </button>
@@ -467,6 +498,10 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
 
       {showIneCapture && (
         <IneCapture onDone={handleIneDone} onCancel={() => setShowIneCapture(false)} />
+      )}
+
+      {showDocScanner && (
+        <DocumentScanner onDone={handleScanDone} onCancel={() => setShowDocScanner(false)} />
       )}
     </div>
   )
