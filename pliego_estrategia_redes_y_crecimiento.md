@@ -243,7 +243,15 @@ Tienes razón en la objeción que anticipas: "¿cuánto más voy a ganar con un 
 ### La lógica de negocio (aplicando Océano Azul otra vez, en una capa nueva)
 Ninguna papelería tradicional ni ningún competidor de impresión ofrece esto — es una categoría nueva encima de la que ya creamos: no "imprime sin buscar dónde" solamente, sino **"tu parada completa cerca de ti"**. El café/snack/artículo de oficina no compite con la impresión — la vuelve rentable de verdad para el negocio.
 
-### Cómo se construye esto (bosquejo, no decisión de código todavía)
+### La tensión real que hay que resolver primero (encontrada al investigar, no obvia)
+
+Los negocios que combinan café + algo más funcionan por un mecanismo específico: **"dwell time"** — tiempo de espera/permanencia. La gente compra por impulso porque ya está ahí parada esperando; en modelos de "una parada, varias marcas", esto sube las ventas por transacción en doble dígito.
+
+**El problema:** esto choca de frente con la promesa central que ya construiste — la garantía anti-no-show existe precisamente para que el documento **ya esté impreso cuando el cliente llega**, sin esperar. Si el usuario entra y sale en 30 segundos, no hay momento de espera para que le den ganas de comprar algo más. Poner una cafetera sin resolver esto sería copiar el modelo a medias.
+
+**La resolución — mover el impulso a la app, antes de llegar, no al mostrador:** cuando el pedido pasa a "Listo", la notificación puede incluir la oferta adicional de esa papelería, con **pedido anticipado** — igual que "order ahead" de Starbucks: *"Tu documento está listo en [papelería] · También tienen café — pide el tuyo para que esté listo cuando llegues."* Así no depende de que la persona espere en el local; el café (o lo que sea) también está listo al llegar, exactamente la misma promesa que ya usas para la impresión, aplicada al segundo producto. Esto es más fuerte que solo mostrar chips de "servicios adicionales" en la tarjeta — resuelve la tensión de raíz en vez de ignorarla.
+
+
 
 **Del lado de producto:**
 - Nueva etiqueta visual "Pliego Store" en las tarjetas de papelería — distinta de una papelería normal, funciona como un segundo nivel de estatus (esta vez no por volumen de pedidos, sino por variedad de oferta) — conecta directo con la Parte 7: una papelería podría aspirar a convertirse en Pliego Store como un logro más, no solo subir de Clase B a S.
