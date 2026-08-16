@@ -61,6 +61,14 @@ export default function App() {
   }, [])
 
   const checkOnboarding = async (userId, showShopTutorial = false) => {
+    // Vuelve a poner loading=true aquí, no solo en el estado inicial —
+    // si no, cada login (no solo la primera carga de página) deja un
+    // instante con loading=false pero los datos reales del usuario
+    // (onboarded, ownsShop, isAdmin) todavía en sus valores por default,
+    // y eso hace que se muestre por un parpadeo el Onboarding/Tutorial
+    // antes de que lleguen los datos reales y se corrija solo.
+    setLoading(true)
+
     let { data } = await supabase
       .from('users')
       .select('onboarding_seen, is_admin, account_suspended')
