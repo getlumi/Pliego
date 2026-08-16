@@ -9,38 +9,28 @@
 
 | Fuente | Estado | Aplicado en |
 |---|---|---|
-| *Posicionamiento Increíble* (Obviously Awesome, April Dunford) | ✅ Aplicado | Sección 2 — reposicionamiento del plan Ilimitado |
-| *The Cold Start Problem* (Andrew Chen) | ✅ Aplicado | Sección 3 — estrategia de red atómica |
-| Amway / Herbalife / Omnilife (análisis, no el modelo) | ✅ Aplicado (lo transferible) | Sección 3 y 4 |
-| *Superfans* (Pat Flynn) | ✅ Aplicado hoy | Sección 4 — sistema de estatus/insignias |
-| *Palabras que Venden* | ✅ Aplicado hoy (principios generales de copy directo) | Sección 5 |
-| *La Estrategia del Océano Azul* (Kim & Mauborgne) | ✅ Aplicado hoy | Sección 7 |
-| *La Vaca Púrpura* (Seth Godin) | ✅ Aplicado hoy | Sección 7 |
-| *El Principio 80/20* (Richard Koch) | ✅ Aplicado hoy | Sección 7 |
-| *Solo Una Cosa* (The One Thing, Gary Keller) | ✅ Aplicado hoy | Sección 7 |
-| $100M Leads (Alex Hormozi — "prospectos de 100 millones") | ✅ Aplicado hoy | Sección 7 |
-| *Tribus* / movilizar a tu tribu (Seth Godin) | ⏳ Pendiente de profundizar | — |
-| Omnipresencia (marketing multicanal) | ⏳ Pendiente — confirmar autor/título exacto | — |
-| Networking (dar antes de recibir) | ⏳ Pendiente — confirmar título exacto | — |
-| *Secretos de una Mente Millonaria* (T. Harv Eker) | ⏳ Pendiente — más mindset personal que producto/marketing, aplicabilidad directa a evaluar | — |
-| 6 formas de rentabilizar tu marca | ⏳ Pendiente — no tengo el marco exacto, prefiero no inventarlo | — |
-| ¿Quién no cómo? (Dan Sullivan / Benjamin Hardy) | ⏳ Pendiente de profundizar | — |
-| *Amplitud* (Range, David Epstein) | ⏳ Pendiente | — |
-| *El Poder de la Atención* | ⏳ Pendiente | — |
-| *Minimalismo Digital* (Cal Newport) | ⏳ Pendiente | — |
-| *Pensamiento Crítico, Lógica y Resolución de Problemas* | ⏳ Pendiente | — |
-| *Supercomunicadores* | ⏳ Pendiente | — |
-| Tony Robbins (fuentes generales) | ⏳ Pendiente — falta título específico | — |
-| *$100M Offers* / "Prospectos de 100 millones" (Alex Hormozi) | ⏳ Pendiente | — |
-| *La Estrategia del Océano Azul* (W. Chan Kim & Renée Mauborgne) | ⏳ Pendiente | — |
-| *La Vaca Púrpura* (Purple Cow, Seth Godin) | ⏳ Pendiente | — |
-| *Secretos de una Mente Millonaria* (T. Harv Eker) | ⏳ Pendiente | — |
-| *El Principio 80/20* (Richard Koch) | ⏳ Pendiente | — |
-| *Solo Una Cosa* (The One Thing, Gary Keller) | ⏳ Pendiente | — |
-| Cómo crear buenos contenidos y movilizar a tu tribu (línea de *Tribus*, Seth Godin) | ⏳ Pendiente | — |
-| *Omnipresencia* (marketing de contenido/autoridad) | ⏳ Pendiente | — |
-| *Networking* (fuente general) | ⏳ Pendiente | — |
-| *6 Formas de Rentabilizar tu Marca* | ⏳ Pendiente | — |
+| *Posicionamiento Increíble* (Obviously Awesome, April Dunford) | ✅ Aplicado | Sección 2 de este documento |
+| *The Cold Start Problem* (Andrew Chen) | ✅ Aplicado | Sección 3 de este documento |
+| Amway / Herbalife / Omnilife (análisis, no el modelo) | ✅ Aplicado (lo transferible) | Secciones 3 y 4 de este documento |
+| *Superfans* (Pat Flynn) | ✅ Aplicado | Sección 4 de este documento |
+| *Palabras que Venden* | ✅ Aplicado (principios generales de copy directo) | Sección 5 de este documento |
+| *$100M Offers* (Alex Hormozi) | ✅ Aplicado | `pliego_estrategia_redes_y_crecimiento.md`, Partes 1 y 3 |
+| *La Estrategia del Océano Azul* (Kim & Mauborgne) | ✅ Aplicado | `pliego_estrategia_redes_y_crecimiento.md`, Partes 1 y 2 |
+| *La Vaca Púrpura* (Seth Godin) | ✅ Aplicado | `pliego_estrategia_redes_y_crecimiento.md`, Partes 1 y 2 |
+| *El Principio 80/20* (Richard Koch) | ✅ Aplicado | `pliego_estrategia_redes_y_crecimiento.md`, Partes 1 y 5 |
+| *Solo Una Cosa* (The One Thing, Gary Keller) | ✅ Aplicado | `pliego_estrategia_redes_y_crecimiento.md`, Partes 1 y 5 |
+| ¿Quién no cómo? (Dan Sullivan / Benjamin Hardy) | ✅ Aplicado | `pliego_estrategia_redes_y_crecimiento.md`, Parte 1 |
+| *Amplitud* (Range, David Epstein) | ✅ Aplicado | `pliego_estrategia_redes_y_crecimiento.md`, Parte 1 |
+| *El Poder de la Atención* | ✅ Aplicado (genérico — falta título específico para más precisión) | `pliego_estrategia_redes_y_crecimiento.md`, Parte 1 |
+| *Minimalismo Digital* (Cal Newport) | ✅ Aplicado | `pliego_estrategia_redes_y_crecimiento.md`, Partes 1 y 4 |
+| *Pensamiento Crítico, Lógica y Resolución de Problemas* | ✅ Aplicado (genérico) | `pliego_estrategia_redes_y_crecimiento.md`, Parte 1 |
+| *Supercomunicadores* (Charles Duhigg) | ✅ Aplicado | `pliego_estrategia_redes_y_crecimiento.md`, Partes 1 y 3 |
+| Cómo crear buenos contenidos y movilizar a tu tribu (*Tribus*, Seth Godin) | ✅ Aplicado | `pliego_estrategia_redes_y_crecimiento.md`, Partes 1 y 2 |
+| *Omnipresencia* (marketing multicanal) | ✅ Aplicado (genérico — falta autor/título exacto) | `pliego_estrategia_redes_y_crecimiento.md`, Parte 1 |
+| *Networking* (fuente general) | ✅ Aplicado | `pliego_estrategia_redes_y_crecimiento.md`, Partes 1 y 3 |
+| *Secretos de una Mente Millonaria* (T. Harv Eker) | ✅ Revisado — más mindset personal que táctica de producto, no genera acción directa | `pliego_estrategia_redes_y_crecimiento.md`, Parte 1 |
+| *6 Formas de Rentabilizar tu Marca* | ✅ Revisado (genérico — falta autor exacto; solo una vía aplica hoy) | `pliego_estrategia_redes_y_crecimiento.md`, Parte 1 |
+| Tony Robbins (fuentes generales) | ⏳ Pendiente — falta título específico para aplicar con sustancia | — |
 
 **Nota de honestidad:** cuando un libro dice "⏳ Pendiente", significa que aún no se ha aplicado con sustancia a una decisión real de Pliego — no fingir que ya se hizo. Cuando se marque "✅ Aplicado", debe existir una sección concreta abajo que lo demuestre, no solo una mención.
 
