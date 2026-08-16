@@ -164,4 +164,115 @@ Aplicando Solo Una Cosa y 80/20 juntos, en vez de cerrar este documento con una 
 
 ---
 
-*Última actualización: 14 de agosto 2026. Pendiente: confirmar título específico de Tony Robbins y autor de "6 Formas de Rentabilizar tu Marca" para profundizar esas dos entradas con la misma sustancia que el resto.*
+## PARTE 6 — Auditoría real de la app (no opinión, código leído)
+
+Revisé `HomePage.jsx` y `OnboardingPage.jsx` línea por línea para responder tu pregunta con evidencia, no con "se ve bien". Esto es lo que encontré:
+
+### Lo que ya funciona bien
+- Saludo personalizado ("Hola, [nombre]") + avatar en el header — toque de personalización real.
+- La papelería elegida queda fija arriba, con "Cambiar" — buena continuidad de estado.
+- Saldo visible directo en el header — reduce ansiedad de "¿me va a alcanzar?".
+- El borrador (archivo subido) sobrevive si navegas a otra pantalla — baja fricción si te interrumpen.
+
+### Lo que le está costando "familiaridad y satisfacción" — 4 hallazgos concretos
+
+1. **La app abre directo en modo transacción, nunca en modo bienvenida.** Lo primero que ve un usuario que regresa es el botón "Sube tu documento" — cero reconocimiento de que ya te conoce, cero calidez. Comparado con apps que retienen bien (Duolingo, por ejemplo), que te saludan y muestran tu progreso/racha ANTES de empujarte a la tarea, Pliego salta directo al embudo. Esto conecta con tu propia preocupación: la app hoy no tiene ninguna razón para abrirse "solo por gusto" — no hay nada que ver si no traes una impresión pendiente.
+
+2. **El onboarding es funcional pero sin personalidad ni voz de marca.** 3 pasos, ícono + texto, puntos de progreso estándar — explica bien la mecánica pero no genera ningún momento memorable, no te hace sentir que "entras a algo" (contradice directamente el marco de Tribus/Superfans que ya aplicamos: te trata como usuario de una utilidad, no como alguien que se une a un movimiento).
+
+3. **El bug más concreto y más fácil de arreglar: los mensajes de confirmación usan `alert()` nativo del navegador.** Literalmente el diálogo feo y genérico del sistema — rompe por completo la identidad visual cuidada que tiene el resto de la app justo en el momento más importante (cuando el pedido se envía exitosamente). Esto es un hallazgo real, no estético: es el momento de mayor satisfacción potencial del flujo, y hoy se ve como un error del navegador, no como parte de Pliego.
+
+4. **La pantalla principal pide comparar antes de sentir alivio.** Tu propio posicionamiento (Océano Azul) dice "elimina la fricción de decidir dónde imprimir" — pero la Home de hoy pone una lista de tarjetas para comparar (calificación, distancia, precios) como lo primero que ves, en vez de mostrar de entrada algo tipo "3 papelerías abiertas cerca de ti ahora mismo" como reafirmación inmediata de la promesa central.
+
+**Recomendación de prioridad (aplicando 80/20):** el punto 3 (quitar los `alert()`) es el arreglo de más impacto por menos esfuerzo — es literalmente cambiar 2-3 líneas de código por un modal propio con la identidad visual de Pliego. Los puntos 1, 2 y 4 son rediseño real, no un parche — mejor abordarlos junto con lo de la Parte 7 y 9 de abajo, para no rehacer la misma pantalla dos veces.
+
+---
+
+## PARTE 7 — Sistema de insignias v2: nomenclatura de tendencia + versión para usuarios
+
+### Lo que investigué antes de proponer nada
+"S-tier" (y A, B, C debajo) viene de sistemas de calificación japoneses, se volvió slang global de internet vía gaming/anime desde 2018-2019, y HOY es lenguaje cotidiano real — no solo entre gamers, entre Gen Z y millennials jóvenes en general ("esa pizza está S-tier" = es buenísima). Es exactamente el tipo de nomenclatura que tu público probable en Cancún ya entiende y usa sin que se lo expliques — a diferencia de Bronce/Plata/Oro, que es reconocible pero se siente a "programa de aerolínea", no a algo actual.
+
+### Renombrar papelerías (mismos umbrales que ya decidiste, no reabro esa parte)
+| Antes | Ahora | Pedidos completados |
+|---|---|---|
+| 🥉 Bronce | **Clase B** | 25 |
+| 🥈 Plata | **Clase A** | 100 |
+| 🥇 Oro | **Clase S** | 250 |
+| 💎 Fundadora + nivel | **Clase S · Fundadora** | Combinado con antigüedad |
+
+No toco los números (25/100/250) ni las reglas ya decididas (nunca comisión, nunca exclusividad territorial) — solo el nombre, porque eso fue exactamente lo que pediste.
+
+### La parte de usuarios — con una distinción importante que hay que hacer bien
+
+Tienes razón en que el mismo mecanismo sirve para detectar usuarios conflictivos, pero **esto necesita ser dos sistemas separados, no uno solo**, porque mezclar "reconocimiento público" con "puntaje de riesgo" tiene un riesgo real: mostrarle a alguien (o a otros) una insignia "mala" se siente punitivo y genera resentimiento, no lealtad — el equivalente a la ansiedad de calificación de pasajero en Uber, que es una queja real y documentada de esa industria.
+
+**Sistema A — Reconocimiento público de usuarios (positivo, visible, aspiracional):**
+- Se otorga SOLO en sentido positivo — nunca se le muestra a nadie una "clase baja". Si no calificas para nada, simplemente no tienes insignia todavía (neutral, no negativo).
+- Misma nomenclatura Clase B/A/S, basada en conducta repetida real: pedidos completados a tiempo, sin garantías vencidas.
+- Ejemplo: Clase S = "3+ meses seguidos sin una sola garantía vencida" — esto es honesto (dato real de tu base) y aspiracional a la vez.
+
+**Sistema B — Puntaje interno de confianza (privado, solo Admin, para lo que tú pediste de usuarios conflictivos):**
+- Nunca visible al usuario ni a nadie más — vive solo en el panel de Admin.
+- Se alimenta de patrones reales ya en tu base de datos: garantías vencidas repetidas, cancelaciones frecuentes, reportes de papelerías sobre ese usuario.
+- Uso práctico: un usuario con score bajo podría requerir revisión manual antes de cubrirle la garantía anti-no-show automáticamente, en vez de descubrir el patrón pedido por pedido.
+
+Esto cumple tu pedido real (identificar conflictivos) sin crear el efecto punitivo/incómodo de mostrarle a la gente una calificación negativa de sí misma.
+
+**Nada de esto está construido todavía — es la propuesta, a la espera de tu aprobación antes de tocar código**, igual que el resto de este documento.
+
+---
+
+## PARTE 8 — De "uso ocasional" a ecosistema recurrente (sin fingir hábito falso)
+
+Marcaste bien el problema: Pliego resuelve una necesidad de oportunidad (no encontré papelería / no estaba abierta / no tenía los documentos a la mano) — una vez resuelta, no hay razón obvia para volver hasta la siguiente crisis. La Parte 4 (Minimalismo Digital) ya advirtió que fingir "hábito diario" sobre un producto así sería optimizar la métrica equivocada. La respuesta correcta no es fingir uso diario — es **ampliar legítimamente las ocasiones reales que activan la necesidad**, sin inventar ninguna.
+
+Tres caminos reales, no inventados:
+
+1. **El escáner que ya construimos hoy es, sin que lo hayamos dicho así, el primer paso de esto.** "Escanea tu documento aquí" no requiere imprimir nada — alguien puede usarlo solo para digitalizar un recibo, un comprobante, algo que quiere guardar o mandar por WhatsApp. Eso es una ocasión de uso completamente nueva, más frecuente que "necesito imprimir", y ya está construida.
+2. **Pliego Store (Parte 9, abajo) es la pieza más grande de esta respuesta** — si el lugar ofrece algo más que imprimir, la razón de visita deja de ser singular.
+3. **Contenido (Parte 2) ya está diseñado para mantenerte presente entre usos ocasionales sin fingir uso diario** — el cierre de cada video pidiendo "guárdalo para la próxima vez" es exactamente esto: aceptar que el uso es ocasional, pero asegurar que Pliego sea lo primero que recuerdas cuando la ocasión vuelve a aparecer.
+
+---
+
+## PARTE 9 — Pliego Store: la oportunidad de ingreso real para las papelerías
+
+### Por qué esto resuelve un problema real de negocio, no solo de producto
+Tienes razón en la objeción que anticipas: "¿cuánto más voy a ganar con un par de impresiones?" es una objeción legítima — los cartuchos de tinta son caros, el margen de imprimir por sí solo es delgado. Si Pliego solo le ofrece a una papelería "más clientes para imprimir", el techo de valor es bajo. La solución no es bajar el precio de Pliego ni prometer volumen — es ayudar a que **el ticket promedio por visita crezca**, y eso requiere que la papelería ofrezca algo más que imprimir.
+
+### La lógica de negocio (aplicando Océano Azul otra vez, en una capa nueva)
+Ninguna papelería tradicional ni ningún competidor de impresión ofrece esto — es una categoría nueva encima de la que ya creamos: no "imprime sin buscar dónde" solamente, sino **"tu parada completa cerca de ti"**. El café/snack/artículo de oficina no compite con la impresión — la vuelve rentable de verdad para el negocio.
+
+### Cómo se construye esto (bosquejo, no decisión de código todavía)
+
+**Del lado de producto:**
+- Nueva etiqueta visual "Pliego Store" en las tarjetas de papelería — distinta de una papelería normal, funciona como un segundo nivel de estatus (esta vez no por volumen de pedidos, sino por variedad de oferta) — conecta directo con la Parte 7: una papelería podría aspirar a convertirse en Pliego Store como un logro más, no solo subir de Clase B a S.
+- Chips de "servicios adicionales" en la tarjeta (café, snacks, papelería/oficina) — mismo patrón visual que ya existe para los tipos de impresión, solo una fila nueva.
+- Mostrar la oferta adicional ANTES de llegar (en el detalle de la papelería) — así la visita se planea con anticipación ("voy a Pliego Store de tal lugar, de paso me tomo un café"), no se descubre por sorpresa al llegar.
+
+**Del lado de negocio (con las papelerías):**
+- Aplicando ¿Quién no cómo?: Pliego no necesita operar el café — solo facilita la conexión (ej. sugerir proveedores de café al mayoreo, compartir qué combinaciones les funcionan a otras papelerías fundadoras).
+- Esto se convierte en un argumento de venta real en las visitas (Parte 3): no solo "te traemos clientes", sino "te ayudamos a que cada cliente te deje más".
+
+### Cómo se siente especial para el usuario, no solo ocasional (tu pregunta final)
+1. **Descubrimiento, no sorpresa.** Ver en la app que un lugar es "Pliego Store" con su oferta completa antes de llegar genera anticipación, no un hallazgo casual.
+2. **Consistencia entre lugares, calidad variable — como ya lo describiste.** Todos los Pliego Store prometen la misma categoría de experiencia (imprime + algo más), aunque la ejecución varíe de un lugar a otro — eso es exactamente lo que hace que la categoría se sienta confiable como marca, no como suerte.
+3. **Conectar esto con las insignias (Parte 7)** — probar la oferta adicional de un Pliego Store podría eventualmente sumar a tu propio reconocimiento como usuario (sistema A, siempre positivo) — así las dos ideas dejan de ser hilos separados y se refuerzan una a la otra, como pediste.
+
+**Nada de esto está construido** — es estrategia y bosquejo de producto, a la espera de que decidas qué se prioriza primero.
+
+---
+
+## PARTE 10 — Prioridad sugerida de todo lo nuevo (aplicando 80/20 + Solo Una Cosa otra vez)
+
+En orden de impacto real vs. esfuerzo:
+1. **Quitar los `alert()` nativos (Parte 6, hallazgo 3)** — el arreglo de más impacto por menos esfuerzo, no depende de ninguna otra decisión.
+2. **Confirmar la nomenclatura Clase B/A/S (Parte 7)** — es solo texto, cero lógica nueva, pero antes de tocarlo en 3 lugares (app, redes, contenido) necesito tu ok explícito.
+3. **Rediseño de Home/Onboarding (Parte 6, hallazgos 1-2-4) + Pliego Store visual (Parte 9)** — juntarlos porque tocan la misma pantalla, evita rehacerla dos veces.
+4. **Sistema de insignias completo (A público + B privado)** — depende de que ya haya suficiente historial real de pedidos/garantías para que los datos signifiquen algo.
+5. **Reclutamiento real de Pliego Store con papelerías fundadoras** — depende de que la Parte 3 (visitas) ya esté en marcha.
+
+---
+
+*Actualizado: 14 de agosto 2026 — se agregaron Partes 6-10 (auditoría de app, insignias v2, ecosistema recurrente, Pliego Store) tras revisión y feedback directo.*
+
