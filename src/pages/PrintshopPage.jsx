@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import SupportPage  from './SupportPage'
 import TutorialPage from './TutorialPage'
 import StripeCardForm from '../components/StripeCardForm'
+import AppModal from '../components/AppModal'
 import { DAY_KEYS, DAY_LABELS, DEFAULT_HOURS } from '../lib/hours'
 
 const SERVICE_OPTIONS = [
@@ -586,6 +587,7 @@ function DocUpload({ icon, label, hint, file, onChange }) {
 // ============================================================
 function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
   const [toggling, setToggling] = useState(false)
+  const [modal, setModal] = useState(null) // { type, message } | null
 
   // Solicitar permiso de notificaciones al montar
   useEffect(() => {
@@ -688,7 +690,7 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
     if (!error && data?.signedUrl) {
       setDownloadUrls(prev => ({ ...prev, [order.id]: data.signedUrl }))
     } else {
-      alert('No se pudo generar el enlace')
+      setModal({ type: 'error', message: 'No se pudo generar el enlace' })
     }
   }
 
@@ -864,6 +866,12 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
       ))}
           </div></>
       )}
+      <AppModal
+        open={!!modal}
+        type={modal?.type}
+        message={modal?.message}
+        onClose={() => setModal(null)}
+      />
     </div>
   )
 }

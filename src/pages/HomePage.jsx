@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { isOpenNow, todayLabel } from '../lib/hours'
 import { sendOrder } from '../lib/sendOrder'
+import AppModal from '../components/AppModal'
 
 export default function HomePage({ session, onNavigate, draft, onUpdateDraft, onClearDraft, onShowTutorial }) {
   const [shops,    setShops]    = useState([])
@@ -311,6 +312,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
 
 function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, session, user, onClearDraft, onNavigate }) {
   const [sending, setSending] = useState(false)
+  const [modal, setModal] = useState(null) // { type, title?, message, onClose? } | null
   const services = shop.printshop_services?.filter(s => s.enabled) ?? []
 
   const totalPages = draft.files.reduce((sum, f) => sum + (f.pageCount ?? 1), 0)
@@ -330,12 +332,20 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
     setSending(false)
     if (result.success) {
       onClearDraft()
-      alert(`¡Listo! Tu pedido se envió a ${shop.name}. Puedes ver su estado en Historial.`)
-      onNavigate('history')
+      setModal({
+        type: 'success',
+        title: '¡Pedido enviado!',
+        message: `Tu pedido se envió a ${shop.name}. Puedes ver su estado en Historial.`,
+        onClose: () => { setModal(null); onNavigate('history') },
+      })
     } else if (result.error === 'INSUFFICIENT_BALANCE') {
-      alert('Parece que tu saldo cambió justo ahora. Te falta un poco para cubrir la cuota de $2 — recarga en Wallet y vuelve a intentar 🙂')
+      setModal({
+        type: 'error',
+        title: 'Saldo insuficiente',
+        message: 'Parece que tu saldo cambió justo ahora. Te falta un poco para cubrir la cuota — recarga en Saldo y vuelve a intentar.',
+      })
     } else {
-      alert(result.error)
+      setModal({ type: 'error', message: result.error })
     }
   }
 
@@ -451,7 +461,7 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
           <i className="ti ti-map-pin" style={{ fontSize:15 }} /> Cómo llegar
         </button>
         <button
-          onClick={e => { e.stopPropagation(); alert('Reporte enviado') }}
+          onClick={e => { e.stopPropagation(); setModal({ type: 'success', message: 'Reporte enviado. Gracias por avisarnos.' }) }}
           style={{
             flex:1, fontSize:13, padding:'8px 12px',
             background:'var(--red-light)', border:'1px solid #F09595',
@@ -464,6 +474,13 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
         </button>
       </div>
 
+      <AppModal
+        open={!!modal}
+        type={modal?.type}
+        title={modal?.title}
+        message={modal?.message}
+        onClose={modal?.onClose ?? (() => setModal(null))}
+      />
     </div>
   )
 }
