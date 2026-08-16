@@ -41,18 +41,18 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   const [showDocScanner, setShowDocScanner] = useState(false)
   const fileInputRef = useRef(null)
 
-  const handleIneDone = (file) => {
+  const handleIneDone = (file, previewUrl) => {
     setShowIneCapture(false)
     onUpdateDraft({
-      files: [...files, { file, previewUrl: null, pageCount: 1, pageCountAuto: false }],
+      files: [...files, { file, previewUrl: previewUrl ?? null, pageCount: 1, pageCountAuto: false }],
       containsId: true,
     })
   }
 
-  const handleScanDone = (file, pageCount) => {
+  const handleScanDone = (file, pageCount, previewUrl) => {
     setShowDocScanner(false)
     onUpdateDraft({
-      files: [...files, { file, previewUrl: null, pageCount, pageCountAuto: true }],
+      files: [...files, { file, previewUrl: previewUrl ?? null, pageCount, pageCountAuto: true }],
     })
   }
 

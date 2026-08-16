@@ -93,7 +93,7 @@ export default function IneCapture({ onDone, onCancel }) {
 
       const pdfBytes = await pdf.save()
       const file = new File([pdfBytes], 'identificacion.pdf', { type: 'application/pdf' })
-      onDone(file)
+      onDone(file, frontImg) // frontImg = vista previa (frente ya capturado)
     } catch (e) {
       setError('No pudimos generar el documento. Intenta de nuevo.')
       setStep('revisar_reverso')

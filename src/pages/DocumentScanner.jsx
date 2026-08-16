@@ -61,7 +61,11 @@ export default function DocumentScanner({ onDone, onCancel }) {
     setPhase('processing')
 
     try {
-      const result = await scanDocument(canvas, { mode: 'extract', output: 'dataurl' })
+      // detector:'ml' usa el modelo DocCornerNet (IA) en vez del detector
+      // clásico de bordes — mucho más confiable con fondos con patrón
+      // (telas, mesas con textura) o papel curveado, que confundían al
+      // detector clásico y producían resultados deformados.
+      const result = await scanDocument(canvas, { mode: 'extract', output: 'dataurl', detector: 'ml' })
       // No basta con result.success — Scanic puede reportar éxito con un
       // contorno de baja confianza (encontró ALGO, pero probablemente
       // equivocado) y eso deforma la imagen de forma incorrecta. Solo
@@ -153,7 +157,7 @@ export default function DocumentScanner({ onDone, onCancel }) {
 
       const pdfBytes = await pdf.save()
       const file = new File([pdfBytes], `documento-escaneado-${Date.now()}.pdf`, { type: 'application/pdf' })
-      onDone(file, allPages.length)
+      onDone(file, allPages.length, allPages[0]) // allPages[0] = vista previa (primera página ya escaneada)
     } catch (e) {
       setError('No pudimos generar el documento. Intenta de nuevo.')
       setPages(allPages.slice(0, -1))
