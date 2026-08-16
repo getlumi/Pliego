@@ -1,36 +1,30 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { scanDocument, createCornerEditor, extractDocument } from 'scanic'
 
 // Proporción real de una credencial (INE, licencia, etc.): 85.6mm × 54mm
 const CARD_RATIO = 85.6 / 54 // ≈ 1.586
 
 // PLIEGO · Captura guiada de identificación (frente y reverso)
-// Flujo: cámara con marco guía → tomar foto completa → Scanic detecta
-// los bordes reales de la tarjeta y corrige la perspectiva (para que no
-// dependa de que el usuario alinee perfectamente) → si la detección
-// automática falla o queda dudosa, se muestra el editor de esquinas de
-// Scanic para ajustar a mano → revisar (aceptar/repetir) → repetir para
-// el reverso → arma un PDF de una hoja con ambas imágenes ya escaneadas.
+// Flujo: cámara con marco guía → tomar → revisar (aceptar/repetir) →
+// repetir para el reverso → arma un PDF de una hoja con ambas imágenes.
 // Se renderiza vía Portal directo a document.body para escapar de
 // cualquier `overflow: hidden` de contenedores padre (.phone-frame) que
 // puede recortar el fondo de la pantalla en móvil cuando la barra del
 // navegador cambia de tamaño.
 export default function IneCapture({ onDone, onCancel }) {
-  const [side, setSide]   = useState('frente') // frente | reverso — qué lado se está capturando
-  const [phase, setPhase] = useState('camera')  // camera | processing | adjust | review | generating
+  const [step, setStep] = useState('frente') // frente | revisar_frente | reverso | revisar_reverso | procesando
   const [frontImg, setFrontImg] = useState(null)
   const [backImg, setBackImg]   = useState(null)
   const [error, setError]       = useState('')
-  const videoRef   = useRef(null)
-  const canvasRef  = useRef(null)
-  const streamRef  = useRef(null)
-  const editorHostRef = useRef(null)
-  const editorRef  = useRef(null)
-  const rawCaptureRef = useRef(null) // guarda la foto cruda para el editor de esquinas
+  const videoRef  = useRef(null)
+  const canvasRef = useRef(null)
+  const streamRef = useRef(null)
+
+  const isReviewing = step === 'revisar_frente' || step === 'revisar_reverso'
+  const isCapturing = step === 'frente' || step === 'reverso'
 
   useEffect(() => {
-    if (phase !== 'camera') return
+    if (!isCapturing) return
     let active = true
     navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } })
       .then(stream => {
@@ -44,89 +38,39 @@ export default function IneCapture({ onDone, onCancel }) {
       streamRef.current?.getTracks().forEach(t => t.stop())
       streamRef.current = null
     }
-  }, [phase, side])
+  }, [step])
 
-  // Guarda el resultado ya escaneado del lado actual y pasa a revisión
-  const saveScanned = useCallback((dataUrl) => {
-    if (side === 'frente') setFrontImg(dataUrl)
-    else setBackImg(dataUrl)
-    setPhase('review')
-  }, [side])
-
-  const capture = useCallback(async () => {
+  const capture = useCallback(() => {
     const video = videoRef.current
     if (!video || video.videoWidth === 0) return
 
-    // Foto completa a buena resolución — Scanic se encarga de encontrar
-    // la tarjeta dentro de ella, no dependemos de un recorte fijo.
+    const vw = video.videoWidth, vh = video.videoHeight
+    const guideW = vw * 0.82
+    const guideH = guideW / CARD_RATIO
+    const sx = (vw - guideW) / 2
+    const sy = (vh - guideH) / 2 - vh * 0.04 // misma corrección visual que el marco (ligeramente arriba del centro)
+
     const canvas = canvasRef.current
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    canvas.width = 900
+    canvas.height = Math.round(900 / CARD_RATIO)
     const ctx = canvas.getContext('2d')
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    ctx.drawImage(video, sx, Math.max(0, sy), guideW, guideH, 0, 0, canvas.width, canvas.height)
 
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
     streamRef.current?.getTracks().forEach(t => t.stop())
-    setError('')
-    setPhase('processing')
 
-    try {
-      const result = await scanDocument(canvas, { mode: 'extract', output: 'dataurl' })
-      if (result.success) {
-        saveScanned(result.output)
-      } else {
-        // Detección automática no encontró bordes claros — pasamos al
-        // editor de esquinas para que la persona los ajuste a mano.
-        rawCaptureRef.current = canvas
-        setPhase('adjust')
-      }
-    } catch (e) {
-      // Si Scanic falla por completo (ej. WASM no cargó), no dejamos a
-      // la persona sin poder avanzar — reintenta con el editor manual.
-      rawCaptureRef.current = canvas
-      setPhase('adjust')
-    }
-  }, [saveScanned])
-
-  // Monta el editor de esquinas de Scanic cuando corresponde
-  useEffect(() => {
-    if (phase !== 'adjust' || !editorHostRef.current || !rawCaptureRef.current) return
-
-    const img = new Image()
-    img.onload = () => {
-      editorRef.current = createCornerEditor({
-        container: editorHostRef.current,
-        image: img,
-        onConfirm: async (corners) => {
-          try {
-            const extracted = await extractDocument(img, corners, { output: 'dataurl' })
-            saveScanned(extracted.output)
-          } catch (e) {
-            setError('No pudimos procesar la imagen. Intenta tomar la foto de nuevo.')
-            setPhase('camera')
-          }
-          editorRef.current?.destroy()
-          editorRef.current = null
-        },
-      })
-    }
-    img.src = rawCaptureRef.current.toDataURL('image/jpeg', 0.95)
-
-    return () => { editorRef.current?.destroy(); editorRef.current = null }
-  }, [phase, saveScanned])
+    if (step === 'frente') { setFrontImg(dataUrl); setStep('revisar_frente') }
+    else { setBackImg(dataUrl); setStep('revisar_reverso') }
+  }, [step])
 
   const retake = () => {
     setError('')
-    setPhase('camera')
-  }
-
-  const cancelAdjusting = () => {
-    editorRef.current?.destroy(); editorRef.current = null
-    setPhase('camera')
+    setStep(step === 'revisar_frente' ? 'frente' : 'reverso')
   }
 
   const accept = async () => {
-    if (side === 'frente') { setSide('reverso'); setPhase('camera'); return }
-    setPhase('generating')
+    if (step === 'revisar_frente') { setStep('reverso'); return }
+    setStep('procesando')
     try {
       const { PDFDocument } = await import('pdf-lib')
       const pdf = await PDFDocument.create()
@@ -152,9 +96,11 @@ export default function IneCapture({ onDone, onCancel }) {
       onDone(file)
     } catch (e) {
       setError('No pudimos generar el documento. Intenta de nuevo.')
-      setPhase('review')
+      setStep('revisar_reverso')
     }
   }
+
+  const label = step === 'frente' || step === 'revisar_frente' ? 'frente' : 'reverso'
 
   const content = (
     <div style={{
@@ -168,12 +114,9 @@ export default function IneCapture({ onDone, onCancel }) {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
       }}>
         <p style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>
-          {phase === 'generating' ? 'Generando documento...'
-            : phase === 'processing' ? 'Escaneando...'
-            : phase === 'adjust' ? `Ajusta las esquinas · ${side}`
-            : `Identificación · ${side}`}
+          {step === 'procesando' ? 'Generando documento...' : `Identificación · ${label}`}
         </p>
-        <button onClick={phase === 'adjust' ? cancelAdjusting : onCancel} aria-label="Cancelar" style={{
+        <button onClick={onCancel} aria-label="Cancelar" style={{
           width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.15)',
           border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}>
@@ -187,7 +130,7 @@ export default function IneCapture({ onDone, onCancel }) {
         </div>
       )}
 
-      {phase === 'camera' && (
+      {isCapturing && (
         <>
           {/* Zona de cámara: el marco vive en el 60% superior, dejando
               espacio de sobra abajo para los controles */}
@@ -209,7 +152,7 @@ export default function IneCapture({ onDone, onCancel }) {
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
           }}>
             <p style={{ textAlign: 'center', color: '#fff', fontSize: 13, fontWeight: 600, lineHeight: 1.4 }}>
-              Coloca la {side} de tu identificación dentro del marco<br/>
+              Coloca la {label} de tu identificación dentro del marco<br/>
               Evita luz directa o flash para que no se refleje
             </p>
             <button onClick={capture} aria-label="Tomar foto" style={{
@@ -220,35 +163,12 @@ export default function IneCapture({ onDone, onCancel }) {
         </>
       )}
 
-      {phase === 'processing' && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-          <i className="ti ti-loader-2" style={{ fontSize: 40, color: '#8BC53F' }} />
-          <p style={{ color: '#fff', fontSize: 14 }}>Detectando bordes del documento...</p>
-        </div>
-      )}
-
-      {phase === 'adjust' && (
-        <>
-          <div style={{ flex: '1 1 auto', position: 'relative', overflow: 'hidden', minHeight: 0, padding: 12 }}>
-            <div ref={editorHostRef} style={{ width: '100%', height: '100%' }} />
-          </div>
-          <div style={{
-            flexShrink: 0, background: '#0A0A0A',
-            padding: '14px 20px max(20px, env(safe-area-inset-bottom))',
-          }}>
-            <p style={{ textAlign: 'center', color: '#fff', fontSize: 13, fontWeight: 600 }}>
-              No detectamos los bordes automáticamente — arrastra las esquinas para ajustarlas
-            </p>
-          </div>
-        </>
-      )}
-
-      {phase === 'review' && (
+      {isReviewing && (
         <>
           <div style={{ flex: '1 1 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 20px', minHeight: 0 }}>
             <img
-              src={side === 'frente' ? frontImg : backImg}
-              alt={`Identificación ${side}`}
+              src={step === 'revisar_frente' ? frontImg : backImg}
+              alt={`Identificación ${label}`}
               style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12, border: '2px solid #8BC53F', objectFit: 'contain' }}
             />
           </div>
@@ -269,14 +189,14 @@ export default function IneCapture({ onDone, onCancel }) {
                 background: '#8BC53F', color: '#0A0A0A', fontWeight: 700, fontSize: 14, cursor: 'pointer',
               }}>
                 <i className="ti ti-check" style={{ fontSize: 16, marginRight: 6 }} />
-                {side === 'frente' ? 'Seguir al reverso' : 'Terminar'}
+                {step === 'revisar_frente' ? 'Seguir al reverso' : 'Terminar'}
               </button>
             </div>
           </div>
         </>
       )}
 
-      {phase === 'generating' && (
+      {step === 'procesando' && (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ color: '#fff', fontSize: 14 }}>Un momento...</p>
         </div>

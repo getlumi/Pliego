@@ -62,7 +62,12 @@ export default function DocumentScanner({ onDone, onCancel }) {
 
     try {
       const result = await scanDocument(canvas, { mode: 'extract', output: 'dataurl' })
-      if (result.success) {
+      // No basta con result.success — Scanic puede reportar éxito con un
+      // contorno de baja confianza (encontró ALGO, pero probablemente
+      // equivocado) y eso deforma la imagen de forma incorrecta. Solo
+      // aceptamos el resultado automático si la confianza es razonable;
+      // si no, pasamos al editor de esquinas manual.
+      if (result.success && (result.confidence ?? 0) >= 0.55) {
         saveScanned(result.output)
       } else {
         rawCaptureRef.current = canvas
@@ -79,20 +84,27 @@ export default function DocumentScanner({ onDone, onCancel }) {
 
     const img = new Image()
     img.onload = () => {
-      editorRef.current = createCornerEditor({
-        container: editorHostRef.current,
-        image: img,
-        onConfirm: async (corners) => {
-          try {
-            const extracted = await extractDocument(img, corners, { output: 'dataurl' })
-            saveScanned(extracted.output)
-          } catch (e) {
-            setError('No pudimos procesar la imagen. Intenta tomar la foto de nuevo.')
-            setPhase('camera')
-          }
-          editorRef.current?.destroy()
-          editorRef.current = null
-        },
+      // Espera un frame para que el layout flex/dvh del contenedor ya
+      // esté asentado antes de que Scanic mida sus dimensiones — si se
+      // monta con el contenedor todavía en 0px de alto, el editor se ve
+      // roto/vacío aunque el código esté bien.
+      requestAnimationFrame(() => {
+        if (!editorHostRef.current) return
+        editorRef.current = createCornerEditor({
+          container: editorHostRef.current,
+          image: img,
+          onConfirm: async (corners) => {
+            try {
+              const extracted = await extractDocument(img, corners, { output: 'dataurl' })
+              saveScanned(extracted.output)
+            } catch (e) {
+              setError('No pudimos procesar la imagen. Intenta tomar la foto de nuevo.')
+              setPhase('camera')
+            }
+            editorRef.current?.destroy()
+            editorRef.current = null
+          },
+        })
       })
     }
     img.src = rawCaptureRef.current.toDataURL('image/jpeg', 0.95)
@@ -128,7 +140,9 @@ export default function DocumentScanner({ onDone, onCancel }) {
 
       for (const dataUrl of allPages) {
         const bytes = await (await fetch(dataUrl)).arrayBuffer()
-        const image = await pdf.embedJpg(bytes)
+        // Scanic devuelve canvas.toDataURL() sin argumentos → PNG, no JPEG.
+        // Verificado contra el código fuente del paquete instalado.
+        const image = await pdf.embedPng(bytes)
         const page = pdf.addPage([612, 792]) // Carta
         // Ajusta la imagen al ancho de la hoja, centrada verticalmente
         const scale = Math.min(612 / image.width, 792 / image.height)
