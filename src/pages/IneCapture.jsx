@@ -44,11 +44,35 @@ export default function IneCapture({ onDone, onCancel }) {
     const video = videoRef.current
     if (!video || video.videoWidth === 0) return
 
+    // Mapeo correcto del marco guía (posicionado en CSS sobre el video ya
+    // recortado por `object-fit: cover`) a coordenadas reales de píxeles
+    // nativos de la cámara. Sin esto, si la proporción de la pantalla no
+    // coincide con la de la cámara, lo que se recorta NO es exactamente
+    // lo que se ve dentro del marco verde — se siente como que "se ajusta"
+    // solo al tomar la foto.
     const vw = video.videoWidth, vh = video.videoHeight
-    const guideW = vw * 0.82
-    const guideH = guideW / CARD_RATIO
-    const sx = (vw - guideW) / 2
-    const sy = (vh - guideH) / 2 - vh * 0.04 // misma corrección visual que el marco (ligeramente arriba del centro)
+    const dw = video.clientWidth, dh = video.clientHeight
+
+    // Con object-fit:cover, el video se escala por el factor mayor entre
+    // ancho/alto para cubrir el contenedor, y el excedente se recorta
+    // centrado — hay que deshacer exactamente esa transformación.
+    const coverScale = Math.max(dw / vw, dh / vh)
+    const offsetX = (vw - dw / coverScale) / 2
+    const offsetY = (vh - dh / coverScale) / 2
+
+    // El marco guía tal como se dibuja en CSS: 82% de ancho, centrado
+    // horizontalmente, top:46% con transform -50%/-50% (ver el <div> del
+    // marco abajo — este cálculo debe coincidir exactamente con esos valores).
+    const guideWCss = dw * 0.82
+    const guideHCss = guideWCss / CARD_RATIO
+    const guideXCss = (dw - guideWCss) / 2
+    const guideYCss = dh * 0.46 - guideHCss / 2
+
+    // Convertir el rectángulo del marco (en píxeles CSS) a píxeles nativos
+    const sx = offsetX + guideXCss / coverScale
+    const sy = offsetY + guideYCss / coverScale
+    const guideW = guideWCss / coverScale
+    const guideH = guideHCss / coverScale
 
     const canvas = canvasRef.current
     canvas.width = 900
@@ -81,15 +105,22 @@ export default function IneCapture({ onDone, onCancel }) {
       const frontImage = await pdf.embedJpg(frontBytes)
       const backImage  = await pdf.embedJpg(backBytes)
 
-      const imgW = 460
-      const imgH = imgW / CARD_RATIO
-      const marginX = (612 - imgW) / 2
+      // Tamaño REAL de una credencial (85.6mm) en puntos PDF (72pt/in) —
+      // antes esto eran 460pt (¡6.4 pulgadas!), casi el doble del tamaño
+      // real. Ahora ambas caras van lado a lado, a escala real, como una
+      // fotocopia de identificación de verdad.
+      const imgW = 243 // 85.6mm ≈ 3.37in × 72pt
+      const imgH = imgW / CARD_RATIO // 54mm ≈ 153pt
+      const gap = 24
+      const pairW = imgW * 2 + gap
+      const startX = (612 - pairW) / 2
+      const y = (792 - imgH) / 2 + 10
 
-      page.drawImage(frontImage, { x: marginX, y: 792 - 80 - imgH, width: imgW, height: imgH })
-      page.drawImage(backImage,  { x: marginX, y: 792 - 100 - imgH * 2, width: imgW, height: imgH })
+      page.drawImage(frontImage, { x: startX, y, width: imgW, height: imgH })
+      page.drawImage(backImage,  { x: startX + imgW + gap, y, width: imgW, height: imgH })
 
-      page.drawText('Identificación — frente', { x: marginX, y: 792 - 65, size: 12 })
-      page.drawText('Identificación — reverso', { x: marginX, y: 792 - 95 - imgH, size: 12 })
+      page.drawText('Frente', { x: startX, y: y - 18, size: 10 })
+      page.drawText('Reverso', { x: startX + imgW + gap, y: y - 18, size: 10 })
 
       const pdfBytes = await pdf.save()
       const file = new File([pdfBytes], 'identificacion.pdf', { type: 'application/pdf' })
