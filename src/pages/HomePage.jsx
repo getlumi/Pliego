@@ -451,6 +451,9 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
         </p>
       )}
 
+      {/* Tienda — oculta hasta que se elige esta papelería específica */}
+      {isSelected && <ShopStoreSection shopId={shop.id} />}
+
       {/* Expanded detail */}
       {/* Cómo llegar y Reportar — siempre visibles */}
       <div style={{ display:'flex', gap:8, marginTop:10 }}>
@@ -481,6 +484,69 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
         message={modal?.message}
         onClose={modal?.onClose ?? (() => setModal(null))}
       />
+    </div>
+  )
+}
+
+// Tienda de la papelería — productos adicionales (café, snacks, etc.)
+// que el negocio decidió agregar. Solo se carga cuando el usuario ya
+// eligió esta papelería específica Y toca para abrirla — no antes, para
+// no gastar consultas en papelerías que ni siquiera se van a ver.
+function ShopStoreSection({ shopId }) {
+  const [open, setOpen] = useState(false)
+  const [products, setProducts] = useState(null) // null = todavía no se cargó
+  const [loading, setLoading] = useState(false)
+
+  const toggle = async () => {
+    if (!open && products === null) {
+      setLoading(true)
+      const { data } = await supabase.from('printshop_products')
+        .select('*').eq('printshop_id', shopId).eq('enabled', true)
+        .order('sort_order').order('created_at')
+      setProducts(data ?? [])
+      setLoading(false)
+    }
+    setOpen(o => !o)
+  }
+
+  return (
+    <div style={{ marginTop:10 }}>
+      <button onClick={e => { e.stopPropagation(); toggle() }} style={{
+        width:'100%', padding:10, borderRadius:'var(--radius-md)', border:'1px solid var(--border)',
+        background:'#fff', color:'var(--text-primary)', fontSize:13, fontWeight:700, cursor:'pointer',
+        display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+      }}>
+        <i className="ti ti-shopping-bag" style={{ fontSize:15 }} />
+        Tienda
+        <i className={`ti ${open ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize:14, marginLeft:2 }} />
+      </button>
+
+      {open && (
+        loading ? (
+          <p style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', marginTop:8 }}>Cargando...</p>
+        ) : products?.length === 0 ? (
+          <p style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', marginTop:8 }}>Esta papelería aún no agregó productos a su tienda.</p>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:8 }}>
+            {products.map(p => (
+              <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:44, height:44, borderRadius:10, background:'var(--bg)', flexShrink:0, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  {p.image_url
+                    ? <img src={p.image_url} alt={p.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                    : <i className="ti ti-photo" style={{ fontSize:16, color:'var(--text-muted)' }} />}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ fontSize:13, fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</p>
+                  <p style={{ fontSize:12, color:'var(--text-secondary)' }}>${Number(p.price).toFixed(2)}</p>
+                </div>
+              </div>
+            ))}
+            <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
+              Pide estos productos directo en la papelería al recoger tu impresión.
+            </p>
+          </div>
+        )
+      )}
     </div>
   )
 }

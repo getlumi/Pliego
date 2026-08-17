@@ -1475,17 +1475,7 @@ function ConfigTab({ shop, services, onServicesChange, onSaved }) {
 
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
           <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', marginBottom:2 }}>HORARIOS</label>
-          {DAY_KEYS.map(day => (
-            <DayHours
-              key={day}
-              label={DAY_LABELS[day]}
-              periods={hours[day]}
-              onChange={periods => setHours(prev => ({ ...prev, [day]: periods }))}
-            />
-          ))}
-          <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>
-            Si abres en dos turnos (ej. mañana y tarde), usa "+ Agregar turno".
-          </p>
+          <HoursEditor hours={hours} onChange={setHours} />
         </div>
       </div>
 
@@ -1564,6 +1554,9 @@ function ConfigTab({ shop, services, onServicesChange, onSaved }) {
         </p>
       </div>
 
+      {/* Tienda */}
+      <StoreProductsCard shopId={shop.id} />
+
       {/* Ubicación */}
       <div className="card">
         <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:8 }}>
@@ -1586,6 +1579,157 @@ function ConfigTab({ shop, services, onServicesChange, onSaved }) {
         <i className="ti ti-check" style={{ fontSize:16 }} />
         {saving ? 'Guardando...' : saved ? 'Guardado ✓' : 'Guardar configuración'}
       </button>
+    </div>
+  )
+}
+
+// ============================================================
+// Tienda — productos adicionales de la papelería (Pliego Store)
+// Cada producto se guarda al toque (no espera al botón "Guardar
+// configuración" general) porque implica subir una imagen a Storage,
+// más parecido a KYC que a los campos de texto de arriba.
+// ============================================================
+function StoreProductsCard({ shopId }) {
+  const [products, setProducts] = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [adding, setAdding]     = useState(false)
+  const [newName, setNewName]   = useState('')
+  const [newPrice, setNewPrice] = useState('')
+  const [newImageFile, setNewImageFile] = useState(null)
+  const [newImagePreview, setNewImagePreview] = useState(null)
+  const [saving, setSaving]     = useState(false)
+  const fileInputRef = useRef(null)
+
+  const load = async () => {
+    setLoading(true)
+    const { data } = await supabase.from('printshop_products')
+      .select('*').eq('printshop_id', shopId).order('sort_order').order('created_at')
+    setProducts(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [shopId])
+
+  const handleImagePick = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setNewImageFile(file)
+    setNewImagePreview(URL.createObjectURL(file))
+  }
+
+  const resetForm = () => {
+    setAdding(false); setNewName(''); setNewPrice('')
+    setNewImageFile(null); setNewImagePreview(null)
+  }
+
+  const addProduct = async () => {
+    if (!newName.trim()) return
+    setSaving(true)
+    let imageUrl = null
+    if (newImageFile) {
+      const ext = newImageFile.name.split('.').pop()
+      const path = `${shopId}/${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('store-products').upload(path, newImageFile)
+      if (!upErr) {
+        const { data: pub } = supabase.storage.from('store-products').getPublicUrl(path)
+        imageUrl = pub.publicUrl
+      }
+    }
+    await supabase.from('printshop_products').insert({
+      printshop_id: shopId, name: newName.trim(), price: Number(newPrice) || 0, image_url: imageUrl,
+    })
+    resetForm()
+    setSaving(false)
+    load()
+  }
+
+  const toggleEnabled = async (product) => {
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, enabled: !p.enabled } : p))
+    await supabase.from('printshop_products').update({ enabled: !product.enabled }).eq('id', product.id)
+  }
+
+  const removeProduct = async (product) => {
+    if (!window.confirm(`¿Eliminar "${product.name}" de tu tienda?`)) return
+    setProducts(prev => prev.filter(p => p.id !== product.id))
+    await supabase.from('printshop_products').delete().eq('id', product.id)
+  }
+
+  return (
+    <div className="card">
+      <p style={{ fontSize:14, fontWeight:800, marginBottom:4 }}>
+        <i className="ti ti-shopping-bag" style={{ fontSize:16, verticalAlign:-2, marginRight:4 }} /> Tienda
+      </p>
+      <p style={{ fontSize:12, color:'var(--text-secondary)', marginBottom:12, lineHeight:1.5 }}>
+        Agrega productos que vendas además de imprimir — café, snacks, artículos de oficina. Tus clientes los ven al elegir tu negocio y pueden pedirlos con anticipación para que estén listos cuando lleguen.
+      </p>
+
+      {loading ? (
+        <p style={{ fontSize:12, color:'var(--text-muted)' }}>Cargando...</p>
+      ) : products.length > 0 && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:12 }}>
+          {products.map(p => (
+            <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10, opacity: p.enabled ? 1 : 0.5 }}>
+              <div style={{ width:44, height:44, borderRadius:10, background:'var(--bg)', flexShrink:0, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                {p.image_url
+                  ? <img src={p.image_url} alt={p.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                  : <i className="ti ti-photo" style={{ fontSize:18, color:'var(--text-muted)' }} />}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ fontSize:13, fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</p>
+                <p style={{ fontSize:12, color:'var(--text-secondary)' }}>${Number(p.price).toFixed(2)}</p>
+              </div>
+              <button onClick={() => toggleEnabled(p)} style={{ fontSize:11, fontWeight:700, background:'none', border:'none', color: p.enabled ? 'var(--text-muted)' : '#16803C', cursor:'pointer', flexShrink:0 }}>
+                {p.enabled ? 'Ocultar' : 'Mostrar'}
+              </button>
+              <button onClick={() => removeProduct(p)} aria-label="Eliminar producto" style={{
+                width:24, height:24, borderRadius:'50%', border:'none', background:'var(--red-light)',
+                color:'var(--red)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0,
+              }}>
+                <i className="ti ti-x" style={{ fontSize:12 }} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {adding ? (
+        <div style={{ border:'1px solid var(--border)', borderRadius:'var(--radius-md)', padding:12 }}>
+          <button onClick={() => fileInputRef.current?.click()} style={{
+            width:64, height:64, borderRadius:12, border:'1.5px dashed var(--border)', background:'var(--bg)',
+            display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10, overflow:'hidden', cursor:'pointer', padding:0,
+          }}>
+            {newImagePreview
+              ? <img src={newImagePreview} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+              : <i className="ti ti-camera-plus" style={{ fontSize:20, color:'var(--text-muted)' }} />}
+          </button>
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImagePick} style={{ display:'none' }} />
+          <input type="text" placeholder="Nombre del producto" value={newName} onChange={e => setNewName(e.target.value)}
+            style={{ width:'100%', padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:16, marginBottom:8 }} />
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:13, color:'var(--text-secondary)' }}>$</span>
+            <input type="number" min="0" step="0.5" placeholder="0" value={newPrice} onChange={e => setNewPrice(e.target.value)}
+              style={{ flex:1, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:16 }} />
+          </div>
+          <div style={{ display:'flex', gap:8, marginTop:10 }}>
+            <button onClick={resetForm} style={{ flex:1, padding:8, borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', background:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+              Cancelar
+            </button>
+            <button onClick={addProduct} disabled={!newName.trim() || saving} style={{
+              flex:1, padding:8, borderRadius:'var(--radius-sm)', border:'none',
+              background: newName.trim() ? 'var(--green)' : 'var(--border)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer',
+            }}>
+              {saving ? 'Guardando...' : 'Agregar'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} style={{
+          width:'100%', padding:10, borderRadius:'var(--radius-md)', border:'1.5px dashed var(--border)',
+          background:'none', color:'var(--text-secondary)', fontSize:13, fontWeight:700, cursor:'pointer',
+        }}>
+          <i className="ti ti-plus" style={{ fontSize:14, verticalAlign:-2 }} /> Agregar producto
+        </button>
+      )}
     </div>
   )
 }
@@ -1617,55 +1761,115 @@ function Chip({ icon, label, bold }) {
   )
 }
 
-function DayHours({ label, periods, onChange }) {
-  const closed = periods.length === 0
+// Formato compacto de horarios: por default agrupa "Lunes a viernes" y
+// "Sábado y domingo" en 2 líneas (en vez de 7 cajas con borde completo),
+// que es el caso más común para una papelería pequeña. Si el horario ya
+// guardado tiene días distintos entre sí, arranca en modo "personalizar"
+// para no ocultar esa diferencia real. El dueño puede cambiar de modo
+// cuando quiera con el enlace de abajo — nunca se pierde información,
+// solo cambia cómo se edita.
+const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri']
+const WEEKEND  = ['sat', 'sun']
 
-  const updatePeriod = (idx, key, value) => {
-    const copy = periods.map((p, i) => i === idx ? { ...p, [key]: value } : p)
-    onChange(copy)
+function HoursEditor({ hours, onChange }) {
+  const periodsEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+  const groupIsUniform = (days) => days.every(d => periodsEqual(hours[d], hours[days[0]]))
+  const startsUniform = groupIsUniform(WEEKDAYS) && groupIsUniform(WEEKEND)
+
+  const [grouped, setGrouped] = useState(startsUniform)
+
+  const applyToGroup = (days, periods) => {
+    const next = { ...hours }
+    days.forEach(d => { next[d] = periods.map(p => ({ ...p })) })
+    onChange(next)
   }
-  const addPeriod = () => onChange([...periods, { open: '16:00', close: '20:00' }])
-  const removePeriod = (idx) => onChange(periods.filter((_, i) => i !== idx))
-  const toggleClosed = () => onChange(closed ? [{ open: '09:00', close: '21:00' }] : [])
+
+  if (grouped) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column' }}>
+        <CompactDayRow label="Lunes a viernes" periods={hours.mon} onChange={p => applyToGroup(WEEKDAYS, p)} />
+        <CompactDayRow label="Sábado y domingo" periods={hours.sat} onChange={p => applyToGroup(WEEKEND, p)} />
+        <button onClick={() => setGrouped(false)} style={{
+          alignSelf:'flex-start', background:'none', border:'none', marginTop:6,
+          color:'var(--text-secondary)', fontSize:11.5, fontWeight:700, cursor:'pointer', padding:0, textDecoration:'underline',
+        }}>
+          Personalizar cada día
+        </button>
+      </div>
+    )
+  }
 
   return (
-    <div style={{ border:'1px solid var(--border-light)', borderRadius:'var(--radius-md)', padding:'8px 10px' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: closed ? 0 : 6 }}>
-        <span style={{ fontSize:13, fontWeight:700, width:80 }}>{label}</span>
-        <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'var(--text-secondary)', cursor:'pointer' }}>
-          <input type="checkbox" checked={!closed} onChange={toggleClosed} style={{ width:'auto' }} />
-          {closed ? 'Cerrado' : 'Abierto'}
-        </label>
+    <div style={{ display:'flex', flexDirection:'column' }}>
+      {DAY_KEYS.map(day => (
+        <CompactDayRow
+          key={day}
+          label={DAY_LABELS[day]}
+          periods={hours[day]}
+          onChange={periods => onChange({ ...hours, [day]: periods })}
+        />
+      ))}
+      <button onClick={() => setGrouped(true)} style={{
+        alignSelf:'flex-start', background:'none', border:'none', marginTop:6,
+        color:'var(--text-secondary)', fontSize:11.5, fontWeight:700, cursor:'pointer', padding:0, textDecoration:'underline',
+      }}>
+        Usar el mismo horario entre semana / fin de semana
+      </button>
+    </div>
+  )
+}
+
+// Una línea por día/grupo (separador delgado, sin caja con borde
+// completo) — el segundo turno solo aparece si existe o se está
+// agregando, para no ocupar espacio de más en el caso común (1 turno).
+function CompactDayRow({ label, periods, onChange }) {
+  const closed = periods.length === 0
+  const toggleClosed = () => onChange(closed ? [{ open:'09:00', close:'21:00' }] : [])
+  const updatePeriod = (idx, key, value) => onChange(periods.map((p, i) => i === idx ? { ...p, [key]: value } : p))
+  const addPeriod = () => onChange([...periods, { open:'16:00', close:'20:00' }])
+  const removePeriod = (idx) => onChange(periods.filter((_, i) => i !== idx))
+
+  const timeInputStyle = { flex:1, padding:'6px 8px', border:'1px solid var(--border)', borderRadius:8, fontSize:16, minWidth:0 }
+  const removeBtnStyle = { width:24, height:24, borderRadius:'50%', border:'none', background:'var(--red-light)', color:'var(--red)', flexShrink:0, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }
+
+  return (
+    <div style={{ padding:'7px 0', borderBottom:'1px solid var(--border-light)' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <span style={{ fontSize:13, fontWeight:700, width:100, flexShrink:0 }}>{label}</span>
+        {closed ? (
+          <button onClick={toggleClosed} style={{ flex:1, textAlign:'left', background:'none', border:'none', color:'var(--text-muted)', fontSize:12.5, cursor:'pointer', padding:0 }}>
+            Cerrado — toca para abrir
+          </button>
+        ) : (
+          <>
+            <input type="time" value={periods[0].open} onChange={e => updatePeriod(0, 'open', e.target.value)} style={timeInputStyle} />
+            <span style={{ fontSize:11, color:'var(--text-muted)' }}>–</span>
+            <input type="time" value={periods[0].close} onChange={e => updatePeriod(0, 'close', e.target.value)} style={timeInputStyle} />
+            <button onClick={toggleClosed} aria-label="Cerrar este día" style={removeBtnStyle}>
+              <i className="ti ti-x" style={{ fontSize:11 }} />
+            </button>
+          </>
+        )}
       </div>
 
-      {!closed && (
-        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-          {periods.map((p, idx) => (
-            <div key={idx} style={{ display:'flex', alignItems:'center', gap:6 }}>
-              <input type="time" value={p.open} onChange={e => updatePeriod(idx, 'open', e.target.value)}
-                style={{ flex:1, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:16 }} />
-              <span style={{ fontSize:12, color:'var(--text-muted)' }}>–</span>
-              <input type="time" value={p.close} onChange={e => updatePeriod(idx, 'close', e.target.value)}
-                style={{ flex:1, padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:16 }} />
-              {periods.length > 1 && (
-                <button onClick={() => removePeriod(idx)} aria-label="Quitar turno" style={{
-                  width:28, height:28, borderRadius:'50%', border:'none', background:'var(--red-light)',
-                  color:'var(--red)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0,
-                }}>
-                  <i className="ti ti-x" style={{ fontSize:13 }} />
-                </button>
-              )}
-            </div>
-          ))}
-          {periods.length < 2 && (
-            <button onClick={addPeriod} style={{
-              alignSelf:'flex-start', background:'none', border:'none',
-              color:'var(--green)', fontSize:12, fontWeight:700, cursor:'pointer', padding:'2px 0',
-            }}>
-              <i className="ti ti-plus" style={{ fontSize:12, verticalAlign:-1 }} /> Agregar turno
-            </button>
-          )}
+      {!closed && periods.length > 1 && (
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4, paddingLeft:108 }}>
+          <input type="time" value={periods[1].open} onChange={e => updatePeriod(1, 'open', e.target.value)} style={timeInputStyle} />
+          <span style={{ fontSize:11, color:'var(--text-muted)' }}>–</span>
+          <input type="time" value={periods[1].close} onChange={e => updatePeriod(1, 'close', e.target.value)} style={timeInputStyle} />
+          <button onClick={() => removePeriod(1)} style={removeBtnStyle}>
+            <i className="ti ti-x" style={{ fontSize:11 }} />
+          </button>
         </div>
+      )}
+
+      {!closed && periods.length < 2 && (
+        <button onClick={addPeriod} style={{
+          marginTop:4, marginLeft:108, background:'none', border:'none',
+          color:'var(--green)', fontSize:11.5, fontWeight:700, cursor:'pointer', padding:0,
+        }}>
+          <i className="ti ti-plus" style={{ fontSize:11, verticalAlign:-1 }} /> Agregar turno
+        </button>
       )}
     </div>
   )
