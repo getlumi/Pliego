@@ -8,7 +8,7 @@ export default function AppModal({ open, type = 'info', title, message, onClose,
   if (!open) return null
 
   const config = {
-    success: { icon: 'ti-circle-check-filled', color: '#16803C', bg: 'var(--accent-light)' },
+    success: { icon: 'ti-printer',             color: '#16803C', bg: 'var(--accent-light)' },
     error:   { icon: 'ti-alert-circle',        color: 'var(--red)', bg: 'var(--red-light)' },
     info:    { icon: 'ti-info-circle',         color: 'var(--text-secondary)', bg: 'var(--bg)' },
   }[type] ?? { icon: 'ti-info-circle', color: 'var(--text-secondary)', bg: 'var(--bg)' }
