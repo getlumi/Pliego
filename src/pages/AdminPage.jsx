@@ -713,7 +713,7 @@ function FinancesTab() {
 
     const [ordersRes, txRes] = await Promise.all([
       supabase.from('orders')
-        .select('service_fee, estimated_cost, status, created_at, printshop_id, printshops(name, latitude, longitude)')
+        .select('service_fee, estimated_cost, status, created_at, printshop_id, printshops(name, latitude, longitude), store_items, store_total')
         .gte('created_at', since.toISOString()),
       supabase.from('wallet_transactions')
         .select('amount, type, payment_method, created_at')
@@ -729,6 +729,21 @@ function FinancesTab() {
     const totalRecargas  = txs.reduce((s, t) => s + (t.amount ?? 0), 0)
     const entregados     = orders.filter(o => o.status === 'entregado')
     const totalImpresiones = entregados.reduce((s, o) => s + (o.estimated_cost ?? 0), 0)
+
+    // Tienda — visible por primera vez en Finanzas (antes no existía).
+    // Es dinero de las papelerías, no ingreso de Pliego, pero es dato
+    // real de toda la red que hay que poder ver.
+    const totalTiendaPlataforma = entregados.reduce((s, o) => s + (o.store_total ?? 0), 0)
+    const productStatsPlataforma = {}
+    entregados.forEach(o => {
+      (o.store_items ?? []).forEach(it => {
+        const key = it.name
+        if (!productStatsPlataforma[key]) productStatsPlataforma[key] = { name: it.name, units: 0, revenue: 0 }
+        productStatsPlataforma[key].units += it.quantity
+        productStatsPlataforma[key].revenue += it.price * it.quantity
+      })
+    })
+    const topProductsPlataforma = Object.values(productStatsPlataforma).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
 
     // Ingresos por día (últimos 7 días)
     const byDay = {}
@@ -786,6 +801,7 @@ function FinancesTab() {
 
     setData({
       totalFees, totalRecargas, totalPedidos: orders.length, totalImpresiones,
+      totalTiendaPlataforma, topProductsPlataforma,
       byDay, byDayRecargas, byDayUsers, byHour, peakHour, byMethod, totalMethods,
       stripeCommission, netRevenue,
       byShop: Object.values(byShop).sort((a, b) => b.total - a.total),
@@ -831,6 +847,11 @@ function FinancesTab() {
             <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Pedidos</p>
             <p style={{ fontSize:22, fontWeight:900 }}>{data.totalPedidos}</p>
             <p style={{ fontSize:10, color:'var(--text-muted)' }}>cuotas: ${data.totalFees.toFixed(2)}</p>
+          </div>
+          <div className="card" style={{ textAlign:'center' }}>
+            <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Tienda (toda la red)</p>
+            <p style={{ fontSize:22, fontWeight:900, color:'#16803C' }}>${data.totalTiendaPlataforma.toFixed(2)}</p>
+            <p style={{ fontSize:10, color:'var(--text-muted)' }}>dinero de las papelerías, no de Pliego</p>
           </div>
         </div>
 
@@ -961,6 +982,35 @@ function FinancesTab() {
                 <p style={{ fontSize:15, fontWeight:900 }}>${shop.total.toFixed(2)}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Productos más vendidos en TODA la red — mismo patrón que el
+            ranking de la papelería individual, pero agregado */}
+        {data.topProductsPlataforma.length > 0 && (
+          <div className="card">
+            <p style={{ fontSize:13, fontWeight:800, marginBottom:12 }}>
+              <i className="ti ti-trophy" style={{ fontSize:14, verticalAlign:-2, marginRight:4 }} /> Productos más vendidos (toda la red)
+            </p>
+            {(() => {
+              const maxRev = data.topProductsPlataforma[0]?.revenue ?? 1
+              return data.topProductsPlataforma.map((p, i) => (
+                <div key={p.name} style={{ marginBottom: i < data.topProductsPlataforma.length - 1 ? 10 : 0 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:4 }}>
+                    <span style={{ fontSize:13, fontWeight:700 }}>
+                      <span style={{ color:'var(--text-muted)', fontWeight:900, marginRight:6 }}>#{i + 1}</span>
+                      {p.name}
+                    </span>
+                    <span style={{ fontSize:12, color:'var(--text-secondary)' }}>
+                      {p.units} vendidos · <strong style={{ color:'var(--text-primary)' }}>${p.revenue.toFixed(2)}</strong>
+                    </span>
+                  </div>
+                  <div style={{ height:6, borderRadius:3, background:'var(--border-light)' }}>
+                    <div style={{ height:'100%', width:`${(p.revenue / maxRev) * 100}%`, background:'#8BC53F', borderRadius:3 }} />
+                  </div>
+                </div>
+              ))
+            })()}
           </div>
         )}
       </>}

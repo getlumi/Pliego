@@ -994,6 +994,11 @@ function EarningsTab({ shop }) {
   const [period, setPeriod] = useState('week') // 'today' | 'week' | 'month' | 'all'
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
+  const [Recharts, setRecharts] = useState(null) // carga diferida — no infla el bundle de clientes
+
+  useEffect(() => {
+    import('recharts').then(setRecharts)
+  }, [])
 
   useEffect(() => {
     loadEarnings()
@@ -1026,6 +1031,37 @@ function EarningsTab({ shop }) {
   }
 
   const totalBruto = orders.reduce((sum, o) => sum + (o.estimated_cost ?? 0) + (o.store_total ?? 0), 0)
+
+  // Desglose claro: impresión vs tienda — lo que se pidió: "bien
+  // diferenciado impresiones y productos"
+  const totalImpresion = orders.reduce((sum, o) => sum + (o.estimated_cost ?? 0), 0)
+  const totalTienda    = orders.reduce((sum, o) => sum + (o.store_total ?? 0), 0)
+
+  // Ranking de productos — igual que "Top Posts" en redes: qué se
+  // vendió más, cuántas unidades, cuánto generó cada uno.
+  const productStats = {}
+  orders.forEach(o => {
+    (o.store_items ?? []).forEach(it => {
+      const key = it.product_id ?? it.name
+      if (!productStats[key]) productStats[key] = { name: it.name, units: 0, revenue: 0 }
+      productStats[key].units += it.quantity
+      productStats[key].revenue += it.price * it.quantity
+    })
+  })
+  const topProducts = Object.values(productStats).sort((a, b) => b.revenue - a.revenue)
+  const maxProductRevenue = topProducts[0]?.revenue ?? 1
+
+  // Serie diaria para la gráfica — un solo gráfico, restringido, con las
+  // dos series (impresión/tienda) apiladas para comparar de un vistazo.
+  const dailyMap = {}
+  orders.forEach(o => {
+    if (!o.delivered_at) return
+    const day = new Date(o.delivered_at).toLocaleDateString('es-MX', { day:'numeric', month:'short' })
+    if (!dailyMap[day]) dailyMap[day] = { day, Impresión: 0, Tienda: 0, _sort: new Date(o.delivered_at).setHours(0,0,0,0) }
+    dailyMap[day].Impresión += o.estimated_cost ?? 0
+    dailyMap[day].Tienda += o.store_total ?? 0
+  })
+  const dailySeries = Object.values(dailyMap).sort((a, b) => a._sort - b._sort).slice(-14)
 
   const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('es-MX', { day:'numeric', month:'short' }) : '-'
   const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' }) : '-'
@@ -1117,6 +1153,78 @@ function EarningsTab({ shop }) {
           El cliente paga directamente en tu mostrador. Este total es tuyo al 100%.
         </p>
       </div>
+
+      {/* Desglose: impresión vs tienda — separado con claridad */}
+      {totalBruto > 0 && (
+        <div className="card">
+          <p style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', marginBottom:10 }}>DE DÓNDE VIENE TU EFECTIVO</p>
+          <div style={{ display:'flex', gap:10 }}>
+            <div style={{ flex:1, background:'var(--bg)', borderRadius:'var(--radius-md)', padding:'12px 14px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                <i className="ti ti-printer" style={{ fontSize:14, color:'var(--text-secondary)' }} />
+                <span style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary)' }}>Impresión</span>
+              </div>
+              <p style={{ fontSize:20, fontWeight:900 }}>${totalImpresion.toFixed(2)}</p>
+              <p style={{ fontSize:11, color:'var(--text-muted)' }}>{totalBruto > 0 ? Math.round(totalImpresion / totalBruto * 100) : 0}% del total</p>
+            </div>
+            <div style={{ flex:1, background:'var(--accent-light)', borderRadius:'var(--radius-md)', padding:'12px 14px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                <i className="ti ti-shopping-bag" style={{ fontSize:14, color:'#16803C' }} />
+                <span style={{ fontSize:11, fontWeight:700, color:'#16803C' }}>Tienda</span>
+              </div>
+              <p style={{ fontSize:20, fontWeight:900, color:'#16803C' }}>${totalTienda.toFixed(2)}</p>
+              <p style={{ fontSize:11, color:'#3F6B2A' }}>{totalBruto > 0 ? Math.round(totalTienda / totalBruto * 100) : 0}% del total</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Un solo gráfico — impresión vs tienda por día, últimos 14 días con datos */}
+      {Recharts && dailySeries.length > 1 && (
+        <div className="card">
+          <p style={{ fontSize:13, fontWeight:800, marginBottom:10 }}>Tendencia diaria</p>
+          <Recharts.ResponsiveContainer width="100%" height={180}>
+            <Recharts.BarChart data={dailySeries} margin={{ top:4, right:4, left:-24, bottom:0 }}>
+              <Recharts.CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-light)" />
+              <Recharts.XAxis dataKey="day" tick={{ fontSize:10 }} axisLine={false} tickLine={false} />
+              <Recharts.YAxis tick={{ fontSize:10 }} axisLine={false} tickLine={false} />
+              <Recharts.Tooltip
+                formatter={(value, name) => [`$${Number(value).toFixed(2)}`, name]}
+                contentStyle={{ fontSize:12, borderRadius:8, border:'1px solid var(--border)' }}
+              />
+              <Recharts.Bar dataKey="Impresión" stackId="a" fill="#9CA3AF" radius={[0,0,0,0]} />
+              <Recharts.Bar dataKey="Tienda" stackId="a" fill="#8BC53F" radius={[4,4,0,0]} />
+            </Recharts.BarChart>
+          </Recharts.ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Top productos — mismo patrón que "Top Posts" en redes sociales */}
+      {topProducts.length > 0 && (
+        <div className="card">
+          <p style={{ fontSize:13, fontWeight:800, marginBottom:12 }}>
+            <i className="ti ti-trophy" style={{ fontSize:14, verticalAlign:-2, marginRight:4 }} /> Tus productos más vendidos
+          </p>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {topProducts.map((p, i) => (
+              <div key={p.name}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:4 }}>
+                  <span style={{ fontSize:13, fontWeight:700 }}>
+                    <span style={{ color:'var(--text-muted)', fontWeight:900, marginRight:6 }}>#{i + 1}</span>
+                    {p.name}
+                  </span>
+                  <span style={{ fontSize:12, color:'var(--text-secondary)' }}>
+                    {p.units} vendido{p.units !== 1 ? 's' : ''} · <strong style={{ color:'var(--text-primary)' }}>${p.revenue.toFixed(2)}</strong>
+                  </span>
+                </div>
+                <div style={{ height:6, borderRadius:3, background:'var(--border-light)' }}>
+                  <div style={{ height:'100%', width:`${(p.revenue / maxProductRevenue) * 100}%`, background:'var(--accent)', borderRadius:3 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Lista de pedidos entregados */}
       <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)' }}>
