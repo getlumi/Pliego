@@ -1097,12 +1097,25 @@ function EarningsTab({ shop }) {
               <p style={{ fontSize:10, color:'var(--text-muted)' }}>{o.store_total > 0 ? 'incluye tienda' : '1 crédito cobrado al cliente (no a ti)'}</p>
             </div>
           </div>
-          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom: o.store_items?.length > 0 ? 8 : 0 }}>
             <Chip icon="ti-file-text" label={`${o.file_count} hoja${o.file_count > 1 ? 's' : ''}`} />
             <Chip icon="ti-copy" label={`${o.copies} copia${o.copies > 1 ? 's' : ''}`} />
             <Chip icon={o.color_mode === 'color' ? 'ti-palette' : 'ti-file-text'} label={o.color_mode === 'color' ? 'Color' : 'B/N'} />
             <Chip label={`$${(o.estimated_cost ?? 0).toFixed(2)}`} bold />
           </div>
+
+          {o.store_items?.length > 0 && (
+            <div style={{ background:'var(--bg)', borderRadius:'var(--radius-sm)', padding:'6px 10px' }}>
+              <p style={{ fontSize:10, fontWeight:700, color:'var(--text-secondary)', marginBottom:2 }}>
+                <i className="ti ti-shopping-bag" style={{ fontSize:11, verticalAlign:-1 }} /> TIENDA VENDIDA
+              </p>
+              {o.store_items.map((it, i) => (
+                <p key={i} style={{ fontSize:12, fontWeight:600 }}>
+                  {it.quantity}× {it.name} <span style={{ color:'var(--text-muted)', fontWeight:400 }}>· ${(it.price * it.quantity).toFixed(2)}</span>
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       ))}
 
