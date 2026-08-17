@@ -1381,6 +1381,7 @@ function ConfigTab({ shop, services, onServicesChange, onSaved }) {
 
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
+  const [deleteError, setDeleteError] = useState(false)
   const [locating, setLocating] = useState(false)
   const [locSaved, setLocSaved] = useState(false)
 
@@ -1475,13 +1476,19 @@ function ConfigTab({ shop, services, onServicesChange, onSaved }) {
     }
     setCustomServices(updatedCustoms)
 
+    let deleteFailed = false
     for (const id of removedCustomIds) {
-      await supabase.from('printshop_services').delete().eq('id', id)
+      const { error: delError } = await supabase.from('printshop_services').delete().eq('id', id)
+      if (delError) {
+        console.error('Error al eliminar tipo personalizado:', delError)
+        deleteFailed = true
+      }
     }
-    setRemovedCustomIds([])
+    setRemovedCustomIds(deleteFailed ? removedCustomIds : [])
+    setDeleteError(deleteFailed)
 
     setSaving(false)
-    setSaved(true)
+    setSaved(!deleteFailed)
     // Notificar al padre para que actualice su prop `services` desde DB
     // Esto garantiza que al remontar ConfigTab (cambio de tab), los datos sean correctos
     await onSaved()
@@ -1595,6 +1602,12 @@ function ConfigTab({ shop, services, onServicesChange, onSaved }) {
           {locating ? 'Obteniendo ubicación...' : locSaved ? '✓ Ubicación actualizada' : 'Actualizar ubicación'}
         </button>
       </div>
+
+      {deleteError && (
+        <p style={{ fontSize:12, color:'var(--red)', textAlign:'center' }}>
+          Algunos tipos que intentaste eliminar no se pudieron borrar. Intenta guardar de nuevo o contacta a soporte.
+        </p>
+      )}
 
       <button onClick={save} disabled={saving} className="btn-primary">
         <i className="ti ti-check" style={{ fontSize:16 }} />
