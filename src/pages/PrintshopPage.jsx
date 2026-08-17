@@ -993,6 +993,7 @@ function EarningsTab({ shop }) {
   const [orders, setOrders] = useState([])
   const [period, setPeriod] = useState('week') // 'today' | 'week' | 'month' | 'all'
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     loadEarnings()
@@ -1036,6 +1037,47 @@ function EarningsTab({ shop }) {
     { id:'all',   label:'Todo' },
   ]
 
+  // Genera un .xlsx con el detalle exacto del periodo elegido (impresión
+  // + productos de tienda por separado, más el total combinado) — para
+  // que el dueño lleve su propio registro de ventas fuera de la app.
+  const exportToExcel = async () => {
+    setExporting(true)
+    try {
+      const XLSX = await import('xlsx')
+      const rows = orders.map(o => ({
+        'Fecha':              fmtDate(o.delivered_at),
+        'Hora':                fmtTime(o.delivered_at),
+        'Cliente':             o.user_name ?? 'Cliente',
+        'Hojas':               o.file_count ?? '',
+        'Copias':              o.copies ?? '',
+        'Color/B-N':           o.color_mode === 'color' ? 'Color' : 'B/N',
+        'Cobro impresión':     Number((o.estimated_cost ?? 0).toFixed(2)),
+        'Productos de tienda': o.store_items?.length
+          ? o.store_items.map(it => `${it.quantity}x ${it.name}`).join(', ')
+          : '',
+        'Cobro tienda':        Number((o.store_total ?? 0).toFixed(2)),
+        'Total':               Number(((o.estimated_cost ?? 0) + (o.store_total ?? 0)).toFixed(2)),
+      }))
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Ganancias')
+      const periodLabel = PERIODS.find(p => p.id === period)?.label ?? 'Todo'
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+      const blob = new Blob([wbout], { type: 'application/octet-stream' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `pliego-ganancias-${shop.name.replace(/\s+/g, '_')}-${periodLabel}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Error al exportar a Excel:', e)
+    }
+    setExporting(false)
+  }
+
   return (
     <div className="scroll-content">
 
@@ -1051,6 +1093,13 @@ function EarningsTab({ shop }) {
           }}>{p.label}</button>
         ))}
       </div>
+
+      {orders.length > 0 && (
+        <button onClick={exportToExcel} disabled={exporting} className="btn-outline">
+          <i className="ti ti-file-spreadsheet" style={{ fontSize:16 }} />
+          {exporting ? 'Generando...' : `Exportar a Excel (${orders.length} pedido${orders.length !== 1 ? 's' : ''})`}
+        </button>
+      )}
 
       {/* Resumen */}
       <div className="card" style={{ background:'var(--gradient-dark)' }}>

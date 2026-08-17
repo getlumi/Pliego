@@ -12,6 +12,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   const [showSelectPrompt, setShowSelectPrompt] = useState(false)
   const shopsRef = useRef(null)
   const topRef = useRef(null)
+  const rawCoordsRef = useRef(null) // guarda pos.coords tal cual (con .latitude/.longitude) para reusar en el realtime de abajo
 
   // Cuando el usuario elige papelería, ocultamos el aviso.
   // Si estaba eligiendo productos de la Tienda de otra papelería, se
@@ -24,7 +25,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   useEffect(() => {
     if (session) loadUser()
     navigator.geolocation?.getCurrentPosition(
-      pos => { setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }); loadShops(pos.coords) },
+      pos => { setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }); rawCoordsRef.current = pos.coords; loadShops(pos.coords) },
       ()  => loadShops(null),
       { enableHighAccuracy: true, timeout: 8000 }
     )
@@ -41,6 +42,19 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [session])
+
+  // Realtime: cualquier cambio en papelerías (horarios, disponibilidad,
+  // nueva aprobación, etc.) refresca la lista al instante — antes había
+  // que salir y volver a entrar para ver el cambio.
+  useEffect(() => {
+    const channel = supabase
+      .channel('printshops:list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'printshops' }, () => {
+        loadShops(rawCoordsRef.current)
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [])
 
   const loadUser = async () => {
     let { data } = await supabase.from('users').select('name, credits_balance, avatar_url, subscription_status').eq('id', session.user.id).maybeSingle()
