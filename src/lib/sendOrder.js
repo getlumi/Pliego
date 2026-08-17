@@ -72,7 +72,7 @@ async function buildUploadFile(files) {
 }
 
 // result: { success: true, orderId } | { success: false, error: string }
-export async function sendOrder({ session, draft, selectedService, totalPages, total }) {
+export async function sendOrder({ session, draft, selectedService, totalPages, total, storeItems = [], storeTotal = 0 }) {
   const orderId = crypto.randomUUID()
   let orderCreated = false
   let credited = false
@@ -111,7 +111,9 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
       service_type: selectedService?.service_type ?? 'bn_bond',
       special_instructions: draft.instructions || null,
       service_fee: isSubscriber ? 0 : SERVICE_FEE_MXN_EQUIV,
-      estimated_cost: total,
+      estimated_cost: total, // SOLO impresión — la garantía nunca cuenta productos
+      store_items: storeItems.length > 0 ? storeItems : null,
+      store_total: storeTotal,
       user_name: userRow.name ?? null,
       ...(expiresAt ? { expires_at: expiresAt } : {}),
     })
@@ -201,6 +203,9 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
         .from('printshops').select('owner_id, name').eq('id', draft.shopId).maybeSingle()
       if (shopRow?.owner_id) {
         const serviceLabel = selectedService?.label || selectedService?.service_type || 'B/N Bond'
+        const storeSummary = storeItems.length > 0
+          ? storeItems.map(it => `${it.quantity}x ${it.name}`).join(', ')
+          : ''
         await supabase.functions.invoke('send-whatsapp', {
           body: {
             user_id: shopRow.owner_id,
@@ -213,6 +218,7 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
               copias:         String(draft.copies ?? 1),
               instrucciones:  draft.instructions || '',
               garantia:       guaranteeCovered ? 'si' : 'no',
+              productos:      storeSummary,
             }
           }
         })

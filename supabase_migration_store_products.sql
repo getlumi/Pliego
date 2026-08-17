@@ -6,7 +6,19 @@
 -- (café, snacks, artículos de oficina, lo que sea) — sin marca ni
 -- categoría fija impuesta por Pliego. Los clientes solo ven esta
 -- sección cuando ya eligieron esa papelería específica (oculta antes).
+--
+-- Los productos elegidos se unen al MISMO pedido de impresión — un solo
+-- paquete, todo se paga junto en efectivo al llegar. Los productos NUNCA
+-- cuentan para la garantía anti-no-show (esa solo cubre el costo de
+-- imprimir) — se asume que son productos empaquetados sin merma si no
+-- se recogen, a diferencia de algo hecho al momento.
 -- =============================================
+
+-- Guarda qué productos se eligieron para un pedido (snapshot de nombre/
+-- precio al momento de pedir, no referencia viva al catálogo — así un
+-- cambio de precio después no altera pedidos ya hechos).
+alter table public.orders add column if not exists store_items jsonb;
+alter table public.orders add column if not exists store_total numeric not null default 0;
 
 create table if not exists public.printshop_products (
   id            uuid primary key default gen_random_uuid(),

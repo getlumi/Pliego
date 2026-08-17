@@ -13,9 +13,11 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   const shopsRef = useRef(null)
   const topRef = useRef(null)
 
-  // Cuando el usuario elige papelería, ocultamos el aviso
+  // Cuando el usuario elige papelería, ocultamos el aviso.
+  // Si estaba eligiendo productos de la Tienda de otra papelería, se
+  // limpian — no tiene sentido llevarse productos de un negocio distinto.
   const handleSelectShop = (shopId) => {
-    onUpdateDraft({ shopId })
+    onUpdateDraft({ shopId, storeItems: [] })
     setShowSelectPrompt(false)
   }
 
@@ -289,6 +291,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
             isSelected={draft.shopId === shop.id}
             onSelect={() => handleSelectShop(shop.id)}
             draft={draft} session={session} user={user} onClearDraft={onClearDraft} onNavigate={onNavigate}
+            onUpdateDraft={onUpdateDraft}
           />
         ))}
       </div>
@@ -310,7 +313,7 @@ export default function HomePage({ session, onNavigate, draft, onUpdateDraft, on
   )
 }
 
-function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, session, user, onClearDraft, onNavigate }) {
+function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, session, user, onClearDraft, onNavigate, onUpdateDraft }) {
   const [sending, setSending] = useState(false)
   const [modal, setModal] = useState(null) // { type, title?, message, onClose? } | null
   const services = shop.printshop_services?.filter(s => s.enabled) ?? []
@@ -324,11 +327,18 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
 
   const total = (selectedService?.price_per_sheet ?? 0) * totalPages * draft.copies
 
+  // Productos de la Tienda elegidos para este pedido — se pagan junto
+  // con la impresión al llegar, pero NUNCA cuentan para la garantía
+  // anti-no-show (esa solo cubre el costo de imprimir).
+  const storeItems = isSelected ? (draft.storeItems ?? []) : []
+  const storeTotal = storeItems.reduce((sum, it) => sum + it.price * it.quantity, 0)
+  const grandTotal = total + storeTotal
+
   const handleSend = async (e) => {
     e.stopPropagation()
-    if (!window.confirm(`¿Vas a enviar tu documento a ${shop.name}? Esto no se puede deshacer. Total estimado: $${total.toFixed(2)}.`)) return
+    if (!window.confirm(`¿Vas a enviar tu documento a ${shop.name}? Esto no se puede deshacer. Total a pagar al llegar: $${grandTotal.toFixed(2)}.`)) return
     setSending(true)
-    const result = await sendOrder({ session, draft, selectedService, totalPages, total })
+    const result = await sendOrder({ session, draft, selectedService, totalPages, total, storeItems, storeTotal })
     setSending(false)
     if (result.success) {
       onClearDraft()
@@ -441,7 +451,7 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
         ) : (
           <button onClick={handleSend} disabled={sending} className="btn-primary" style={{ marginTop: 8, border: '1px solid var(--accent)' }}>
             <i className="ti ti-send" style={{ fontSize: 16, color: 'var(--accent)' }} />
-            {sending ? 'Enviando...' : `Enviar pedido · $${total.toFixed(2)}`}
+            {sending ? 'Enviando...' : `Enviar pedido · $${grandTotal.toFixed(2)}`}
           </button>
         )
       )}
@@ -452,7 +462,7 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
       )}
 
       {/* Tienda — oculta hasta que se elige esta papelería específica */}
-      {isSelected && <ShopStoreSection shopId={shop.id} />}
+      {isSelected && <ShopStoreSection shopId={shop.id} storeItems={storeItems} onUpdateDraft={onUpdateDraft} />}
 
       {/* Expanded detail */}
       {/* Cómo llegar y Reportar — siempre visibles */}
@@ -492,7 +502,10 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
 // que el negocio decidió agregar. Solo se carga cuando el usuario ya
 // eligió esta papelería específica Y toca para abrirla — no antes, para
 // no gastar consultas en papelerías que ni siquiera se van a ver.
-function ShopStoreSection({ shopId }) {
+// Los productos elegidos se unen al MISMO pedido de impresión — un solo
+// paquete, todo se paga junto al llegar. No cuentan para la garantía
+// anti-no-show (son productos empaquetados, sin merma si no se recogen).
+function ShopStoreSection({ shopId, storeItems, onUpdateDraft }) {
   const [open, setOpen] = useState(false)
   const [products, setProducts] = useState(null) // null = todavía no se cargó
   const [loading, setLoading] = useState(false)
@@ -509,6 +522,16 @@ function ShopStoreSection({ shopId }) {
     setOpen(o => !o)
   }
 
+  const quantityOf = (productId) => storeItems.find(it => it.product_id === productId)?.quantity ?? 0
+
+  const setQuantity = (product, qty) => {
+    const next = storeItems.filter(it => it.product_id !== product.id)
+    if (qty > 0) {
+      next.push({ product_id: product.id, name: product.name, price: Number(product.price), quantity: qty })
+    }
+    onUpdateDraft({ storeItems: next })
+  }
+
   return (
     <div style={{ marginTop:10 }}>
       <button onClick={e => { e.stopPropagation(); toggle() }} style={{
@@ -517,7 +540,7 @@ function ShopStoreSection({ shopId }) {
         display:'flex', alignItems:'center', justifyContent:'center', gap:6,
       }}>
         <i className="ti ti-shopping-bag" style={{ fontSize:15 }} />
-        Tienda
+        Tienda{storeItems.length > 0 ? ` · ${storeItems.reduce((s, it) => s + it.quantity, 0)} en tu pedido` : ''}
         <i className={`ti ${open ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize:14, marginLeft:2 }} />
       </button>
 
@@ -527,22 +550,49 @@ function ShopStoreSection({ shopId }) {
         ) : products?.length === 0 ? (
           <p style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', marginTop:8 }}>Esta papelería aún no agregó productos a su tienda.</p>
         ) : (
-          <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:8 }}>
-            {products.map(p => (
-              <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <div style={{ width:44, height:44, borderRadius:10, background:'var(--bg)', flexShrink:0, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  {p.image_url
-                    ? <img src={p.image_url} alt={p.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                    : <i className="ti ti-photo" style={{ fontSize:16, color:'var(--text-muted)' }} />}
+          <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:8 }} onClick={e => e.stopPropagation()}>
+            {products.map(p => {
+              const qty = quantityOf(p.id)
+              return (
+                <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ width:44, height:44, borderRadius:10, background:'var(--bg)', flexShrink:0, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    {p.image_url
+                      ? <img src={p.image_url} alt={p.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                      : <i className="ti ti-photo" style={{ fontSize:16, color:'var(--text-muted)' }} />}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ fontSize:13, fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</p>
+                    <p style={{ fontSize:12, color:'var(--text-secondary)' }}>${Number(p.price).toFixed(2)}</p>
+                  </div>
+                  {qty === 0 ? (
+                    <button onClick={() => setQuantity(p, 1)} style={{
+                      width:30, height:30, borderRadius:'50%', border:'none', background:'var(--accent-light)',
+                      color:'#16803C', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0,
+                    }}>
+                      <i className="ti ti-plus" style={{ fontSize:15 }} />
+                    </button>
+                  ) : (
+                    <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                      <button onClick={() => setQuantity(p, qty - 1)} style={{
+                        width:26, height:26, borderRadius:'50%', border:'1px solid var(--border)', background:'#fff',
+                        display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer',
+                      }}>
+                        <i className="ti ti-minus" style={{ fontSize:13 }} />
+                      </button>
+                      <span style={{ fontSize:13, fontWeight:700, width:16, textAlign:'center' }}>{qty}</span>
+                      <button onClick={() => setQuantity(p, qty + 1)} style={{
+                        width:26, height:26, borderRadius:'50%', border:'none', background:'var(--accent)',
+                        color:'#0A0A0A', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer',
+                      }}>
+                        <i className="ti ti-plus" style={{ fontSize:13 }} />
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <p style={{ fontSize:13, fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</p>
-                  <p style={{ fontSize:12, color:'var(--text-secondary)' }}>${Number(p.price).toFixed(2)}</p>
-                </div>
-              </div>
-            ))}
+              )
+            })}
             <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
-              Pide estos productos directo en la papelería al recoger tu impresión.
+              Se agregan a tu mismo pedido — todo se paga junto al llegar.
             </p>
           </div>
         )

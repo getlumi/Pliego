@@ -14,6 +14,11 @@ export function createEmptyDraft() {
     activeIndex: 0,
     containsId: false,   // true si algún archivo es una identificación capturada
                           // (frente+reverso) — usa vencimiento de 24h, no 3 días
+    storeItems: [],       // [{ product_id, name, price, quantity }] — productos de
+                          // la Tienda de la papelería elegida, se unen al mismo
+                          // pedido de impresión (mismo paquete, se paga todo junto
+                          // al llegar). NO cuentan para la garantía anti-no-show —
+                          // esa solo aplica al costo de impresión.
   }
 }
 

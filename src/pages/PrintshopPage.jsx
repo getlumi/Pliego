@@ -143,7 +143,7 @@ export default function PrintshopPage({ session }) {
   const loadOrders = async (shopId) => {
     const { data } = await supabase
       .from('orders')
-      .select('id, created_at, status, file_name, file_url, file_count, copies, orientation, color_mode, paper_size, service_type, estimated_cost, special_instructions, ready_at, delivered_at, user_name, expires_at, user_id, guarantee_covered, guarantee_credits')
+      .select('id, created_at, status, file_name, file_url, file_count, copies, orientation, color_mode, paper_size, service_type, estimated_cost, special_instructions, ready_at, delivered_at, user_name, expires_at, user_id, guarantee_covered, guarantee_credits, store_items, store_total')
       .eq('printshop_id', shopId)
       .order('created_at', { ascending: false })
     setOrders(data ?? [])
@@ -633,7 +633,7 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
 
   const pending = orders.filter(o => o.status === 'nuevo' || o.status === 'en_proceso')
   const today = orders.filter(o => new Date(o.created_at).toDateString() === new Date().toDateString())
-  const cashToCollect = pending.reduce((sum, o) => sum + (o.estimated_cost ?? 0), 0)
+  const cashToCollect = pending.reduce((sum, o) => sum + (o.estimated_cost ?? 0) + (o.store_total ?? 0), 0)
   const delivered = orders.filter(o => o.status === 'entregado')
   const activeOrders = orders.filter(o => o.status !== 'entregado')
 
@@ -784,13 +784,34 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
             <i className="ti ti-file-text" style={{ fontSize:14, verticalAlign:-2 }} /> {o.file_name ?? 'Documento'}
           </p>
 
-          {/* Chips de detalle */}
-          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:10 }}>
+          {/* Chips de detalle — SOLO impresión (esto es lo que cubre la garantía) */}
+          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom: o.store_items?.length > 0 ? 8 : 10 }}>
             <Chip icon="ti-file-text" label={`${o.file_count} hoja${o.file_count > 1 ? 's' : ''}`} />
             <Chip icon="ti-copy" label={`${o.copies} copia${o.copies > 1 ? 's' : ''}`} />
             <Chip icon={o.color_mode === 'color' ? 'ti-palette' : 'ti-file-text'} label={`${o.color_mode === 'color' ? 'Color' : 'B/N'} · ${o.paper_size}`} />
             {o.estimated_cost != null && <Chip label={`$${o.estimated_cost}`} bold />}
           </div>
+
+          {/* Productos de Tienda — separados de la impresión, NO cubiertos
+              por la garantía anti-no-show (son empaquetados, sin merma) */}
+          {o.store_items?.length > 0 && (
+            <div style={{
+              background:'var(--bg)', borderRadius:'var(--radius-md)',
+              padding:'8px 12px', marginBottom:10,
+            }}>
+              <p style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary)', marginBottom:4 }}>
+                <i className="ti ti-shopping-bag" style={{ fontSize:12, verticalAlign:-1 }} /> TAMBIÉN PIDIÓ DE TU TIENDA
+              </p>
+              {o.store_items.map((it, i) => (
+                <p key={i} style={{ fontSize:13, fontWeight:600 }}>
+                  {it.quantity}× {it.name} <span style={{ color:'var(--text-muted)', fontWeight:400 }}>· ${(it.price * it.quantity).toFixed(2)}</span>
+                </p>
+              ))}
+              <p style={{ fontSize:12, fontWeight:800, marginTop:6, paddingTop:6, borderTop:'1px solid var(--border-light)' }}>
+                Total a cobrar (impresión + tienda): ${((o.estimated_cost ?? 0) + (o.store_total ?? 0)).toFixed(2)}
+              </p>
+            </div>
+          )}
 
           {/* Tiempos discretos */}
           {(o.ready_at || o.delivered_at) && (
@@ -981,7 +1002,7 @@ function EarningsTab({ shop }) {
     setLoading(true)
     let query = supabase
       .from('orders')
-      .select('id, created_at, delivered_at, status, estimated_cost, file_name, file_count, copies, color_mode, user_name, service_fee')
+      .select('id, created_at, delivered_at, status, estimated_cost, file_name, file_count, copies, color_mode, user_name, service_fee, store_items, store_total')
       .eq('printshop_id', shop.id)
       .eq('status', 'entregado')
       .order('delivered_at', { ascending: false })
@@ -1003,7 +1024,7 @@ function EarningsTab({ shop }) {
     setLoading(false)
   }
 
-  const totalBruto = orders.reduce((sum, o) => sum + (o.estimated_cost ?? 0), 0)
+  const totalBruto = orders.reduce((sum, o) => sum + (o.estimated_cost ?? 0) + (o.store_total ?? 0), 0)
 
   const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('es-MX', { day:'numeric', month:'short' }) : '-'
   const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' }) : '-'
@@ -1072,8 +1093,8 @@ function EarningsTab({ shop }) {
               </p>
             </div>
             <div style={{ textAlign:'right' }}>
-              <p style={{ fontSize:15, fontWeight:900, color:'var(--green)' }}>${(o.estimated_cost ?? 0).toFixed(2)}</p>
-              <p style={{ fontSize:10, color:'var(--text-muted)' }}>1 crédito cobrado al cliente (no a ti)</p>
+              <p style={{ fontSize:15, fontWeight:900, color:'var(--green)' }}>${((o.estimated_cost ?? 0) + (o.store_total ?? 0)).toFixed(2)}</p>
+              <p style={{ fontSize:10, color:'var(--text-muted)' }}>{o.store_total > 0 ? 'incluye tienda' : '1 crédito cobrado al cliente (no a ti)'}</p>
             </div>
           </div>
           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
