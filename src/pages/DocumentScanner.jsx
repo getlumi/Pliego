@@ -41,8 +41,30 @@ export default function DocumentScanner({ onDone, onCancel }) {
     }
   }, [phase])
 
-  const saveScanned = useCallback((dataUrl) => {
-    setLastCaptured(dataUrl)
+  // Scanic solo corrige geometría (perspectiva) — NO mejora tono/contraste,
+  // así que el resultado se ve como "foto corregida", no como "documento
+  // escaneado". Este paso adicional sube contraste y brillo para que el
+  // fondo se vea más blanco y el texto más nítido, como un escáner real.
+  const enhanceImage = (dataUrl) => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+        const ctx = canvas.getContext('2d')
+        ctx.filter = 'contrast(135%) brightness(108%) saturate(105%)'
+        ctx.drawImage(img, 0, 0)
+        resolve(canvas.toDataURL('image/jpeg', 0.9))
+      }
+      img.onerror = () => resolve(dataUrl) // si falla, usar la original sin mejora
+      img.src = dataUrl
+    })
+  }
+
+  const saveScanned = useCallback(async (dataUrl) => {
+    const enhanced = await enhanceImage(dataUrl)
+    setLastCaptured(enhanced)
     setPhase('review')
   }, [])
 
@@ -72,7 +94,7 @@ export default function DocumentScanner({ onDone, onCancel }) {
       // aceptamos el resultado automático si la confianza es razonable;
       // si no, pasamos al editor de esquinas manual.
       if (result.success && (result.confidence ?? 0) >= 0.55) {
-        saveScanned(result.output)
+        await saveScanned(result.output)
       } else {
         rawCaptureRef.current = canvas
         setPhase('adjust')
@@ -100,7 +122,7 @@ export default function DocumentScanner({ onDone, onCancel }) {
           onConfirm: async (corners) => {
             try {
               const extracted = await extractDocument(img, corners, { output: 'dataurl' })
-              saveScanned(extracted.output)
+              await saveScanned(extracted.output)
             } catch (e) {
               setError('No pudimos procesar la imagen. Intenta tomar la foto de nuevo.')
               setPhase('camera')
@@ -144,9 +166,9 @@ export default function DocumentScanner({ onDone, onCancel }) {
 
       for (const dataUrl of allPages) {
         const bytes = await (await fetch(dataUrl)).arrayBuffer()
-        // Scanic devuelve canvas.toDataURL() sin argumentos → PNG, no JPEG.
-        // Verificado contra el código fuente del paquete instalado.
-        const image = await pdf.embedPng(bytes)
+        // Las páginas ya pasaron por enhanceImage(), que exporta JPEG —
+        // usar embedJpg, no embedPng.
+        const image = await pdf.embedJpg(bytes)
         const page = pdf.addPage([612, 792]) // Carta
         // Ajusta la imagen al ancho de la hoja, centrada verticalmente
         const scale = Math.min(612 / image.width, 792 / image.height)

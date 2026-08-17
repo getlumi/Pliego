@@ -125,11 +125,57 @@ export default function IneCapture({ onDone, onCancel }) {
 
       const pdfBytes = await pdf.save()
       const file = new File([pdfBytes], 'identificacion.pdf', { type: 'application/pdf' })
-      onDone(file, frontImg) // frontImg = vista previa (frente ya capturado)
+
+      // Vista previa: se dibuja con LA MISMA composición exacta que el PDF
+      // (misma hoja carta, mismo acomodo apilado, mismo tamaño relativo) —
+      // así es imposible que la miniatura no coincida con el documento real.
+      // Antes se mandaba solo frontImg (una imagen angosta) como miniatura,
+      // que se veía flotando en un recuadro alto — ese era el bug real.
+      const previewUrl = await renderPagePreview({ frontImg, backImg, imgW, imgH, marginX, topY, gap })
+
+      onDone(file, previewUrl)
     } catch (e) {
       setError('No pudimos generar el documento. Intenta de nuevo.')
       setStep('revisar_reverso')
     }
+  }
+
+  // Dibuja en un <canvas> exactamente lo mismo que el PDF (hoja carta
+  // 612×792, ambas caras apiladas al tamaño real) para usarlo como
+  // miniatura fiel — convierte coordenadas PDF (origen abajo-izquierda)
+  // a coordenadas canvas (origen arriba-izquierda).
+  const renderPagePreview = ({ frontImg, backImg, imgW, imgH, marginX, topY, gap }) => {
+    return new Promise((resolve) => {
+      const PAGE_W = 612, PAGE_H = 792
+      const canvas = document.createElement('canvas')
+      canvas.width = PAGE_W
+      canvas.height = PAGE_H
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, PAGE_W, PAGE_H)
+
+      const frontImgEl = new Image()
+      const backImgEl = new Image()
+      let loaded = 0
+      const done = () => {
+        loaded++
+        if (loaded < 2) return
+        // y del PDF (desde abajo) → y del canvas (desde arriba)
+        const frontCanvasY = PAGE_H - (topY - imgH) - imgH
+        const backCanvasY  = PAGE_H - (topY - imgH * 2 - gap) - imgH
+        ctx.drawImage(frontImgEl, marginX, frontCanvasY, imgW, imgH)
+        ctx.drawImage(backImgEl, marginX, backCanvasY, imgW, imgH)
+        ctx.fillStyle = '#666'
+        ctx.font = '13px sans-serif'
+        ctx.fillText('Frente', marginX, frontCanvasY - 6)
+        ctx.fillText('Reverso', marginX, backCanvasY - 6)
+        resolve(canvas.toDataURL('image/jpeg', 0.85))
+      }
+      frontImgEl.onload = done
+      backImgEl.onload = done
+      frontImgEl.src = frontImg
+      backImgEl.src = backImg
+    })
   }
 
   const label = step === 'frente' || step === 'revisar_frente' ? 'frente' : 'reverso'
