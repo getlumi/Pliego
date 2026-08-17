@@ -711,7 +711,7 @@ function FinancesTab() {
     else if (period === 'week')  { since = new Date(now); since.setDate(now.getDate()-7) }
     else if (period === 'month') { since = new Date(now.getFullYear(), now.getMonth(), 1) }
 
-    const [ordersRes, txRes] = await Promise.all([
+    const [ordersRes, txRes, userSubsRes, shopSubsRes] = await Promise.all([
       supabase.from('orders')
         .select('service_fee, estimated_cost, status, created_at, printshop_id, printshops(name, latitude, longitude), store_items, store_total')
         .gte('created_at', since.toISOString()),
@@ -719,10 +719,52 @@ function FinancesTab() {
         .select('amount, type, payment_method, created_at')
         .eq('type', 'recarga')
         .gte('created_at', since.toISOString()),
+      // Suscripciones — se traen TODAS (sin filtrar por periodo), porque
+      // "activas ahora" es una foto del momento, no algo del periodo.
+      // Las fechas de inicio/cancelación sí se filtran por periodo abajo.
+      supabase.from('users')
+        .select('subscription_status, subscription_started_at, subscription_canceled_at'),
+      supabase.from('printshops')
+        .select('subscription_status, subscription_started_at, subscription_canceled_at, city, is_founding'),
     ])
 
     const orders = ordersRes.data ?? []
     const txs    = txRes.data ?? []
+    const userSubs = userSubsRes.data ?? []
+    const shopSubs = shopSubsRes.data ?? []
+
+    const inPeriod = iso => iso && new Date(iso) >= since
+
+    const buildSubStats = (rows) => {
+      const active   = rows.filter(r => r.subscription_status === 'active').length
+      const newRows  = rows.filter(r => inPeriod(r.subscription_started_at))
+      const canceledRows = rows.filter(r => inPeriod(r.subscription_canceled_at))
+      // Tendencia por día (nuevas vs canceladas) para el gráfico
+      const byDayNew = {}
+      newRows.forEach(r => {
+        const day = new Date(r.subscription_started_at).toLocaleDateString('es-MX', { day:'numeric', month:'short' })
+        byDayNew[day] = (byDayNew[day] ?? 0) + 1
+      })
+      const byDayCanceled = {}
+      canceledRows.forEach(r => {
+        const day = new Date(r.subscription_canceled_at).toLocaleDateString('es-MX', { day:'numeric', month:'short' })
+        byDayCanceled[day] = (byDayCanceled[day] ?? 0) + 1
+      })
+      return { active, nuevas: newRows.length, canceladas: canceledRows.length, byDayNew, byDayCanceled }
+    }
+
+    const subsClientes   = buildSubStats(userSubs)
+    const subsPapelerias = buildSubStats(shopSubs)
+
+    // Por ciudad — hoy casi seguro todo cae en "Sin ciudad" (campo nuevo,
+    // sin capturar todavía), pero queda listo para cuando sí se llene.
+    const byCity = {}
+    shopSubs.forEach(s => {
+      const city = s.city?.trim() || 'Sin ciudad'
+      if (!byCity[city]) byCity[city] = { active: 0, total: 0 }
+      byCity[city].total += 1
+      if (s.subscription_status === 'active') byCity[city].active += 1
+    })
 
     // Totales generales
     const totalFees      = orders.reduce((s, o) => s + (o.service_fee ?? 0), 0)
@@ -772,8 +814,10 @@ function FinancesTab() {
     const byShop = {}
     entregados.forEach(o => {
       const id = o.printshop_id
-      if (!byShop[id]) byShop[id] = { name: o.printshops?.name ?? id, total: 0, count: 0 }
-      byShop[id].total += o.estimated_cost ?? 0
+      if (!byShop[id]) byShop[id] = { name: o.printshops?.name ?? id, total: 0, totalImpresion: 0, totalTienda: 0, count: 0 }
+      byShop[id].totalImpresion += o.estimated_cost ?? 0
+      byShop[id].totalTienda += o.store_total ?? 0
+      byShop[id].total += (o.estimated_cost ?? 0) + (o.store_total ?? 0)
       byShop[id].count += 1
     })
 
@@ -804,6 +848,7 @@ function FinancesTab() {
       totalTiendaPlataforma, topProductsPlataforma,
       byDay, byDayRecargas, byDayUsers, byHour, peakHour, byMethod, totalMethods,
       stripeCommission, netRevenue,
+      subsClientes, subsPapelerias, byCity,
       byShop: Object.values(byShop).sort((a, b) => b.total - a.total),
     })
     setLoading(false)
@@ -853,6 +898,54 @@ function FinancesTab() {
             <p style={{ fontSize:22, fontWeight:900, color:'#16803C' }}>${data.totalTiendaPlataforma.toFixed(2)}</p>
             <p style={{ fontSize:10, color:'var(--text-muted)' }}>dinero de las papelerías, no de Pliego</p>
           </div>
+        </div>
+
+        {/* Suscripciones — clientes y papelerías, siempre separadas */}
+        <div className="card">
+          <p style={{ fontSize:13, fontWeight:800, marginBottom:2 }}>
+            <i className="ti ti-refresh" style={{ fontSize:14, verticalAlign:-2, marginRight:4 }} /> Suscripciones
+          </p>
+          <p style={{ fontSize:11, color:'var(--text-muted)', marginBottom:12 }}>
+            "Activas" es el estado ahora mismo. "Nuevas" y "Canceladas" son del periodo elegido arriba.
+          </p>
+
+          {[
+            { label:'Clientes ($75/mes)', data: data.subsClientes, color:'#16803C', bg:'var(--accent-light)' },
+            { label:'Papelerías ($75/mes)', data: data.subsPapelerias, color:'#4F46E5', bg:'#EEF2FF' },
+          ].map(({ label, data: s, color, bg }) => (
+            <div key={label} style={{ background: bg, borderRadius:'var(--radius-md)', padding:'12px 14px', marginBottom:10 }}>
+              <p style={{ fontSize:12, fontWeight:700, color, marginBottom:8 }}>{label}</p>
+              <div style={{ display:'flex', gap:16 }}>
+                <div>
+                  <p style={{ fontSize:22, fontWeight:900, color }}>{s.active}</p>
+                  <p style={{ fontSize:10, color:'var(--text-muted)' }}>Activas · ~${(s.active * 75).toLocaleString('es-MX')}/mes</p>
+                </div>
+                <div>
+                  <p style={{ fontSize:18, fontWeight:800, color:'#16803C' }}>+{s.nuevas}</p>
+                  <p style={{ fontSize:10, color:'var(--text-muted)' }}>Nuevas</p>
+                </div>
+                <div>
+                  <p style={{ fontSize:18, fontWeight:800, color:'var(--red)' }}>-{s.canceladas}</p>
+                  <p style={{ fontSize:10, color:'var(--text-muted)' }}>Canceladas</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Por ciudad — honesto: hoy casi todo cae en "Sin ciudad" porque
+            el dato es nuevo y aún no se captura al registrar papelerías */}
+        <div className="card">
+          <p style={{ fontSize:13, fontWeight:800, marginBottom:4 }}>Papelerías por ciudad</p>
+          <p style={{ fontSize:11, color:'var(--text-muted)', marginBottom:10 }}>
+            Dato nuevo — se irá llenando conforme se capture al aprobar cada papelería.
+          </p>
+          {Object.entries(data.byCity).map(([city, c]) => (
+            <div key={city} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid var(--border-light)' }}>
+              <span style={{ fontSize:13, fontWeight:600 }}>{city}</span>
+              <span style={{ fontSize:12, color:'var(--text-secondary)' }}>{c.active} activas / {c.total} totales</span>
+            </div>
+          ))}
         </div>
 
         {/* Método de pago */}
@@ -980,6 +1073,29 @@ function FinancesTab() {
                   </div>
                 </div>
                 <p style={{ fontSize:15, fontWeight:900 }}>${shop.total.toFixed(2)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Ranking con desglose impresión/tienda por papelería */}
+        {data.byShop.length > 0 && (
+          <div className="card">
+            <p style={{ fontSize:13, fontWeight:800, marginBottom:12 }}>Ingresos por papelería (impresión vs tienda)</p>
+            {data.byShop.map((shop, i) => (
+              <div key={i} style={{ paddingBottom:10, borderBottom: i < data.byShop.length-1 ? '1px solid var(--border-light)' : 'none', marginBottom: i < data.byShop.length-1 ? 10 : 0 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                  <span style={{ fontSize:13, fontWeight:700 }}>{shop.name}</span>
+                  <span style={{ fontSize:13, fontWeight:900 }}>${shop.total.toFixed(2)}</span>
+                </div>
+                <div style={{ display:'flex', gap:10 }}>
+                  <span style={{ fontSize:11, color:'var(--text-secondary)' }}>
+                    <i className="ti ti-printer" style={{ fontSize:11 }} /> ${shop.totalImpresion.toFixed(2)}
+                  </span>
+                  <span style={{ fontSize:11, color:'#16803C' }}>
+                    <i className="ti ti-shopping-bag" style={{ fontSize:11 }} /> ${shop.totalTienda.toFixed(2)}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

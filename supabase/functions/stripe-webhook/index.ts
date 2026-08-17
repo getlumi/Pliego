@@ -184,13 +184,16 @@ Deno.serve(async (req) => {
         : null
 
       const { data: userRow } = await supabase
-        .from('users').select('id').eq('stripe_customer_id', customerId).maybeSingle()
+        .from('users').select('id, subscription_started_at').eq('stripe_customer_id', customerId).maybeSingle()
 
       if (userRow) {
         await supabase.from('users').update({
           subscription_status: 'active',
           subscription_id: subscriptionId,
           subscription_period_end: periodEnd,
+          // Solo se pone la primera vez — una renovación no debe
+          // "resetear" cuándo empezó realmente la suscripción.
+          ...(userRow.subscription_started_at ? {} : { subscription_started_at: new Date().toISOString() }),
         }).eq('id', userRow.id)
 
         await supabase.rpc('credit_wallet', {
@@ -260,6 +263,7 @@ Deno.serve(async (req) => {
         await supabase.from('users').update({
           subscription_status: 'canceled',
           subscription_id: null,
+          subscription_canceled_at: new Date().toISOString(),
         }).eq('id', userRow.id)
         console.log(`Suscripción cancelada (cliente) para ${userRow.id}`)
         return json({ ok: true, subscription: 'canceled', kind: 'cliente' })
@@ -271,6 +275,7 @@ Deno.serve(async (req) => {
         await supabase.from('printshops').update({
           subscription_status: 'canceled',
           subscription_id: null,
+          subscription_canceled_at: new Date().toISOString(),
         }).eq('id', shopRow.id)
         console.log(`Suscripción cancelada (papelería) para ${shopRow.id}`)
         return json({ ok: true, subscription: 'canceled', kind: 'papeleria' })
