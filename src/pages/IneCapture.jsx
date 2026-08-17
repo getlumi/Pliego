@@ -107,20 +107,21 @@ export default function IneCapture({ onDone, onCancel }) {
 
       // Tamaño REAL de una credencial (85.6mm) en puntos PDF (72pt/in) —
       // antes esto eran 460pt (¡6.4 pulgadas!), casi el doble del tamaño
-      // real. Ahora ambas caras van lado a lado, a escala real, como una
-      // fotocopia de identificación de verdad.
+      // real. El acomodo (frente arriba, reverso abajo) es el mismo que
+      // ya se tenía — solo se corrige el tamaño, no el layout.
       const imgW = 243 // 85.6mm ≈ 3.37in × 72pt
       const imgH = imgW / CARD_RATIO // 54mm ≈ 153pt
-      const gap = 24
-      const pairW = imgW * 2 + gap
-      const startX = (612 - pairW) / 2
-      const y = (792 - imgH) / 2 + 10
+      const marginX = (612 - imgW) / 2
+      const gap = 30
 
-      page.drawImage(frontImage, { x: startX, y, width: imgW, height: imgH })
-      page.drawImage(backImage,  { x: startX + imgW + gap, y, width: imgW, height: imgH })
+      const totalH = imgH * 2 + gap
+      const topY = (792 - totalH) / 2 + totalH // borde superior del bloque completo
 
-      page.drawText('Frente', { x: startX, y: y - 18, size: 10 })
-      page.drawText('Reverso', { x: startX + imgW + gap, y: y - 18, size: 10 })
+      page.drawImage(frontImage, { x: marginX, y: topY - imgH, width: imgW, height: imgH })
+      page.drawImage(backImage,  { x: marginX, y: topY - imgH * 2 - gap, width: imgW, height: imgH })
+
+      page.drawText('Frente', { x: marginX, y: topY + 6, size: 10 })
+      page.drawText('Reverso', { x: marginX, y: topY - imgH - gap + 6, size: 10 })
 
       const pdfBytes = await pdf.save()
       const file = new File([pdfBytes], 'identificacion.pdf', { type: 'application/pdf' })
