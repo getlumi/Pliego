@@ -1287,6 +1287,9 @@ function EarningsTab({ shop }) {
 function PrintshopProfileTab({ shop, session, onSupport, onTutorial, onReload }) {
   const initial = shop?.name?.[0]?.toUpperCase() ?? 'P'
   const [pushStatus, setPushStatus] = React.useState('idle')
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [logoError, setLogoError] = useState('')
+  const logoInputRef = useRef(null)
 
   React.useEffect(() => {
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
@@ -1305,15 +1308,68 @@ function PrintshopProfileTab({ shop, session, onSupport, onTutorial, onReload })
     else setPushStatus('idle')
   }
 
+  // Reusa el bucket 'avatars' que ya existe (mismo patrón que la foto de
+  // perfil personal) — el dueño de la papelería usa la misma cuenta, así
+  // que las políticas RLS por carpeta {auth.uid()}/ ya lo permiten sin
+  // tocar Storage. Se guarda como "logo.ext" (distinto de "avatar.ext")
+  // para no chocar con la foto personal de la misma cuenta.
+  const handleLogoChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { setLogoError('Elige una imagen (JPG o PNG)'); return }
+    if (file.size > 5 * 1024 * 1024) { setLogoError('La imagen debe pesar menos de 5MB'); return }
+
+    setUploadingLogo(true)
+    setLogoError('')
+    const ext = file.name.split('.').pop() || 'jpg'
+    const path = `${session.user.id}/logo.${ext}`
+
+    const { error: uploadError } = await supabase.storage.from('avatars')
+      .upload(path, file, { upsert: true, contentType: file.type })
+    if (uploadError) { setLogoError('No se pudo subir el logo. Intenta de nuevo.'); setUploadingLogo(false); return }
+
+    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+    const freshUrl = `${urlData.publicUrl}?t=${Date.now()}` // cache-bust
+
+    const { error: updateError } = await supabase.from('printshops')
+      .update({ logo_url: freshUrl }).eq('id', shop.id)
+    if (updateError) { setLogoError('El logo se subió pero no se pudo guardar. Intenta de nuevo.'); setUploadingLogo(false); return }
+
+    setUploadingLogo(false)
+    e.target.value = ''
+    onReload()
+  }
+
   const isIOSNotPWA = /iphone|ipad|ipod/i.test(navigator.userAgent) &&
     !window.matchMedia('(display-mode: standalone)').matches
 
   return (
     <div className="scroll-content">
       <div style={{ textAlign:'center', padding:'24px 0 8px' }}>
-        <div style={{ width:72, height:72, borderRadius:'50%', background:'var(--green)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px', fontSize:28, fontWeight:900, color:'#fff' }}>
-          {initial}
+        <div style={{ position:'relative', width:72, height:72, margin:'0 auto 12px' }}>
+          <div style={{
+            width:72, height:72, borderRadius:'50%', overflow:'hidden', background:'var(--green)',
+            display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, fontWeight:900, color:'#fff',
+          }}>
+            {shop?.logo_url
+              ? <img src={shop.logo_url} alt="Logo de tu papelería" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+              : initial}
+          </div>
+          <button
+            onClick={() => logoInputRef.current?.click()}
+            disabled={uploadingLogo}
+            aria-label="Cambiar logo de la papelería"
+            style={{
+              position:'absolute', bottom:-2, right:-2, width:26, height:26, borderRadius:'50%',
+              background:'var(--accent)', border:'2.5px solid #fff',
+              display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer',
+            }}
+          >
+            <i className={`ti ${uploadingLogo ? 'ti-loader-2' : 'ti-camera'}`} style={{ fontSize:13, color:'#0A0A0A' }} />
+          </button>
+          <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoChange} style={{ display:'none' }} />
         </div>
+        {logoError && <p style={{ fontSize:11, color:'var(--red)', marginBottom:6 }}>{logoError}</p>}
         <p style={{ fontSize:18, fontWeight:800 }}>{shop?.name}</p>
         <p style={{ fontSize:13, color:'var(--text-secondary)' }}>Panel de papelería</p>
       </div>
