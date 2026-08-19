@@ -41,27 +41,55 @@ export default function HistoryPage({ session }) {
   useEffect(() => {
     load()
     loadTransactions()
-    const channel = supabase
-      .channel(`orders:user:${session?.user?.id}`)
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'orders',
-        filter: `user_id=eq.${session?.user?.id}`,
-      }, payload => {
-        setOrders(prev => prev.map(o => {
-          if (o.id !== payload.new.id) return o
-          // Si acaba de ser marcado como entregado, mostrar encuesta
-          if (payload.new.status === 'entregado' && o.status !== 'entregado' && !payload.new.rated) {
-            setRatingOrder({ ...o, ...payload.new })
+
+    let channel = null
+    const setupChannel = () => {
+      if (channel) supabase.removeChannel(channel)
+      channel = supabase
+        .channel(`orders:user:${session?.user?.id}:${Date.now()}`)
+        .on('postgres_changes', {
+          event: 'UPDATE', schema: 'public', table: 'orders',
+          filter: `user_id=eq.${session?.user?.id}`,
+        }, payload => {
+          setOrders(prev => prev.map(o => {
+            if (o.id !== payload.new.id) return o
+            // Si acaba de ser marcado como entregado, mostrar encuesta
+            if (payload.new.status === 'entregado' && o.status !== 'entregado' && !payload.new.rated) {
+              setRatingOrder({ ...o, ...payload.new })
+            }
+            return { ...o, ...payload.new }
+          }))
+        })
+        .on('postgres_changes', {
+          event: 'INSERT', schema: 'public', table: 'wallet_transactions',
+          filter: `user_id=eq.${session?.user?.id}`,
+        }, () => loadTransactions())
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            setTimeout(setupChannel, 3000)
           }
-          return { ...o, ...payload.new }
-        }))
-      })
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'wallet_transactions',
-        filter: `user_id=eq.${session?.user?.id}`,
-      }, () => loadTransactions())
-      .subscribe()
-    return () => supabase.removeChannel(channel)
+        })
+    }
+    setupChannel()
+
+    // Reconexión cuando la app vuelve al foreground — iOS mata los
+    // WebSockets en segundo plano (por eso el QR se quedaba "trabado"
+    // hasta salir y volver a entrar: el canal ya estaba muerto y nunca
+    // se enteraba de que el pedido se había entregado). Mismo patrón
+    // que ya funciona en PrintshopPage.
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        setupChannel() // reconectar canal
+        load()          // traer lo que haya cambiado mientras estaba en segundo plano
+        loadTransactions()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      if (channel) supabase.removeChannel(channel)
+    }
   }, [session])
 
   return (
