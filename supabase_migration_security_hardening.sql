@@ -312,3 +312,13 @@ end;
 $$;
 grant execute on function admin_review_printshop_kyc(uuid, boolean, text, text, text, text, text) to authenticated;
 revoke execute on function admin_review_printshop_kyc(uuid, boolean, text, text, text, text, text) from public, anon;
+
+
+-- ─────────────────────────────────────────────
+-- 4) app_settings — se creó sin RLS activado (se pasó por alto). Ya no
+-- la usa ninguna función activa (la lógica de "fundadora" cambió a
+-- contar papelerías en vez de comparar fechas) — riesgo bajo hoy, pero
+-- toda tabla debe tener RLS sin excepción. Se bloquea por completo:
+-- nadie del cliente necesita leerla ni escribirla.
+-- ─────────────────────────────────────────────
+alter table public.app_settings enable row level security;
