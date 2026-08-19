@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabase'
 
 const STATUS_LABEL = {
@@ -208,6 +209,7 @@ function GuaranteeBanner({ orderId }) {
 
 function OrderRow({ order: o, onRate }) {
   const [open, setOpen] = useState(false)
+  const [showQr, setShowQr] = useState(false)
   const sc = STATUS_COLOR[o.status] ?? { bg:'var(--bg)', text:'var(--text-primary)' }
   const fmtTime = iso => iso
     ? new Date(iso).toLocaleString('es-MX', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
@@ -231,6 +233,23 @@ function OrderRow({ order: o, onRate }) {
             ¡Tu impresión está lista! Pasa a recogerla.
           </p>
         </div>
+      )}
+
+      {/* Código QR para recoger — la papelería lo escanea y marca
+          entregado automático, sin decir tu nombre */}
+      {o.status === 'listo' && (
+        <button
+          onClick={e => { e.stopPropagation(); setShowQr(true) }}
+          style={{
+            width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            padding:'10px', marginBottom:10, borderRadius:'var(--radius-md)',
+            border:'1.5px solid var(--green)', background:'var(--green-light)',
+            color:'var(--green)', fontSize:13, fontWeight:700, cursor:'pointer',
+          }}
+        >
+          <i className="ti ti-qrcode" style={{ fontSize:17 }} />
+          Mostrar código para recoger
+        </button>
       )}
 
       {/* Garantía anti-no-show: horas restantes + botón de extensión */}
@@ -279,7 +298,61 @@ function OrderRow({ order: o, onRate }) {
           <i className="ti ti-star" style={{ fontSize:15 }} /> Calificar esta impresión
         </button>
       )}
+
+      {showQr && (
+        <PickupQrModal order={o} onClose={() => setShowQr(false)} />
+      )}
     </div>
+  )
+}
+
+// Pantalla completa con el QR para recoger — la papelería lo escanea
+// (botón "Escanear código de cliente" en su panel) y marca entregado
+// automático. Portal a document.body, mismo patrón que IneCapture/
+// DocumentScanner, para escapar de cualquier overflow:hidden del padre.
+function PickupQrModal({ order, onClose }) {
+  const [dataUrl, setDataUrl] = useState(null)
+
+  useEffect(() => {
+    import('qrcode').then(QRCode => {
+      const payload = JSON.stringify({ order_id: order.id, pickup_code: order.pickup_code })
+      QRCode.toDataURL(payload, { width: 320, margin: 1, color: { dark: '#0A0A0A', light: '#FFFFFF' } })
+        .then(setDataUrl)
+    })
+  }, [order.id, order.pickup_code])
+
+  return createPortal(
+    <div style={{
+      position:'fixed', inset:0, background:'#0A0A0A', zIndex:999999,
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+      padding:24, height:'100dvh',
+    }}>
+      <button onClick={onClose} aria-label="Cerrar" style={{
+        position:'absolute', top:'max(20px, env(safe-area-inset-top))', right:20,
+        width:32, height:32, borderRadius:'50%', background:'rgba(255,255,255,0.15)',
+        border:'none', display:'flex', alignItems:'center', justifyContent:'center',
+      }}>
+        <i className="ti ti-x" style={{ fontSize:16, color:'#fff' }} />
+      </button>
+
+      <i className="ti ti-qrcode" style={{ fontSize:28, color:'var(--accent)', marginBottom:12 }} />
+      <p style={{ color:'#fff', fontSize:16, fontWeight:800, marginBottom:6, textAlign:'center' }}>
+        Muestra este código al recoger
+      </p>
+      <p style={{ color:'rgba(255,255,255,0.5)', fontSize:13, marginBottom:24, textAlign:'center' }}>
+        La papelería lo escanea y listo — no hace falta decir tu nombre
+      </p>
+
+      <div style={{ background:'#fff', borderRadius:20, padding:16 }}>
+        {dataUrl
+          ? <img src={dataUrl} alt="Código para recoger tu pedido" style={{ width:260, height:260, display:'block' }} />
+          : <div style={{ width:260, height:260, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <i className="ti ti-loader-2" style={{ fontSize:32, color:'var(--text-muted)' }} />
+            </div>
+        }
+      </div>
+    </div>,
+    document.body
   )
 }
 

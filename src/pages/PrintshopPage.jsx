@@ -4,6 +4,7 @@ import SupportPage  from './SupportPage'
 import TutorialPage from './TutorialPage'
 import StripeCardForm from '../components/StripeCardForm'
 import AppModal from '../components/AppModal'
+import QrScanner from '../components/QrScanner'
 import { DAY_KEYS, DAY_LABELS, DEFAULT_HOURS } from '../lib/hours'
 
 const SERVICE_OPTIONS = [
@@ -582,6 +583,7 @@ function DocUpload({ icon, label, hint, file, onChange }) {
 function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
   const [toggling, setToggling] = useState(false)
   const [modal, setModal] = useState(null) // { type, message } | null
+  const [showScanner, setShowScanner] = useState(false)
 
   // Solicitar permiso de notificaciones al montar
   useEffect(() => {
@@ -702,6 +704,11 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
         <span style={{ fontSize:14, fontWeight:700 }}>Recibiendo pedidos</span>
         <ToggleSwitch checked={shop.is_available} onChange={toggleAvailable} disabled={toggling} />
       </div>
+
+      <button onClick={() => setShowScanner(true)} className="btn-primary">
+        <i className="ti ti-qrcode" style={{ fontSize:18 }} />
+        Escanear código de cliente
+      </button>
 
       <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)' }}>Pedidos</p>
 
@@ -872,7 +879,7 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
                 display:'flex', alignItems:'center', justifyContent:'center', gap:4,
               }}>
               <i className={`ti ${o.status === 'entregado' ? 'ti-circle-check-filled' : o.status === 'listo' ? 'ti-hand-stop' : 'ti-check'}`} style={{ fontSize:14 }} />
-              {o.status === 'entregado' ? 'Entregado ✓' : o.status === 'listo' ? 'Entregar' : 'Listo'}
+              {o.status === 'entregado' ? 'Entregado ✓' : o.status === 'listo' ? 'Sin QR' : 'Listo'}
             </button>
           </div>
         </div>
@@ -885,6 +892,12 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
         message={modal?.message}
         onClose={() => setModal(null)}
       />
+      {showScanner && (
+        <QrScanner
+          onDelivered={() => { setShowScanner(false); onReloadOrders() }}
+          onCancel={() => setShowScanner(false)}
+        />
+      )}
     </div>
   )
 }
