@@ -123,13 +123,15 @@ function VerificationsTab() {
       rejectionReason = `Documentos rechazados: ${rejected.join(', ')}. Por favor vuelve a subirlos correctamente.`
     }
 
-    await supabase.from('printshops').update({
-      ...docStatuses,
-      verified: allApproved,
-      verification_status: allApproved ? 'approved' : anyRejected ? 'rejected' : 'pending',
-      rejection_reason: anyRejected ? rejectionReason : null,
-      reviewed_at: new Date().toISOString(),
-    }).eq('id', selected.id)
+    await supabase.rpc('admin_review_printshop_kyc', {
+      p_printshop_id: selected.id,
+      p_verified: allApproved,
+      p_verification_status: allApproved ? 'approved' : anyRejected ? 'rejected' : 'pending',
+      p_rejection_reason: anyRejected ? rejectionReason : null,
+      p_doc_ine_status: docStatuses.doc_ine_status,
+      p_doc_selfie_status: docStatuses.doc_selfie_status,
+      p_doc_address_status: docStatuses.doc_address_status,
+    })
 
     setSaving(false)
     setSelected(null)
@@ -429,7 +431,7 @@ function UsersTab() {
   const toggleActive = async (user) => {
     if (user.is_admin) return
     setToggling(user.id)
-    await supabase.from('users').update({ is_active: !user.is_active }).eq('id', user.id)
+    await supabase.rpc('admin_toggle_user_active', { p_user_id: user.id })
     await load()
     setToggling(null)
   }

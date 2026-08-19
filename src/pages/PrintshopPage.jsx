@@ -238,13 +238,7 @@ export default function PrintshopPage({ session }) {
               <p style={{ fontSize:12, color:'var(--text-secondary)', marginBottom:10 }}>{shop.rejection_reason ?? 'Uno o más documentos no fueron aceptados.'}</p>
               <button
                 onClick={async () => {
-                  // Limpiar submitted_at para que vuelva al paso 2
-                  await supabase.from('printshops').update({
-                    submitted_at: null,
-                    verification_status: 'pending',
-                    ine_url: null, selfie_url: null, address_proof_url: null,
-                    doc_ine_status: 'pending', doc_selfie_status: 'pending', doc_address_status: 'pending',
-                  }).eq('id', shop.id)
+                  await supabase.rpc('reset_printshop_kyc', { p_printshop_id: shop.id })
                   loadShop()
                 }}
                 style={{ fontSize:12, fontWeight:700, color:'var(--red)', background:'none', border:'1px solid var(--red)', borderRadius:'var(--radius-md)', padding:'6px 12px', cursor:'pointer' }}
@@ -645,9 +639,7 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
   }
 
   const updateStatus = async (orderId, status, order) => {
-    const extra = status === 'listo' ? { ready_at: new Date().toISOString() }
-      : status === 'entregado' ? { delivered_at: new Date().toISOString() } : {}
-    await supabase.from('orders').update({ status, ...extra }).eq('id', orderId)
+    await supabase.rpc('update_order_status', { p_order_id: orderId, p_status: status })
 
     // Arranca el reloj de 24h de la garantía anti-no-show (si el pedido
     // quedó cubierto al momento de mandarlo)

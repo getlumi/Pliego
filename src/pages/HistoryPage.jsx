@@ -303,7 +303,7 @@ function RatingModal({ order, onClose, onDone }) {
       stars,                              // fix: era 'rating' antes, debe ser 'stars'
       comment:      comment.trim() || null,
     })
-    await supabase.from('orders').update({ rated: true }).eq('id', order.id)
+    await supabase.rpc('mark_order_rated', { p_order_id: order.id })
     setSaving(false)
     setDone(true)
     setTimeout(() => onDone(), 1800)
