@@ -321,6 +321,13 @@ function PickupQrModal({ order, onClose }) {
     })
   }, [order.id, order.pickup_code])
 
+  // Se cierra solo en cuanto la papelería escanea el código y el
+  // pedido pasa a "entregado" — antes se quedaba tapando la pantalla
+  // aunque el realtime ya hubiera actualizado todo por debajo.
+  useEffect(() => {
+    if (order.status !== 'listo') onClose()
+  }, [order.status])
+
   return createPortal(
     <div style={{
       position:'fixed', inset:0, background:'#0A0A0A', zIndex:999999,
