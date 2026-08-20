@@ -1,4 +1,5 @@
 # Pliego — Bugs Reales Encontrados y Corregidos (19-20 agosto 2026)
+**Estado: los 5 quedaron corregidos y confirmados.** El más grave (#1, Realtime) tomó varias rondas de diagnóstico — quedó registrado el camino completo, con las 3 causas reales que se fueron encontrando en capas, no solo la última.
 **Propósito de este documento:** referencia rápida para futuros problemas parecidos. Cada bug incluye el síntoma tal como se reportó, qué se descartó con evidencia (no con teoría), la causa real, y el fix aplicado — para no repetir el mismo camino de diagnóstico si algo similar vuelve a pasar.
 
 ---
@@ -62,6 +63,15 @@ SUBSCRIBED → CLOSED → CLOSED → SUBSCRIBED
 justo antes de la prueba. Causa: el `useEffect` que arma el canal dependía del objeto `session` completo (`[session]`). Supabase crea un objeto de sesión **nuevo** cada vez que renueva el token internamente (pasa más seguido de lo esperado) — y React, al comparar objetos por referencia, trataba eso como "la sesión cambió" y destruía + reconstruía todo el canal sin necesidad. Si el pedido se marcaba como entregado justo en ese instante de reconexión, el evento se perdía.
 
 **Fix:** cambiar la dependencia a `[session?.user?.id]` (un texto estable), no al objeto completo — así el canal solo se reconstruye cuando el usuario realmente cambia (login/logout), no cada vez que se renueva el token.
+
+### Tercera causa, la que de verdad lo resolvió
+Con los dos fixes anteriores ya aplicados, el evento **seguía sin llegar**. Se agregó un canal de diagnóstico mínimo (un solo listener, sin nada más) en paralelo al canal principal — el de diagnóstico **sí recibía todo**, el principal seguía en silencio total, sin que su callback se ejecutara ni una sola vez (confirmado con `console.log` al inicio mismo del callback).
+
+La única diferencia real entre ambos: el canal principal tenía **dos tablas distintas encadenadas en un solo canal** (`orders` y `wallet_transactions`, con dos `.on()` seguidos). Esto es un bug documentado del propio equipo de `supabase-js`: [issue #1721](https://github.com/supabase/supabase-js/issues/1721) — cuando dos tablas comparten canal y reciben cambios cerca uno del otro en el tiempo, los payloads se pueden mezclar mal internamente entre las escuchas, perdiendo o corrompiendo eventos.
+
+**Fix final:** separar `orders` y `wallet_transactions` en **dos canales completamente independientes**, cada uno con su propia escucha. Además, se cambió `event: 'UPDATE'` específico por `event: '*'` (filtrando el tipo dentro del callback) — replicando exacto el patrón del canal de diagnóstico que sí funcionaba.
+
+**✅ Confirmado funcionando en producción, en vivo, sin salir ni recargar la pantalla** — prueba real: pedido marcado como entregado desde el panel de papelería, reflejado al instante en Historial del cliente, con la encuesta de calificación disparándose sola.
 
 ### Archivos afectados
 - `src/pages/HistoryPage.jsx` (fix aplicado)
@@ -164,6 +174,19 @@ function resolveFileName(files) {
 
 ### Archivos afectados
 - `src/lib/sendOrder.js`
+
+---
+
+## Regla nueva para Realtime, aprendida hoy (agregar a REGLA 3 del proyecto)
+
+Con la evidencia de la sección 1, cualquier canal nuevo de `postgres_changes` en Pliego debe seguir esto, sin excepción:
+
+1. **Nunca usar `filter:`** — filtrar siempre dentro del callback, en JavaScript, comparando el valor esperado.
+2. **Nunca encadenar dos tablas distintas en un solo canal** (`.on()` dos veces para tablas diferentes) — un canal por tabla, siempre.
+3. **Usar `event: '*'`**, no un tipo específico como `'UPDATE'` — filtrar por `payload.eventType` dentro del callback.
+4. El `useEffect` que arma el canal debe depender de valores **primitivos y estables** (`session?.user?.id`), nunca de objetos completos que Supabase puede recrear (`session`).
+
+Este patrón ya vivía correctamente en `PrintshopPage.jsx` desde el principio (por eso nunca tuvo estos problemas) — de aquí en adelante, cualquier canal nuevo debe copiarlo, no el patrón viejo que tenía `HistoryPage.jsx`.
 
 ---
 
