@@ -55,7 +55,7 @@ begin
   insert into public.wallet_transactions
     (user_id, type, amount, credits, payment_method, payment_id, description)
   values
-    (p_user_id, 'recarga', p_amount, p_credits, p_method, p_payment_id, p_description);
+    (p_user_id, 'recarga', p_amount, p_credits, p_method::payment_method, p_payment_id, p_description);
 
   return true;
 end;
