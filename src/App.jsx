@@ -44,12 +44,18 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
+      // Sin esto, Realtime puede fallar en silencio evaluando las
+      // políticas de seguridad (RLS) para este usuario — sabíamos que
+      // el token JWT se manda al hacer login, pero Realtime usa su
+      // propia conexión y necesita que se le pase explícitamente.
+      if (session) supabase.realtime.setAuth(session.access_token)
       if (session) checkOnboarding(session.user.id)
       else setLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setSession(session)
       if (session) {
+        supabase.realtime.setAuth(session.access_token)
         checkOnboarding(session.user.id)
       }
       else {
