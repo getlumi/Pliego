@@ -45,6 +45,7 @@ export default function HistoryPage({ session }) {
     let channel = null
     const setupChannel = () => {
       if (channel) supabase.removeChannel(channel)
+      console.log('[Pliego][realtime] armando canal con session?.user?.id =', JSON.stringify(session?.user?.id))
       channel = supabase
         .channel(`orders:user:${session?.user?.id}:${Date.now()}`)
         .on('postgres_changes', {
@@ -57,6 +58,7 @@ export default function HistoryPage({ session }) {
           // lado del servidor.
           event: 'UPDATE', schema: 'public', table: 'orders',
         }, payload => {
+          console.log('[Pliego][realtime] llegó UPDATE, comparando', payload.new.user_id, 'vs', session?.user?.id)
           if (payload.new.user_id !== session?.user?.id) return // filtro en JS
           console.log('[Pliego][realtime] UPDATE orders recibido:', payload.new)
           setOrders(prev => prev.map(o => {
