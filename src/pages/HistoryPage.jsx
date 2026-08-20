@@ -83,6 +83,19 @@ export default function HistoryPage({ session }) {
     }
     setupChannel()
 
+    // DIAGNÓSTICO TEMPORAL (otra vez) — canal aparte, mínimo posible,
+    // UN SOLO listener, SIN el segundo .on() de wallet_transactions
+    // encadenado. Si este SÍ recibe el evento y el canal "arreglado"
+    // de arriba no, el problema está en algo específico de cómo armé
+    // ese canal (los 2 .on() encadenados, o algo similar) — no es un
+    // problema general de la plataforma.
+    const debugChannel = supabase
+      .channel(`debug2:orders:${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
+        console.log('[Pliego][DEBUG2] evento orders recibido:', payload.eventType, payload.new ?? payload.old)
+      })
+      .subscribe((status) => console.log('[Pliego][DEBUG2] estado:', status))
+
     // Reconexión cuando la app vuelve al foreground — iOS mata los
     // WebSockets en segundo plano (por eso el QR se quedaba "trabado"
     // hasta salir y volver a entrar: el canal ya estaba muerto y nunca
@@ -100,6 +113,7 @@ export default function HistoryPage({ session }) {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility)
       if (channel) supabase.removeChannel(channel)
+      supabase.removeChannel(debugChannel)
     }
     // Dependencia en session?.user?.id (texto estable), NO en el objeto
     // `session` completo — Supabase crea un objeto de sesión NUEVO cada
