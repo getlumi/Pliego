@@ -101,7 +101,15 @@ export default function HistoryPage({ session }) {
       document.removeEventListener('visibilitychange', handleVisibility)
       if (channel) supabase.removeChannel(channel)
     }
-  }, [session])
+    // Dependencia en session?.user?.id (texto estable), NO en el objeto
+    // `session` completo — Supabase crea un objeto de sesión NUEVO cada
+    // vez que renueva el token internamente (pasa más seguido de lo que
+    // parece), y React, al comparar objetos por referencia, veía eso
+    // como "la sesión cambió" y destruía + reconstruía el canal entero
+    // sin necesidad — eso es lo que se vio como SUBSCRIBED→CLOSED→
+    // CLOSED→SUBSCRIBED en la consola, justo antes de perder el evento.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id])
 
   return (
     <div className="page">
