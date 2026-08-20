@@ -74,6 +74,17 @@ export default function HistoryPage({ session }) {
     }
     setupChannel()
 
+    // DIAGNÓSTICO TEMPORAL — canal aparte, SIN filtro, escucha
+    // cualquier cambio en toda la tabla orders. Si esto tampoco recibe
+    // nada, el problema no es el filtro ni la sesión — es que
+    // Postgres no está mandando nada a Realtime en absoluto.
+    const debugChannel = supabase
+      .channel(`debug:orders:${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
+        console.log('[Pliego][DEBUG sin filtro] evento orders recibido:', payload.eventType, payload.new ?? payload.old)
+      })
+      .subscribe((status) => console.log('[Pliego][DEBUG sin filtro] estado:', status))
+
     // Reconexión cuando la app vuelve al foreground — iOS mata los
     // WebSockets en segundo plano (por eso el QR se quedaba "trabado"
     // hasta salir y volver a entrar: el canal ya estaba muerto y nunca
@@ -91,6 +102,7 @@ export default function HistoryPage({ session }) {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility)
       if (channel) supabase.removeChannel(channel)
+      supabase.removeChannel(debugChannel)
     }
   }, [session])
 
@@ -240,10 +252,29 @@ function GuaranteeBanner({ orderId }) {
 function OrderRow({ order: o, onRate }) {
   const [open, setOpen] = useState(false)
   const [showQr, setShowQr] = useState(false)
+  const [fileUrl, setFileUrl] = useState(null)
+  const [loadingFile, setLoadingFile] = useState(false)
   const sc = STATUS_COLOR[o.status] ?? { bg:'var(--bg)', text:'var(--text-primary)' }
   const fmtTime = iso => iso
     ? new Date(iso).toLocaleString('es-MX', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
     : null
+
+  // Ver el documento que se envió — mismo patrón de URL firmada que ya
+  // usa la papelería, así el usuario también puede confirmar qué mandó
+  // (antes no había ninguna forma de verlo desde Historial). Sin
+  // window.open() tras un await — Safari lo bloquea como popup no
+  // autorizado; en vez de eso, el primer toque genera el enlace real
+  // y se muestra como <a>, el segundo toque lo abre de verdad.
+  const viewFile = async (e) => {
+    e.stopPropagation()
+    if (fileUrl) return // ya está listo, el <a> real se encarga de abrir
+    setLoadingFile(true)
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(o.file_url, 300) // 5 minutos
+    setLoadingFile(false)
+    if (!error && data?.signedUrl) setFileUrl(data.signedUrl)
+  }
 
   return (
     <div className="card" style={{

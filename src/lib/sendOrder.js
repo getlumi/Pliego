@@ -32,11 +32,15 @@ function isDocx(file) {
 }
 
 // Nombre final del archivo — determinable sin tocar Storage ni hacer
-// merge todavía (síncrono).
+// merge todavía (síncrono). Con un solo archivo, se usa su nombre real
+// (para que el usuario reconozca qué mandó) — "documento.pdf" genérico
+// solo aplica cuando se combinan varios archivos en un PDF nuevo, ya
+// que ahí no existe un nombre "correcto" único que elegir.
 function resolveFileName(files) {
   const printable = files.filter(f => !isDocx(f.file))
   if (printable.length === 0) return files[0].file.name // solo Word
-  return 'documento.pdf'
+  if (files.length === 1) return files[0].file.name // un solo archivo — nombre real
+  return 'documento.pdf' // varios archivos combinados en un PDF nuevo
 }
 
 // Combina los archivos en un único PDF. Si todos son Word, sube el primero tal cual.
