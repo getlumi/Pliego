@@ -48,9 +48,16 @@ export default function HistoryPage({ session }) {
       channel = supabase
         .channel(`orders:user:${session?.user?.id}:${Date.now()}`)
         .on('postgres_changes', {
+          // SIN filtro server-side — confirmado con evidencia real que
+          // el filtro `user_id=eq....` de Supabase deja de coincidir en
+          // este proyecto (bug documentado de la plataforma, no de
+          // nuestro código: https://github.com/orgs/supabase/discussions/29884).
+          // Se recibe todo y se filtra aquí mismo, en JS — mismo
+          // resultado para el usuario, sin depender de algo roto del
+          // lado del servidor.
           event: 'UPDATE', schema: 'public', table: 'orders',
-          filter: `user_id=eq.${session?.user?.id}`,
         }, payload => {
+          if (payload.new.user_id !== session?.user?.id) return // filtro en JS
           console.log('[Pliego][realtime] UPDATE orders recibido:', payload.new)
           setOrders(prev => prev.map(o => {
             if (o.id !== payload.new.id) return o
@@ -63,8 +70,10 @@ export default function HistoryPage({ session }) {
         })
         .on('postgres_changes', {
           event: 'INSERT', schema: 'public', table: 'wallet_transactions',
-          filter: `user_id=eq.${session?.user?.id}`,
-        }, () => loadTransactions())
+        }, payload => {
+          if (payload.new.user_id !== session?.user?.id) return // filtro en JS
+          loadTransactions()
+        })
         .subscribe((status, err) => {
           console.log('[Pliego][realtime] estado del canal:', status, err ?? '')
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -73,17 +82,6 @@ export default function HistoryPage({ session }) {
         })
     }
     setupChannel()
-
-    // DIAGNÓSTICO TEMPORAL — canal aparte, SIN filtro, escucha
-    // cualquier cambio en toda la tabla orders. Si esto tampoco recibe
-    // nada, el problema no es el filtro ni la sesión — es que
-    // Postgres no está mandando nada a Realtime en absoluto.
-    const debugChannel = supabase
-      .channel(`debug:orders:${Date.now()}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
-        console.log('[Pliego][DEBUG sin filtro] evento orders recibido:', payload.eventType, payload.new ?? payload.old)
-      })
-      .subscribe((status) => console.log('[Pliego][DEBUG sin filtro] estado:', status))
 
     // Reconexión cuando la app vuelve al foreground — iOS mata los
     // WebSockets en segundo plano (por eso el QR se quedaba "trabado"
@@ -102,7 +100,6 @@ export default function HistoryPage({ session }) {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility)
       if (channel) supabase.removeChannel(channel)
-      supabase.removeChannel(debugChannel)
     }
   }, [session])
 
