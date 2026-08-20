@@ -115,7 +115,12 @@ export default function IneCapture({ onDone, onCancel }) {
       const gap = 30
 
       const totalH = imgH * 2 + gap
-      const topY = (792 - totalH) / 2 + totalH // borde superior del bloque completo
+      // 4cm hacia arriba desde el centro exacto — así se ve como una
+      // copia de identificación real (normalmente van más arriba en la
+      // hoja, no perfectamente centradas). En puntos PDF, "arriba" es
+      // sumar (el eje Y crece hacia arriba), no restar.
+      const UP_SHIFT = 113.4 // 4cm × 72/2.54
+      const topY = (792 - totalH) / 2 + totalH + UP_SHIFT // borde superior del bloque completo
 
       page.drawImage(frontImage, { x: marginX, y: topY - imgH, width: imgW, height: imgH })
       page.drawImage(backImage,  { x: marginX, y: topY - imgH * 2 - gap, width: imgW, height: imgH })

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { serviceLabel, serviceIcon } from '../lib/services'
 import IneCapture from './IneCapture'
 import DocumentScanner from './DocumentScanner'
+import { CARTA_W, frameBox } from '../lib/imageFraming'
 
 // La caja de "ajustes especiales con IA" está temporalmente oculta:
 // por ahora la app solo soporta documentos ya listos para imprimir.
@@ -111,6 +112,24 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   }
 
   const enabledServices = shop?.printshop_services?.filter(s => s.enabled) ?? []
+
+  // Solo se muestra el control de encuadre si la papelería elegida
+  // realmente ofrece al menos uno de los 3 tamaños de imagen — puede
+  // variar de una papelería a otra, como se pidió explícitamente.
+  const imageFrameServicesOffered = {
+    cuarto:   enabledServices.some(s => s.service_type === 'color_imagen_cuarto'),
+    medio:    enabledServices.some(s => s.service_type === 'color_imagen_medio'),
+    completa: enabledServices.some(s => s.service_type === 'color_imagen_completa'),
+  }
+  const anyImageFrameOffered = Object.values(imageFrameServicesOffered).some(Boolean)
+
+  const activeFile = files[activeIndex]
+  const activeIsImage = activeFile?.file?.type?.startsWith('image/')
+
+  const setImageFrame = (frame) => {
+    const copy = files.map((f, i) => i === activeIndex ? { ...f, imageFrame: frame } : f)
+    onUpdateDraft({ files: copy })
+  }
   const selectedService = enabledServices.find(s => s.id === serviceId)
   const totalPages = files.reduce((sum, f) => sum + (f.pageCount ?? 1), 0)
   const pricePerSheet = selectedService?.price_per_sheet ?? 0
@@ -301,15 +320,39 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                   width: orientation === 'horizontal' ? 220 : 165,
                   height: orientation === 'horizontal' ? 165 : 220,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  overflow: 'hidden', transition: 'width 0.2s, height 0.2s',
+                  overflow: 'hidden', transition: 'width 0.2s, height 0.2s', position: 'relative',
                 }}>
                   {files[activeIndex]?.previewUrl ? (
-                    <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
-                      style={{
-                        width: '100%', height: '100%',
-                        objectFit: fit === 'actual' ? 'cover' : 'contain',
-                        transition: 'object-fit 0.2s',
-                      }} />
+                    activeIsImage && anyImageFrameOffered ? (
+                      // Vista previa fiel del encuadre elegido — mismas
+                      // proporciones que el PDF final (frameBox), nunca
+                      // deformada, siempre con el margen real visible.
+                      (() => {
+                        const previewPageW = orientation === 'horizontal' ? 220 : 165
+                        const previewPageH = orientation === 'horizontal' ? 165 : 220
+                        const scale = previewPageW / CARTA_W
+                        const box = frameBox(activeFile.imageFrame ?? 'completa')
+                        return (
+                          <div style={{
+                            position: 'absolute',
+                            width: box.w * scale, height: box.h * scale,
+                            left: (previewPageW - box.w * scale) / 2,
+                            top: (previewPageH - box.h * scale) / 2,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
+                              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                          </div>
+                        )
+                      })()
+                    ) : (
+                      <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
+                        style={{
+                          width: '100%', height: '100%',
+                          objectFit: fit === 'actual' ? 'cover' : 'contain',
+                          transition: 'object-fit 0.2s',
+                        }} />
+                    )
                   ) : (
                     <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                       <i className={`ti ${fileIcon(files[activeIndex]?.file)}`} style={{ fontSize: 40 }} />
@@ -387,6 +430,27 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Tamaño en la hoja — solo para fotos sueltas, y solo si
+                  la papelería elegida realmente ofrece esos tamaños */}
+              {activeIsImage && anyImageFrameOffered && (
+                <div style={{ marginTop: 14 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                    TAMAÑO EN LA HOJA
+                  </p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {['cuarto', 'medio', 'completa'].filter(f => imageFrameServicesOffered[f]).map(frame => (
+                      <ToggleButton
+                        key={frame}
+                        active={(activeFile.imageFrame ?? 'completa') === frame}
+                        onClick={() => setImageFrame(frame)}
+                        icon="ti-photo"
+                        label={{ cuarto: 'Cuarto', medio: 'Media', completa: 'Completa' }[frame]}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
 

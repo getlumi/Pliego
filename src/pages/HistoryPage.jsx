@@ -320,6 +320,25 @@ function OrderRow({ order: o, onRate }) {
         </div>
       )}
 
+      {/* Ver el documento enviado — antes no había ninguna forma de
+          verlo desde Historial, solo el nombre del archivo */}
+      <a
+        href={fileUrl ?? undefined}
+        target="_blank"
+        rel="noreferrer"
+        onClick={fileUrl ? (e => e.stopPropagation()) : viewFile}
+        style={{
+          display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+          width:'100%', padding:'9px', marginBottom:10, borderRadius:'var(--radius-md)',
+          border:'1px solid var(--border)', background:'#fff',
+          color:'var(--text-secondary)', fontSize:12.5, fontWeight:700,
+          cursor:'pointer', textDecoration:'none',
+        }}
+      >
+        <i className={`ti ${loadingFile ? 'ti-loader-2' : 'ti-eye'}`} style={{ fontSize:15 }} />
+        {loadingFile ? 'Cargando...' : fileUrl ? 'Abrir documento' : 'Ver documento enviado'}
+      </a>
+
       {/* Código QR para recoger — la papelería lo escanea y marca
           entregado automático, sin decir tu nombre */}
       {o.status === 'listo' && (
