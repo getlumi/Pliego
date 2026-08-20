@@ -132,6 +132,13 @@ Uncaught (in promise) TypeError: H.rpc(...).catch is not a function
 ### Fix aplicado
 Se quitó el `.catch()` — nunca hacía falta, porque Supabase no lanza errores en estos casos, los devuelve como dato (`{data, error}`), no como una promesa rechazada.
 
+### Consecuencia real descubierta después: créditos de garantía atorados
+Como este bug cortaba `updateStatus` justo antes de liberar la garantía, **todo pedido marcado como entregado desde el 4 de agosto hasta el fix de hoy nunca liberó sus créditos reservados** — se quedaban en `credit_holds` con `status='reservado'` para siempre, restándose de `credits_held` sin nunca regresar. Esto causó que una cuenta de prueba con varios pedidos viejos entregados tuviera créditos "fantasma" atorados, haciendo parecer que la garantía no cubría pedidos nuevos aunque el balance se viera suficiente.
+
+**Cómo detectarlo:** comparar `credits_balance` contra `credits_balance - credits_held` — si la diferencia no baja nunca con el tiempo en una cuenta que ya entregó varios pedidos, hay holds atorados.
+
+**Limpieza aplicada:** se liberaron manualmente los holds viejos con la misma lógica de `release_guarantee_hold` (restar de `credits_held`, marcar `status='entregado'`). Los pedidos entregados de aquí en adelante ya se liberan solos, con el fix de arriba.
+
 ### Archivos afectados
 - `src/pages/PrintshopPage.jsx` (función `updateStatus`)
 
