@@ -43,22 +43,21 @@ export default function HistoryPage({ session }) {
     loadTransactions()
 
     let channel = null
+    let txChannel = null
     const setupChannel = () => {
       if (channel) supabase.removeChannel(channel)
-      console.log('[Pliego][realtime] armando canal con session?.user?.id =', JSON.stringify(session?.user?.id))
+      if (txChannel) supabase.removeChannel(txChannel)
+
+      // event:'*' en vez de 'UPDATE' específico, y un solo listener por
+      // canal (sin encadenar orders + wallet_transactions) — copiado
+      // exacto del canal de diagnóstico que sí funcionaba, después de
+      // confirmar con evidencia que el canal con 'UPDATE' específico +
+      // 2 listeners encadenados nunca disparaba su callback en absoluto
+      // (ni siquiera el primer console.log), mientras el simple sí.
       channel = supabase
         .channel(`orders:user:${session?.user?.id}:${Date.now()}`)
-        .on('postgres_changes', {
-          // SIN filtro server-side — confirmado con evidencia real que
-          // el filtro `user_id=eq....` de Supabase deja de coincidir en
-          // este proyecto (bug documentado de la plataforma, no de
-          // nuestro código: https://github.com/orgs/supabase/discussions/29884).
-          // Se recibe todo y se filtra aquí mismo, en JS — mismo
-          // resultado para el usuario, sin depender de algo roto del
-          // lado del servidor.
-          event: 'UPDATE', schema: 'public', table: 'orders',
-        }, payload => {
-          console.log('[Pliego][realtime] llegó UPDATE, comparando', payload.new.user_id, 'vs', session?.user?.id)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
+          if (payload.eventType !== 'UPDATE') return
           if (payload.new.user_id !== session?.user?.id) return // filtro en JS
           console.log('[Pliego][realtime] UPDATE orders recibido:', payload.new)
           setOrders(prev => prev.map(o => {
@@ -70,18 +69,21 @@ export default function HistoryPage({ session }) {
             return { ...o, ...payload.new }
           }))
         })
-        .on('postgres_changes', {
-          event: 'INSERT', schema: 'public', table: 'wallet_transactions',
-        }, payload => {
-          if (payload.new.user_id !== session?.user?.id) return // filtro en JS
-          loadTransactions()
-        })
         .subscribe((status, err) => {
-          console.log('[Pliego][realtime] estado del canal:', status, err ?? '')
+          console.log('[Pliego][realtime] estado del canal orders:', status, err ?? '')
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             setTimeout(setupChannel, 3000)
           }
         })
+
+      txChannel = supabase
+        .channel(`wallet:user:${session?.user?.id}:${Date.now()}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'wallet_transactions' }, payload => {
+          if (payload.eventType !== 'INSERT') return
+          if (payload.new.user_id !== session?.user?.id) return // filtro en JS
+          loadTransactions()
+        })
+        .subscribe()
     }
     setupChannel()
 
@@ -115,6 +117,7 @@ export default function HistoryPage({ session }) {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility)
       if (channel) supabase.removeChannel(channel)
+      if (txChannel) supabase.removeChannel(txChannel)
       supabase.removeChannel(debugChannel)
     }
     // Dependencia en session?.user?.id (texto estable), NO en el objeto
