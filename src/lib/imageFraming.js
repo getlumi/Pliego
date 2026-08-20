@@ -1,34 +1,41 @@
-// Pliego · Encuadre de imágenes sueltas en hoja Carta.
+// Pliego · Encuadre de imágenes sueltas — cada tamaño (cuarto/media/
+// completa) es una PÁGINA FÍSICAMENTE DISTINTA, no una imagen chica
+// flotando dentro de una hoja Carta fija. Así es como una papelería
+// realmente piensa estos tamaños (corta papel de ese tamaño, no
+// desperdicia una hoja completa para imprimir un cuarto).
 // Un solo lugar con la matemática real — así la vista previa en
-// UploadPage y el PDF final en sendOrder.js NUNCA pueden desincronizarse
-// (si cambia el margen o las proporciones, se cambia aquí una sola vez).
+// UploadPage y el PDF final en sendOrder.js NUNCA pueden desincronizarse.
 
 export const CARTA_W = 612 // 8.5in × 72pt
 export const CARTA_H = 792 // 11in × 72pt
 export const MARGIN = 56.7 // 2cm × 72/2.54 — "nunca pegado al borde"
 
-const PRINTABLE_W = CARTA_W - MARGIN * 2
-const PRINTABLE_H = CARTA_H - MARGIN * 2
-
-// Tamaño del recuadro disponible para la imagen, según el encuadre
-// elegido — siempre centrado en la hoja, siempre con margen real.
-export function frameBox(frameSize) {
-  if (frameSize === 'cuarto') return { w: PRINTABLE_W / 2, h: PRINTABLE_H / 2 }
-  if (frameSize === 'medio')  return { w: PRINTABLE_W,     h: PRINTABLE_H / 2 }
-  return { w: PRINTABLE_W, h: PRINTABLE_H } // 'completa' (default)
+// Tamaño de PÁGINA para cada opción — no el tamaño de la imagen dentro
+// de la página, el tamaño real de la hoja/recorte.
+const PAGE_SIZES = {
+  cuarto:   { w: CARTA_W / 2, h: CARTA_H / 2 }, // 306 × 396pt
+  medio:    { w: CARTA_W,     h: CARTA_H / 2 }, // 612 × 396pt (corte horizontal)
+  completa: { w: CARTA_W,     h: CARTA_H },     // 612 × 792pt
 }
 
-// Dado el tamaño real de la imagen (px) y el recuadro disponible (pt),
-// calcula dónde dibujarla — escalada para caber SIN deformar (nunca
-// estira ancho y alto por separado), centrada en la hoja completa.
+export function pageSize(frameSize) {
+  return PAGE_SIZES[frameSize] ?? PAGE_SIZES.completa
+}
+
+// Dado el tamaño real de la imagen (px) y el tamaño de página elegido,
+// calcula dónde dibujarla dentro de ESA página — escalada para caber
+// sin deformar, centrada, siempre con el margen de 2cm respetado
+// (nunca pegada al borde, sin importar qué tan chica sea la página).
 export function fitImageInFrame(imgWidth, imgHeight, frameSize) {
-  const box = frameBox(frameSize)
-  const scale = Math.min(box.w / imgWidth, box.h / imgHeight)
+  const page = pageSize(frameSize)
+  const boxW = page.w - MARGIN * 2
+  const boxH = page.h - MARGIN * 2
+  const scale = Math.min(boxW / imgWidth, boxH / imgHeight)
   const w = imgWidth * scale
   const h = imgHeight * scale
-  const x = (CARTA_W - w) / 2
-  const y = (CARTA_H - h) / 2
-  return { x, y, w, h }
+  const x = (page.w - w) / 2
+  const y = (page.h - h) / 2
+  return { x, y, w, h, pageW: page.w, pageH: page.h }
 }
 
 export const FRAME_LABELS = {

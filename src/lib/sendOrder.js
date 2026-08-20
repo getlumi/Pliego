@@ -17,7 +17,7 @@
 
 import { supabase } from './supabase'
 import { PDFDocument } from 'pdf-lib'
-import { CARTA_W, CARTA_H, fitImageInFrame } from './imageFraming'
+import { fitImageInFrame } from './imageFraming'
 
 // Deriva color_mode / paper_size (columnas legadas del esquema) a partir
 // del service_type elegido, para tipos predefinidos y personalizados.
@@ -67,11 +67,11 @@ async function buildUploadFile(files) {
       const img = file.type === 'image/png'
         ? await merged.embedPng(bytes)
         : await merged.embedJpg(bytes)
-      // Hoja Carta estándar, imagen escalada dentro del encuadre elegido
-      // (cuarto/media/completa) — nunca a tamaño crudo, nunca pegada al
-      // borde. Mismo cálculo exacto que ve el usuario en la vista previa.
-      const { x, y, w, h } = fitImageInFrame(img.width, img.height, f.imageFrame ?? 'completa')
-      const page = merged.addPage([CARTA_W, CARTA_H])
+      // Cada tamaño (cuarto/media/completa) es una página físicamente
+      // distinta, no una imagen chica en una hoja Carta fija — mismo
+      // cálculo exacto que ve el usuario en la vista previa.
+      const { x, y, w, h, pageW, pageH } = fitImageInFrame(img.width, img.height, f.imageFrame ?? 'completa')
+      const page = merged.addPage([pageW, pageH])
       page.drawImage(img, { x, y, width: w, height: h })
     }
   }

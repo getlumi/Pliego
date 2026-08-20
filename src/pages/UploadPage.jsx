@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { serviceLabel, serviceIcon } from '../lib/services'
 import IneCapture from './IneCapture'
 import DocumentScanner from './DocumentScanner'
-import { CARTA_W, frameBox } from '../lib/imageFraming'
+import { CARTA_H, MARGIN, pageSize } from '../lib/imageFraming'
 
 // La caja de "ajustes especiales con IA" está temporalmente oculta:
 // por ahora la app solo soporta documentos ya listos para imprimir.
@@ -309,60 +309,67 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                 {files.length} archivo{files.length > 1 ? 's' : ''} · {totalPages} {pageWord} en total
               </p>
 
-              {/* Página grande */}
-              <div style={{
-                display: 'flex', justifyContent: 'center', alignItems: 'center',
-                background: 'var(--bg)', borderRadius: 'var(--radius-md)', padding: 20, marginBottom: 12,
-              }}>
-                <div style={{
-                  background: '#fff', border: '1px solid var(--border)', borderRadius: 6,
-                  boxShadow: 'var(--shadow-sm)',
-                  width: orientation === 'horizontal' ? 220 : 165,
-                  height: orientation === 'horizontal' ? 165 : 220,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  overflow: 'hidden', transition: 'width 0.2s, height 0.2s', position: 'relative',
-                }}>
-                  {files[activeIndex]?.previewUrl ? (
-                    activeIsImage && anyImageFrameOffered ? (
-                      // Vista previa fiel del encuadre elegido — mismas
-                      // proporciones que el PDF final (frameBox), nunca
-                      // deformada, siempre con el margen real visible.
-                      (() => {
-                        const previewPageW = orientation === 'horizontal' ? 220 : 165
-                        const previewPageH = orientation === 'horizontal' ? 165 : 220
-                        const scale = previewPageW / CARTA_W
-                        const box = frameBox(activeFile.imageFrame ?? 'completa')
-                        return (
+              {/* Página grande — si es una foto con tamaño elegido, el
+                  propio recuadro cambia de forma (no solo la imagen
+                  adentro) para que se note la diferencia real entre
+                  cuarto/media/completa, sin importar la orientación de
+                  la foto. */}
+              {(() => {
+                const showFramedPreview = activeIsImage && anyImageFrameOffered
+                let pageW, pageH
+                if (showFramedPreview) {
+                  const page = pageSize(activeFile.imageFrame ?? 'completa')
+                  const scale = 220 / CARTA_H // misma escala base para los 3 tamaños
+                  pageW = page.w * scale
+                  pageH = page.h * scale
+                } else {
+                  pageW = orientation === 'horizontal' ? 220 : 165
+                  pageH = orientation === 'horizontal' ? 165 : 220
+                }
+                return (
+                  <div style={{
+                    display: 'flex', justifyContent: 'center', alignItems: 'center',
+                    background: 'var(--bg)', borderRadius: 'var(--radius-md)', padding: 20, marginBottom: 12,
+                  }}>
+                    <div style={{
+                      background: '#fff', border: '1px solid var(--border)', borderRadius: 6,
+                      boxShadow: 'var(--shadow-sm)',
+                      width: pageW, height: pageH,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      overflow: 'hidden', transition: 'width 0.2s, height 0.2s', position: 'relative',
+                    }}>
+                      {files[activeIndex]?.previewUrl ? (
+                        showFramedPreview ? (
+                          // Margen real de 2cm, escalado a la vista
+                          // previa — mismo cálculo exacto que el PDF final.
                           <div style={{
-                            position: 'absolute',
-                            width: box.w * scale, height: box.h * scale,
-                            left: (previewPageW - box.w * scale) / 2,
-                            top: (previewPageH - box.h * scale) / 2,
+                            width: `calc(100% - ${2 * MARGIN * (pageW / pageSize(activeFile.imageFrame ?? 'completa').w)}px)`,
+                            height: `calc(100% - ${2 * MARGIN * (pageH / pageSize(activeFile.imageFrame ?? 'completa').h)}px)`,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                           }}>
                             <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
                               style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                           </div>
+                        ) : (
+                          <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
+                            style={{
+                              width: '100%', height: '100%',
+                              objectFit: fit === 'actual' ? 'cover' : 'contain',
+                              transition: 'object-fit 0.2s',
+                            }} />
                         )
-                      })()
-                    ) : (
-                      <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
-                        style={{
-                          width: '100%', height: '100%',
-                          objectFit: fit === 'actual' ? 'cover' : 'contain',
-                          transition: 'object-fit 0.2s',
-                        }} />
-                    )
-                  ) : (
-                    <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <i className={`ti ${fileIcon(files[activeIndex]?.file)}`} style={{ fontSize: 40 }} />
-                      <p style={{ fontSize: 11, marginTop: 6, padding: '0 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {files[activeIndex]?.file.name}
-                      </p>
+                      ) : (
+                        <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                          <i className={`ti ${fileIcon(files[activeIndex]?.file)}`} style={{ fontSize: 40 }} />
+                          <p style={{ fontSize: 11, marginTop: 6, padding: '0 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {files[activeIndex]?.file.name}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
+                )
+              })()}
 
               {/* Aviso sobre orientación */}
               <div style={{
