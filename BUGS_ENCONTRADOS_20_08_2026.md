@@ -54,6 +54,15 @@ En `src/pages/HistoryPage.jsx`: se quitó el `filter:` del canal de `orders` y `
 ### Lección para el futuro
 **Nunca usar `filter:` en un canal de `postgres_changes` de Supabase para algo crítico — filtrar siempre del lado del cliente (JS), dentro del callback, comparando contra el valor esperado.** Es más código, pero no depende de una función de la plataforma que puede fallar en silencio sin ningún aviso. Si se agrega un canal nuevo en el futuro, replicar el patrón de `PrintshopPage.jsx`, no el patrón viejo de `HistoryPage.jsx`.
 
+### Segunda causa relacionada, encontrada después del primer fix
+Con el filtro de servidor ya quitado, el evento **seguía sin llegar** en una prueba posterior. La consola mostró algo nuevo: el canal cambiaba de estado solo, sin que nadie tocara nada —
+```
+SUBSCRIBED → CLOSED → CLOSED → SUBSCRIBED
+```
+justo antes de la prueba. Causa: el `useEffect` que arma el canal dependía del objeto `session` completo (`[session]`). Supabase crea un objeto de sesión **nuevo** cada vez que renueva el token internamente (pasa más seguido de lo esperado) — y React, al comparar objetos por referencia, trataba eso como "la sesión cambió" y destruía + reconstruía todo el canal sin necesidad. Si el pedido se marcaba como entregado justo en ese instante de reconexión, el evento se perdía.
+
+**Fix:** cambiar la dependencia a `[session?.user?.id]` (un texto estable), no al objeto completo — así el canal solo se reconstruye cuando el usuario realmente cambia (login/logout), no cada vez que se renueva el token.
+
 ### Archivos afectados
 - `src/pages/HistoryPage.jsx` (fix aplicado)
 - `src/pages/PrintshopPage.jsx` (ya tenía el patrón correcto, sin cambios)
