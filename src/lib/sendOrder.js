@@ -70,7 +70,7 @@ async function buildUploadFile(files) {
       // Cada tamaño (cuarto/media/completa) es una página físicamente
       // distinta, no una imagen chica en una hoja Carta fija — mismo
       // cálculo exacto que ve el usuario en la vista previa.
-      const { x, y, w, h, pageW, pageH } = fitImageInFrame(img.width, img.height, f.imageFrame ?? 'completa')
+      const { x, y, w, h, pageW, pageH } = fitImageInFrame(img.width, img.height, f.imageFrame ?? 'completa', f.imageAlign ?? 'centro')
       const page = merged.addPage([pageW, pageH])
       page.drawImage(img, { x, y, width: w, height: h })
     }

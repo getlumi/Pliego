@@ -130,6 +130,11 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     const copy = files.map((f, i) => i === activeIndex ? { ...f, imageFrame: frame } : f)
     onUpdateDraft({ files: copy })
   }
+
+  const setImageAlign = (align) => {
+    const copy = files.map((f, i) => i === activeIndex ? { ...f, imageAlign: align } : f)
+    onUpdateDraft({ files: copy })
+  }
   const selectedService = enabledServices.find(s => s.id === serviceId)
   const totalPages = files.reduce((sum, f) => sum + (f.pageCount ?? 1), 0)
   const pricePerSheet = selectedService?.price_per_sheet ?? 0
@@ -341,15 +346,29 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                       {files[activeIndex]?.previewUrl ? (
                         showFramedPreview ? (
                           // Margen real de 2cm, escalado a la vista
-                          // previa — mismo cálculo exacto que el PDF final.
-                          <div style={{
-                            width: `calc(100% - ${2 * MARGIN * (pageW / pageSize(activeFile.imageFrame ?? 'completa').w)}px)`,
-                            height: `calc(100% - ${2 * MARGIN * (pageH / pageSize(activeFile.imageFrame ?? 'completa').h)}px)`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
-                              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-                          </div>
+                          // previa — mismo cálculo exacto que el PDF final,
+                          // incluida la alineación elegida.
+                          (() => {
+                            const align = activeFile.imageAlign ?? 'centro'
+                            const marginPxW = MARGIN * (pageW / pageSize(activeFile.imageFrame ?? 'completa').w)
+                            const marginPxH = MARGIN * (pageH / pageSize(activeFile.imageFrame ?? 'completa').h)
+                            return (
+                              <div style={{
+                                position: 'absolute',
+                                width: `calc(100% - ${2 * marginPxW}px)`,
+                                height: `calc(100% - ${2 * marginPxH}px)`,
+                                left: align === 'superior_izquierda' ? marginPxW : '50%',
+                                top: align === 'superior_izquierda' ? marginPxH : '50%',
+                                transform: align === 'superior_izquierda' ? 'none' : 'translate(-50%, -50%)',
+                                display: 'flex',
+                                alignItems: align === 'superior_izquierda' ? 'flex-start' : 'center',
+                                justifyContent: align === 'superior_izquierda' ? 'flex-start' : 'center',
+                              }}>
+                                <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
+                                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                              </div>
+                            )
+                          })()
                         ) : (
                           <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
                             style={{
@@ -457,6 +476,24 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                         label={{ cuarto: 'Cuarto', medio: 'Media', completa: 'Completa' }[frame]}
                       />
                     ))}
+                  </div>
+
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', margin: '12px 0 8px' }}>
+                    ALINEACIÓN
+                  </p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <ToggleButton
+                      active={(activeFile.imageAlign ?? 'centro') === 'centro'}
+                      onClick={() => setImageAlign('centro')}
+                      icon="ti-layout-align-center"
+                      label="Centrada"
+                    />
+                    <ToggleButton
+                      active={activeFile.imageAlign === 'superior_izquierda'}
+                      onClick={() => setImageAlign('superior_izquierda')}
+                      icon="ti-layout-align-left"
+                      label="Superior izq."
+                    />
                   </div>
                 </div>
               )}

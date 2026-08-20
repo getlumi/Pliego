@@ -22,20 +22,31 @@ export function pageSize(frameSize) {
   return PAGE_SIZES[frameSize] ?? PAGE_SIZES.completa
 }
 
-// Dado el tamaño real de la imagen (px) y el tamaño de página elegido,
-// calcula dónde dibujarla dentro de ESA página — escalada para caber
-// sin deformar, centrada, siempre con el margen de 2cm respetado
-// (nunca pegada al borde, sin importar qué tan chica sea la página).
-export function fitImageInFrame(imgWidth, imgHeight, frameSize) {
+// Dado el tamaño real de la imagen (px), el tamaño de página elegido, y
+// la alineación (centro | superior_izquierda), calcula dónde dibujarla
+// dentro de ESA página — escalada para caber sin deformar, siempre con
+// el margen de 2cm respetado (nunca pegada al borde, en ninguna
+// alineación).
+export function fitImageInFrame(imgWidth, imgHeight, frameSize, align = 'centro') {
   const page = pageSize(frameSize)
   const boxW = page.w - MARGIN * 2
   const boxH = page.h - MARGIN * 2
   const scale = Math.min(boxW / imgWidth, boxH / imgHeight)
   const w = imgWidth * scale
   const h = imgHeight * scale
-  const x = (page.w - w) / 2
-  const y = (page.h - h) / 2
+
+  const x = align === 'superior_izquierda' ? MARGIN : (page.w - w) / 2
+  // "Superior" en la hoja = arriba visualmente. En puntos PDF el eje Y
+  // crece hacia arriba, así que "arriba" es page.h - margen - alto,
+  // no 0 (que sería la base de la hoja).
+  const y = align === 'superior_izquierda' ? page.h - MARGIN - h : (page.h - h) / 2
+
   return { x, y, w, h, pageW: page.w, pageH: page.h }
+}
+
+export const ALIGN_LABELS = {
+  centro: 'Centrada',
+  superior_izquierda: 'Superior izquierda',
 }
 
 export const FRAME_LABELS = {
