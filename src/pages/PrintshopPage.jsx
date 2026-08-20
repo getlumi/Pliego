@@ -646,12 +646,17 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
     // Arranca el reloj de 24h de la garantía anti-no-show (si el pedido
     // quedó cubierto al momento de mandarlo)
     if (status === 'listo' && order?.guarantee_covered) {
-      supabase.rpc('start_guarantee_clock', { p_order_id: orderId }).catch(() => {})
+      // Sin .catch() — Supabase no lanza error aquí, lo devuelve como
+      // dato ({error: ...}), así que .catch() nunca hacía nada y
+      // además tronaba (bug real desde el 4 de agosto: esta versión
+      // del builder no tiene .catch() como método, cortaba la función
+      // en seco antes del aviso de "pedido listo" de abajo).
+      supabase.rpc('start_guarantee_clock', { p_order_id: orderId })
     }
 
     // Libera o revierte la garantía cuando el cliente sí recoge su pedido
     if (status === 'entregado' && order?.guarantee_covered) {
-      supabase.rpc('release_guarantee_hold', { p_order_id: orderId }).catch(() => {})
+      supabase.rpc('release_guarantee_hold', { p_order_id: orderId })
     }
 
     // Push al usuario cuando su impresión está lista
