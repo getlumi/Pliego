@@ -45,7 +45,7 @@ function resolveFileName(files) {
 }
 
 // Combina los archivos en un único PDF. Si todos son Word, sube el primero tal cual.
-async function buildUploadFile(files) {
+async function buildUploadFile(files, orientation) {
   const printable = files.filter(f => !isDocx(f.file))
 
   if (printable.length === 0) {
@@ -70,7 +70,7 @@ async function buildUploadFile(files) {
       // Cada tamaño (cuarto/media/completa) es una página físicamente
       // distinta, no una imagen chica en una hoja Carta fija — mismo
       // cálculo exacto que ve el usuario en la vista previa.
-      const { x, y, w, h, pageW, pageH } = fitImageInFrame(img.width, img.height, f.imageFrame ?? 'completa', f.imageAlign ?? 'centro')
+      const { x, y, w, h, pageW, pageH } = fitImageInFrame(img.width, img.height, f.imageFrame ?? 'completa', orientation ?? 'vertical', f.imageAlign ?? 'centro')
       const page = merged.addPage([pageW, pageH])
       page.drawImage(img, { x, y, width: w, height: h })
     }
@@ -152,7 +152,7 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
     }
 
     // 5) Armar el archivo de verdad y subirlo a Storage
-    const { blob, contentType } = await buildUploadFile(draft.files)
+    const { blob, contentType } = await buildUploadFile(draft.files, draft.orientation)
     const { error: uploadError } = await supabase.storage.from('documents').upload(path, blob, {
       contentType, upsert: false,
     })

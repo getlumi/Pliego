@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { serviceLabel, serviceIcon } from '../lib/services'
 import IneCapture from './IneCapture'
 import DocumentScanner from './DocumentScanner'
-import { CARTA_H, MARGIN, pageSize } from '../lib/imageFraming'
+import { CARTA_H, MARGIN, pageSize, frameBoxSize } from '../lib/imageFraming'
 
 // La caja de "ajustes especiales con IA" está temporalmente oculta:
 // por ahora la app solo soporta documentos ya listos para imprimir.
@@ -314,23 +314,30 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                 {files.length} archivo{files.length > 1 ? 's' : ''} · {totalPages} {pageWord} en total
               </p>
 
-              {/* Página grande — si es una foto con tamaño elegido, el
-                  propio recuadro cambia de forma (no solo la imagen
-                  adentro) para que se note la diferencia real entre
-                  cuarto/media/completa, sin importar la orientación de
-                  la foto. */}
+              {/* Página grande — SIEMPRE hoja Carta real, respetando el
+                  botón Vertical/Horizontal. Si es una foto con tamaño
+                  elegido, lo que cambia es la CAJA de la imagen dentro
+                  de esa misma hoja (nunca la hoja en sí) — cuarto/media/
+                  completa son fracciones de área, así que siempre se
+                  ven distintas entre sí sin importar la orientación de
+                  la foto que se suba. */}
               {(() => {
                 const showFramedPreview = activeIsImage && anyImageFrameOffered
-                let pageW, pageH
+                const previewScale = 220 / CARTA_H // misma escala base siempre
+                const page = pageSize(orientation)
+                const pageW = page.w * previewScale
+                const pageH = page.h * previewScale
+
+                let box = null, boxLeft = 0, boxTop = 0
                 if (showFramedPreview) {
-                  const page = pageSize(activeFile.imageFrame ?? 'completa')
-                  const scale = 220 / CARTA_H // misma escala base para los 3 tamaños
-                  pageW = page.w * scale
-                  pageH = page.h * scale
-                } else {
-                  pageW = orientation === 'horizontal' ? 220 : 165
-                  pageH = orientation === 'horizontal' ? 165 : 220
+                  const rawBox = frameBoxSize(activeFile.imageFrame ?? 'completa', orientation)
+                  box = { w: rawBox.w * previewScale, h: rawBox.h * previewScale }
+                  const align = activeFile.imageAlign ?? 'centro'
+                  const marginPx = MARGIN * previewScale
+                  boxLeft = align === 'superior_izquierda' ? marginPx : (pageW - box.w) / 2
+                  boxTop = align === 'superior_izquierda' ? marginPx : (pageH - box.h) / 2
                 }
+
                 return (
                   <div style={{
                     display: 'flex', justifyContent: 'center', alignItems: 'center',
@@ -340,35 +347,17 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                       background: '#fff', border: '1px solid var(--border)', borderRadius: 6,
                       boxShadow: 'var(--shadow-sm)',
                       width: pageW, height: pageH,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                       overflow: 'hidden', transition: 'width 0.2s, height 0.2s', position: 'relative',
                     }}>
                       {files[activeIndex]?.previewUrl ? (
                         showFramedPreview ? (
-                          // Margen real de 2cm, escalado a la vista
-                          // previa — mismo cálculo exacto que el PDF final,
-                          // incluida la alineación elegida.
-                          (() => {
-                            const align = activeFile.imageAlign ?? 'centro'
-                            const marginPxW = MARGIN * (pageW / pageSize(activeFile.imageFrame ?? 'completa').w)
-                            const marginPxH = MARGIN * (pageH / pageSize(activeFile.imageFrame ?? 'completa').h)
-                            return (
-                              <div style={{
-                                position: 'absolute',
-                                width: `calc(100% - ${2 * marginPxW}px)`,
-                                height: `calc(100% - ${2 * marginPxH}px)`,
-                                left: align === 'superior_izquierda' ? marginPxW : '50%',
-                                top: align === 'superior_izquierda' ? marginPxH : '50%',
-                                transform: align === 'superior_izquierda' ? 'none' : 'translate(-50%, -50%)',
-                                display: 'flex',
-                                alignItems: align === 'superior_izquierda' ? 'flex-start' : 'center',
-                                justifyContent: align === 'superior_izquierda' ? 'flex-start' : 'center',
-                              }}>
-                                <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
-                                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-                              </div>
-                            )
-                          })()
+                          <div style={{
+                            position: 'absolute', left: boxLeft, top: boxTop, width: box.w, height: box.h,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
+                              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                          </div>
                         ) : (
                           <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
                             style={{
@@ -378,7 +367,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                             }} />
                         )
                       ) : (
-                        <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                        <div style={{ textAlign: 'center', color: 'var(--text-muted)', width:'100%', height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
                           <i className={`ti ${fileIcon(files[activeIndex]?.file)}`} style={{ fontSize: 40 }} />
                           <p style={{ fontSize: 11, marginTop: 6, padding: '0 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {files[activeIndex]?.file.name}
