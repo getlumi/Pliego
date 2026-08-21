@@ -1944,19 +1944,25 @@ function StoreProductsCard({ shopId }) {
   const [updatingImage, setUpdatingImage] = useState(null) // id del producto mientras sube
 
   const startEditImage = (productId) => {
+    console.log('[Pliego][editImage] startEditImage llamado con productId:', productId)
     editImageProductId.current = productId
     editImageInputRef.current?.click()
+    console.log('[Pliego][editImage] click() disparado sobre el input, ref existe:', !!editImageInputRef.current)
   }
 
   const handleEditImageChange = async (e) => {
+    console.log('[Pliego][editImage] handleEditImageChange disparado')
     const file = e.target.files?.[0]
     const productId = editImageProductId.current
-    if (!file || !productId) return
+    console.log('[Pliego][editImage] file:', file?.name, 'productId:', productId)
+    if (!file || !productId) { console.log('[Pliego][editImage] se detuvo aquí: falta file o productId'); return }
     setUpdatingImage(productId)
     const ext = file.name.split('.').pop()
     const path = `${shopId}/${productId}-${Date.now()}.${ext}`
+    console.log('[Pliego][editImage] subiendo a path:', path)
     const { error: upErr } = await supabase.storage.from('store-products')
       .upload(path, file, { contentType: file.type })
+    console.log('[Pliego][editImage] resultado de upload, error:', upErr)
     if (upErr) {
       console.error('Error al actualizar imagen de producto:', upErr)
       setUpdatingImage(null)
@@ -1965,6 +1971,7 @@ function StoreProductsCard({ shopId }) {
     }
     const { data: pub } = supabase.storage.from('store-products').getPublicUrl(path)
     const freshUrl = `${pub.publicUrl}?t=${Date.now()}` // cache-bust, mismo patrón que el logo
+    console.log('[Pliego][editImage] URL final:', freshUrl)
     setProducts(prev => prev.map(p => p.id === productId ? { ...p, image_url: freshUrl } : p))
     await supabase.from('printshop_products').update({ image_url: freshUrl }).eq('id', productId)
     setUpdatingImage(null)

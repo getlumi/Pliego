@@ -148,6 +148,19 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeIndex, activeIsImage, anyImageFrameOffered])
 
+  // Identificación — mismo patrón, pero sin importar el ORDEN en que
+  // pasen las cosas: da igual si primero se elige la papelería y luego
+  // se agrega la identificación, o al revés (botón central "Imprimir"
+  // primero) — este efecto corre cada vez que cambia containsId O la
+  // papelería/sus servicios, así que siempre termina seleccionando el
+  // precio de identificación correcto en cuanto ambas cosas existen.
+  useEffect(() => {
+    if (!containsId) return
+    const idService = enabledServices.find(s => s.service_type === 'identificacion_2_lados')
+    if (idService && serviceId !== idService.id) onUpdateDraft({ serviceId: idService.id })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [containsId, shop?.id])
+
   const setImageFrame = (frame) => {
     const copy = files.map((f, i) => i === activeIndex ? { ...f, imageFrame: frame } : f)
     const updates = { files: copy }
