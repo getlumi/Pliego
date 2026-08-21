@@ -1902,7 +1902,7 @@ function StoreProductsCard({ shopId }) {
     if (newImageFile) {
       const ext = newImageFile.name.split('.').pop()
       const path = `${shopId}/${Date.now()}.${ext}`
-      const { error: upErr } = await supabase.storage.from('store-products').upload(path, newImageFile)
+      const { error: upErr } = await supabase.storage.from('store-products').upload(path, newImageFile, { contentType: newImageFile.type })
       if (upErr) {
         // Antes esto fallaba en silencio — el producto se creaba sin
         // imagen y nadie se enteraba de por qué. Ahora se avisa y se
@@ -1935,6 +1935,42 @@ function StoreProductsCard({ shopId }) {
     await supabase.from('printshop_products').delete().eq('id', product.id)
   }
 
+  // Cambiar la imagen de un producto YA CREADO — antes no había forma de
+  // hacerlo, solo al crearlo. También es la única manera de arreglar
+  // productos que quedaron con la imagen mal guardada (sin contentType
+  // correcto, antes del fix) — hay que volver a subirla.
+  const editImageProductId = useRef(null)
+  const editImageInputRef = useRef(null)
+  const [updatingImage, setUpdatingImage] = useState(null) // id del producto mientras sube
+
+  const startEditImage = (productId) => {
+    editImageProductId.current = productId
+    editImageInputRef.current?.click()
+  }
+
+  const handleEditImageChange = async (e) => {
+    const file = e.target.files?.[0]
+    const productId = editImageProductId.current
+    if (!file || !productId) return
+    setUpdatingImage(productId)
+    const ext = file.name.split('.').pop()
+    const path = `${shopId}/${productId}-${Date.now()}.${ext}`
+    const { error: upErr } = await supabase.storage.from('store-products')
+      .upload(path, file, { contentType: file.type })
+    if (upErr) {
+      console.error('Error al actualizar imagen de producto:', upErr)
+      setUpdatingImage(null)
+      e.target.value = ''
+      return
+    }
+    const { data: pub } = supabase.storage.from('store-products').getPublicUrl(path)
+    const freshUrl = `${pub.publicUrl}?t=${Date.now()}` // cache-bust, mismo patrón que el logo
+    setProducts(prev => prev.map(p => p.id === productId ? { ...p, image_url: freshUrl } : p))
+    await supabase.from('printshop_products').update({ image_url: freshUrl }).eq('id', productId)
+    setUpdatingImage(null)
+    e.target.value = ''
+  }
+
   return (
     <div className="card">
       <p style={{ fontSize:14, fontWeight:800, marginBottom:4 }}>
@@ -1950,11 +1986,25 @@ function StoreProductsCard({ shopId }) {
         <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:12 }}>
           {products.map(p => (
             <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10, opacity: p.enabled ? 1 : 0.5 }}>
-              <div style={{ width:44, height:44, borderRadius:10, background:'var(--bg)', flexShrink:0, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <button
+                onClick={() => startEditImage(p.id)}
+                aria-label="Cambiar foto del producto"
+                style={{
+                  position:'relative', width:44, height:44, borderRadius:10, background:'var(--bg)', flexShrink:0,
+                  overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
+                  border:'none', padding:0, cursor:'pointer',
+                }}
+              >
                 {p.image_url
                   ? <img src={p.image_url} alt={p.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
                   : <i className="ti ti-photo" style={{ fontSize:18, color:'var(--text-muted)' }} />}
-              </div>
+                <div style={{
+                  position:'absolute', inset:0, background:'rgba(0,0,0,0.35)',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                }}>
+                  <i className={`ti ${updatingImage === p.id ? 'ti-loader-2' : 'ti-camera'}`} style={{ fontSize:15, color:'#fff' }} />
+                </div>
+              </button>
               <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ fontSize:13, fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</p>
                 <p style={{ fontSize:12, color:'var(--text-secondary)' }}>${Number(p.price).toFixed(2)}</p>
@@ -1972,6 +2022,14 @@ function StoreProductsCard({ shopId }) {
           ))}
         </div>
       )}
+
+      <input
+        ref={editImageInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleEditImageChange}
+        style={{ display:'none' }}
+      />
 
       {adding ? (
         <div style={{ border:'1px solid var(--border)', borderRadius:'var(--radius-md)', padding:12 }}>
