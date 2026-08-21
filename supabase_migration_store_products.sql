@@ -89,7 +89,7 @@ create policy "store_products_insert_own" on storage.objects
     bucket_id = 'store-products' and
     exists (
       select 1 from public.printshops p
-      where p.id::text = (storage.foldername(name))[1] and p.owner_id = auth.uid()
+      where p.id::text = (storage.foldername(objects.name))[1] and p.owner_id = auth.uid()
     )
   );
 
@@ -99,7 +99,7 @@ create policy "store_products_update_own" on storage.objects
     bucket_id = 'store-products' and
     exists (
       select 1 from public.printshops p
-      where p.id::text = (storage.foldername(name))[1] and p.owner_id = auth.uid()
+      where p.id::text = (storage.foldername(objects.name))[1] and p.owner_id = auth.uid()
     )
   );
 
@@ -109,7 +109,7 @@ create policy "store_products_delete_own" on storage.objects
     bucket_id = 'store-products' and
     exists (
       select 1 from public.printshops p
-      where p.id::text = (storage.foldername(name))[1] and p.owner_id = auth.uid()
+      where p.id::text = (storage.foldername(objects.name))[1] and p.owner_id = auth.uid()
     )
   );
 
