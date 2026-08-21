@@ -126,9 +126,37 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   const activeFile = files[activeIndex]
   const activeIsImage = activeFile?.file?.type?.startsWith('image/')
 
+  const FRAME_TO_SERVICE_TYPE = {
+    cuarto:   'color_imagen_cuarto',
+    medio:    'color_imagen_medio',
+    completa: 'color_imagen_completa',
+  }
+
+  // Cubre el caso donde la persona NUNCA toca los botones de tamaño
+  // (queda en "Completa" por default) — sin esto, podría quedar
+  // seleccionado un servicio sin relación (ej. B/N Bond) mientras se
+  // manda una imagen a color, cobrando mal.
+  useEffect(() => {
+    if (!activeIsImage || !anyImageFrameOffered) return
+    const currentIsImageService = enabledServices.some(
+      s => s.id === serviceId && Object.values(FRAME_TO_SERVICE_TYPE).includes(s.service_type)
+    )
+    if (currentIsImageService) return // ya está en un servicio de imagen, no se pisa una elección real
+    const frame = activeFile.imageFrame ?? 'completa'
+    const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[frame])
+    if (matchingService) onUpdateDraft({ serviceId: matchingService.id })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex, activeIsImage, anyImageFrameOffered])
+
   const setImageFrame = (frame) => {
     const copy = files.map((f, i) => i === activeIndex ? { ...f, imageFrame: frame } : f)
-    onUpdateDraft({ files: copy })
+    const updates = { files: copy }
+    // Si la papelería ofrece el servicio de imagen que corresponde a
+    // este tamaño, se selecciona solo — para que nadie mande "Imagen
+    // 1/4 de hoja" con el precio de "B/N Bond" seleccionado sin querer.
+    const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[frame])
+    if (matchingService) updates.serviceId = matchingService.id
+    onUpdateDraft(updates)
   }
 
   const setImageAlign = (align) => {

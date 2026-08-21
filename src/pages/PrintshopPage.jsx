@@ -1868,6 +1868,7 @@ function StoreProductsCard({ shopId }) {
   const [newImageFile, setNewImageFile] = useState(null)
   const [newImagePreview, setNewImagePreview] = useState(null)
   const [saving, setSaving]     = useState(false)
+  const [imageError, setImageError] = useState('')
   const fileInputRef = useRef(null)
 
   const load = async () => {
@@ -1885,25 +1886,35 @@ function StoreProductsCard({ shopId }) {
     if (!file) return
     setNewImageFile(file)
     setNewImagePreview(URL.createObjectURL(file))
+    setImageError('')
   }
 
   const resetForm = () => {
     setAdding(false); setNewName(''); setNewPrice('')
-    setNewImageFile(null); setNewImagePreview(null)
+    setNewImageFile(null); setNewImagePreview(null); setImageError('')
   }
 
   const addProduct = async () => {
     if (!newName.trim()) return
     setSaving(true)
+    setImageError('')
     let imageUrl = null
     if (newImageFile) {
       const ext = newImageFile.name.split('.').pop()
       const path = `${shopId}/${Date.now()}.${ext}`
       const { error: upErr } = await supabase.storage.from('store-products').upload(path, newImageFile)
-      if (!upErr) {
-        const { data: pub } = supabase.storage.from('store-products').getPublicUrl(path)
-        imageUrl = pub.publicUrl
+      if (upErr) {
+        // Antes esto fallaba en silencio — el producto se creaba sin
+        // imagen y nadie se enteraba de por qué. Ahora se avisa y se
+        // detiene, para no crear un producto a medias sin que el
+        // dueño lo sepa.
+        console.error('Error al subir imagen de producto:', upErr)
+        setImageError(`No se pudo subir la imagen: ${upErr.message || 'error desconocido'}`)
+        setSaving(false)
+        return
       }
+      const { data: pub } = supabase.storage.from('store-products').getPublicUrl(path)
+      imageUrl = pub.publicUrl
     }
     await supabase.from('printshop_products').insert({
       printshop_id: shopId, name: newName.trim(), price: Number(newPrice) || 0, image_url: imageUrl,
@@ -1973,6 +1984,9 @@ function StoreProductsCard({ shopId }) {
               : <i className="ti ti-camera-plus" style={{ fontSize:20, color:'var(--text-muted)' }} />}
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImagePick} style={{ display:'none' }} />
+          {imageError && (
+            <p style={{ fontSize:11, color:'var(--red)', marginBottom:8 }}>{imageError}</p>
+          )}
           <input type="text" placeholder="Nombre del producto" value={newName} onChange={e => setNewName(e.target.value)}
             style={{ width:'100%', padding:'8px 10px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', fontSize:16, marginBottom:8 }} />
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
