@@ -1,5 +1,5 @@
 # Pliego — Bugs Reales Encontrados y Corregidos (19-20 agosto 2026)
-**Estado: los 5 quedaron corregidos y confirmados.** El más grave (#1, Realtime) tomó varias rondas de diagnóstico — quedó registrado el camino completo, con las 3 causas reales que se fueron encontrando en capas, no solo la última.
+**Estado: los 6 quedaron corregidos y confirmados.** El más grave (#1, Realtime) tomó varias rondas de diagnóstico — quedó registrado el camino completo, con las 3 causas reales que se fueron encontrando en capas, no solo la última.
 **Propósito de este documento:** referencia rápida para futuros problemas parecidos. Cada bug incluye el síntoma tal como se reportó, qué se descartó con evidencia (no con teoría), la causa real, y el fix aplicado — para no repetir el mismo camino de diagnóstico si algo similar vuelve a pasar.
 
 ---
@@ -10,6 +10,7 @@
 3. [`credit_wallet` sin cast al tipo correcto](#3-credit_wallet-sin-cast)
 4. [`.rpc().catch()` no es una función válida](#4-rpccatch-roto)
 5. [Nombre de archivo genérico ("documento.pdf")](#5-nombre-de-archivo-genérico)
+6. [RLS de Storage: choque de columnas impedía subir imágenes de Tienda](#6-rls-de-storage-choque-de-columnas)
 
 ---
 
@@ -187,6 +188,41 @@ Con la evidencia de la sección 1, cualquier canal nuevo de `postgres_changes` e
 4. El `useEffect` que arma el canal debe depender de valores **primitivos y estables** (`session?.user?.id`), nunca de objetos completos que Supabase puede recrear (`session`).
 
 Este patrón ya vivía correctamente en `PrintshopPage.jsx` desde el principio (por eso nunca tuvo estos problemas) — de aquí en adelante, cualquier canal nuevo debe copiarlo, no el patrón viejo que tenía `HistoryPage.jsx`.
+
+---
+
+## 6. RLS de Storage: choque de columnas impedía subir imágenes de Tienda
+
+### Síntoma
+La imagen de un producto de Tienda nunca se veía — ni en el panel de papelería ni en el de usuario. Se creaba el producto (nombre, precio) pero sin foto, sin ningún error visible al principio.
+
+### Primer intento (real, pero incompleto)
+Se encontró que faltaba `contentType` explícito al subir el archivo — se corrigió, pero el problema **seguía sin resolverse del todo** (se pudo editar la foto de un producto ya creado, pero la subida seguía fallando).
+
+### Causa real (encontrada con evidencia — consola + consulta directa a `pg_policies`)
+```
+StorageApiError: new row violates row-level security policy
+```
+Al revisar la política de seguridad tal como Postgres la guardó, decía `storage.foldername(p.name)` — el nombre del **negocio** (`printshops.name`, ej. "papetest"), no el nombre del **archivo que se sube**. La política original se escribió como `storage.foldername(name)`, sin calificar de qué tabla — como el subquery también usa `printshops` (que tiene su propia columna `name`), Postgres resolvió la ambigüedad contra la tabla más cercana (`printshops`), no contra `storage.objects` (el archivo real). Un nombre de negocio nunca tiene forma de UUID/carpeta, así que esa condición **nunca podía ser verdadera para nadie, nunca** — la subida de imágenes de producto estuvo rota desde el primer día de Tienda, para cualquier cuenta.
+
+**Por qué el primer producto (con nombre/precio) sí se creó:** el código original no verificaba el error de la subida (`if (!upErr) {...}`) — si la subida fallaba, el producto se creaba de todas formas, solo que sin imagen, en silencio.
+
+### Fix aplicado
+```sql
+-- Antes (ambiguo, se resolvía mal):
+where p.id::text = (storage.foldername(name))[1] and p.owner_id = auth.uid()
+
+-- Después (explícito, sin ambigüedad):
+where p.id::text = (storage.foldername(objects.name))[1] and p.owner_id = auth.uid()
+```
+Aplicado a las 3 políticas (`insert`, `update`, `delete`) del bucket `store-products`.
+
+### Lección para el futuro
+**Cualquier política de RLS que use una tabla auxiliar dentro de un `exists(...)` debe calificar explícitamente las columnas de la tabla protegida** (ej. `objects.name`, no solo `name`) — especialmente si la tabla auxiliar tiene una columna con el mismo nombre. Esto es fácil de pasar por alto porque Postgres no da ningún error de sintaxis — simplemente resuelve la ambigüedad en silencio, y el bug se manifiesta como "la política nunca deja pasar nada", sin ninguna pista de por qué.
+
+### Archivos afectados
+- `supabase_migration_store_products.sql` (corregido en el archivo fuente también)
+- `fix_store_products_rls_column_collision.sql` (migración del fix)
 
 ---
 

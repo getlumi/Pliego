@@ -135,8 +135,33 @@
 
 ## 10. Bugs y lecciones — ver documento aparte
 
-**`BUGS_ENCONTRADOS_20_08_2026.md`** tiene el detalle completo de los 5 bugs reales de hoy, cada uno con: síntoma, qué se descartó con evidencia, causa real, fix aplicado, y lección para el futuro. Empezar ahí ante cualquier síntoma parecido, antes de investigar desde cero.
+**`BUGS_ENCONTRADOS_20_08_2026.md`** tiene el detalle completo de los 6 bugs reales de hoy (el sexto, encontrado más tarde: choque de columnas en RLS de Storage que impedía subir imágenes de Tienda desde el día uno), cada uno con: síntoma, qué se descartó con evidencia, causa real, fix aplicado, y lección para el futuro. Empezar ahí ante cualquier síntoma parecido, antes de investigar desde cero.
+
+## 11. Actualización — segunda mitad de la sesión (después de la Parte 6 original)
+
+### Encuadre de imágenes sueltas (nuevo)
+- Módulo compartido `src/lib/imageFraming.js` — mismo cálculo para vista previa y PDF final, imposible que se desincronicen.
+- **Modelo correcto (tras un rediseño fallido intermedio, corregido):** la hoja SIEMPRE es Carta estándar, respetando el botón Vertical/Horizontal real — lo que cambia con cuarto/media/completa es el TAMAÑO DE LA IMAGEN dentro de esa misma hoja, nunca la hoja en sí.
+- Cuarto/media/completa se definen como **fracción de ÁREA** (no de un solo lado) — así siempre se ven distintos entre sí, sin importar si la foto es vertical u horizontal.
+- Alineación elegible por foto (Centrada / Superior izquierda).
+- Solo aplica a archivos de imagen real (`image/*`) — nunca a PDF, Word, escaneados o identificación.
+- Solo se muestra si la papelería elegida ofrece esos servicios (`color_imagen_cuarto/medio/completa`).
+- **Auto-selección de precio:** al elegir un tamaño de imagen, o al agregar una identificación (sin importar el orden en que pase respecto a elegir papelería), se auto-selecciona el servicio de precio correspondiente — para que nunca se mande una imagen a color con el precio de "B/N Bond" seleccionado por accidente.
+
+### Bug de seguridad real encontrado en Tienda (RLS de Storage)
+Las imágenes de productos de Tienda **nunca se subieron correctamente desde el primer día** — causa real: la política de seguridad del bucket `store-products` tenía `storage.foldername(name)` sin calificar la tabla. Como `printshops` también tiene su propia columna `name` (el nombre del negocio), Postgres resolvió la ambigüedad contra la tabla equivocada — comparando el nombre del negocio contra un UUID, algo que nunca podía ser verdadero para nadie. Corregido a `storage.foldername(objects.name)`, explícito. Detalle completo en `BUGS_ENCONTRADOS_20_08_2026.md`.
+
+También se corrigió: faltaba `contentType` explícito al subir (causaba que el archivo se guardara con tipo genérico, aunque la subida "funcionara"). Y se agregó la posibilidad de cambiar la foto de un producto ya creado (antes solo se podía subir al crearlo).
+
+### Ver documento enviado desde Historial
+Antes no había ninguna forma de ver el archivo ya enviado desde Historial — solo se mostraba el nombre. Ahora hay un botón "Ver documento enviado" con enlace real (mismo patrón seguro que ya se usaba en descarga de papelería — sin `window.open()` tras un `await`, que Safari bloquea).
+
+### Identificación — posición en la hoja
+El bloque frente/reverso se movió 4cm hacia arriba desde el centro (antes perfectamente centrado) — se ve más como una copia de identificación real.
+
+### Estrategia de redes — actualizaciones
+`pliego_estrategia_redes_y_crecimiento.md` sí cambió hoy — se agregaron las Partes 11-13 (corrección de duración de video TikTok para 2026, playbook de seguidores con los recursos reales del fundador, y el framing de venta de Pliego Store como oportunidad de negocio estilo Uber).
 
 ---
 
-*Este documento reemplaza como referencia principal a las versiones anteriores de "estado del proyecto" — para historial completo de decisiones de producto/marketing, ver `pliego_playbook_estrategico.md` y `pliego_estrategia_redes_y_crecimiento.md`, que no cambiaron hoy.*
+*Este documento reemplaza como referencia principal a las versiones anteriores de "estado del proyecto" — para historial completo de decisiones de producto/marketing, ver `pliego_playbook_estrategico.md` (sin cambios hoy) y `pliego_estrategia_redes_y_crecimiento.md` (sí actualizado, ver Partes 11-13).*

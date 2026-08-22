@@ -280,7 +280,62 @@ En orden de impacto real vs. esfuerzo:
 4. **Sistema de insignias completo (A público + B privado)** — depende de que ya haya suficiente historial real de pedidos/garantías para que los datos signifiquen algo.
 5. **Reclutamiento real de Pliego Store con papelerías fundadoras** — depende de que la Parte 3 (visitas) ya esté en marcha.
 
+## PARTE 11 — Corrección de datos (20 agosto 2026)
+
+**Actualización a la Parte 11 (antes Parte 2, sección de datos verificados):** una búsqueda más reciente muestra que la duración de video **cambió** desde que se escribió la Parte 2. TikTok ahora favorece contenido de **60 a 180 segundos** con ~70% de retención — los clips ultra cortos (7 segundos) **ya no tienen la ventaja automática** que sí tenían antes. El algoritmo de TikTok se sigue reentrenando por trimestre (transición de Oracle) — revisar esto cada 3 meses, no darlo por hecho a largo plazo.
+
+**Dato nuevo, a favor de la situación actual (6 seguidores, casi sin tracción):** en TikTok, el alcance de un video nuevo **no depende del número de seguidores de la cuenta** — cada video se evalúa solo, contra un público de prueba. Instagram sí depende más del historial de la cuenta (cuentas nuevas con pocos seguidores tienen más dificultad ahí). **Conclusión práctica: para esta etapa específica (conseguir los primeros seguidores reales), TikTok es la plataforma con mejor probabilidad — no repartir el esfuerzo parejo entre las dos todavía.**
+
 ---
 
-*Actualizado: 14 de agosto 2026 — se agregaron Partes 6-10 (auditoría de app, insignias v2, ecosistema recurrente, Pliego Store) tras revisión y feedback directo.*
+## PARTE 12 — Playbook de seguidores con los recursos reales que hay hoy
+
+**Contexto honesto de partida:** un celular, sin vehículo, sin equipo, dificultad para sostener conversación improvisada en cámara tipo "vendedor", ~6 seguidores (todos conocidos), cero tracción real todavía. Este playbook está diseñado para ESO exactamente — no para un influencer con equipo de producción.
+
+### Lo que de verdad genera seguidores (no vistas sueltas)
+Una **serie reconocible**, con nombre y formato repetible — la gente sigue cuentas porque sabe qué va a encontrar la próxima vez, no por un video suelto por bueno que sea.
+
+### Las 2 series a grabar, en orden de prioridad
+
+**1. "El Reto del Documento Imposible"** (prioridad — empezar por esta)
+- Formato: alguien trae el documento más maltratado que tenga (arrugado, manchado, doblado) → se escanea con la función que ya construimos hoy → sale perfecto.
+- Por qué esta primero: no requiere hablar en cámara de forma "vendedora" — solo mostrar el proceso, que ya es visualmente satisfactorio por sí solo (Vaca Púrpura: se explica sola).
+- Recursos que necesita: solo tu celular y la propia app — cero equipo adicional.
+- Cadencia realista: 1 episodio cada 2-3 días, no diario — mejor sostenido que intenso y luego parado (los datos de 2026 penalizan silencios de una semana casi tanto como premian la constancia).
+
+**2. "Bitácora de las primeras 10"** (empezar en cuanto arranquen las visitas)
+- Formato: documentar en persona el proceso real de convencer papelería por papelería — "así me fue hoy", no un pitch actuado.
+- Por qué funciona con tus condiciones reales: es más fácil grabarte diciendo lo que pasó (documental) que actuar como vendedor de cámara — quita la presión de "tener que ser carismático".
+- Conecta directo con Tribus (Parte 9 original): la gente sigue historias de alguien construyendo algo, no anuncios de producto.
+
+### Plan semanal concreto (con los recursos que hay, nada más)
+- **2-3 episodios de "Documento Imposible" por semana** — graba varios el mismo día si consigues varios documentos maltratados de una vez (amigos, familia), y los programas para publicar espaciados.
+- **1-2 "Bitácora" por semana**, solo los días que salgas a visitar papelerías — no forzar contenido los días que no salgas.
+- Publicar primero en **TikTok** (mejor probabilidad de despegue sin seguidores previos) — republicar el mismo video en Instagram Reels después, pero nunca al revés, y nunca con marca de agua de TikTok visible (Instagram penaliza fuerte el contenido reciclado con logo de otra plataforma).
+- Responder comentarios con **video-respuesta** cuando se pueda, no solo texto — cada respuesta en video cuenta como contenido nuevo y ayuda a convertir espectadores en seguidores.
+
+### Qué NO hacer (errores reales que sí penalizan, según los datos 2026)
+- No publicar 5+ veces al día — genera penalización de la cuenta (shadowban), no premio por ser prolífico.
+- No dejar pasar una semana entera sin publicar — cuesta semanas recuperar el alcance perdido.
+- No republicar el mismo video en Instagram con el logo de TikTok visible.
+- No mezclar la cuenta con temas sin relación — mantenerse en los 2 pilares de arriba, no dispersarse.
+
+---
+
+## PARTE 13 — Pliego Store como oportunidad de negocio (lenguaje de venta real)
+
+**La frase central, lista para usar en visitas:**
+> "No solo te traemos clientes de impresión — te ayudamos a montar un segundo ingreso dentro del negocio que ya tienes, sin que tengas que salir a buscar cómo diversificar tú solo."
+
+**El paralelo con Uber, bien aplicado:** Uber vende "sé tu propio jefe", no "trabaja para nosotros". Aplicado a papelerías: *"Como Uber, pero para papelerías — no es un empleo, es una oportunidad que tú decides qué tan grande hacer."* No decir que Pliego los emplea — sería confuso y hasta legalmente distinto a lo que realmente es.
+
+**Sobre "empleos indirectos":** argumento real, pero es una consecuencia posible, no una promesa de venta. Se usa **después**, con una papelería real que ya lo vivió como ejemplo — no como parte del pitch inicial a alguien que apenas se está registrando.
+
+**Sobre "franquicias indirectas" a futuro:** buena visión de largo plazo, coherente con Clase B/A/S y Pliego Store como insignia aspiracional ya definidos — pero es una idea para dentro de 6-12 meses, cuando ya haya 2-3 papelerías con Tienda funcionando bien como ejemplo real. No mencionar esto en las visitas de ahora — genera expectativa que todavía no se puede mostrar.
+
+---
+
+*Actualizado: 20 de agosto de 2026 — se agregaron Partes 11-13 (corrección de duración de video TikTok, playbook de seguidores con recursos reales, framing de venta de Pliego Store).*
+
+
 
