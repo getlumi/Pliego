@@ -8,7 +8,7 @@
 
 | Servicio | Dato |
 |---|---|
-| GitHub | Repo `getlumi/Pliego` |
+| GitHub | Repo `getlumi/Pliego` — **el token de acceso NO se guarda aquí a propósito** (riesgo de seguridad si queda en un documento permanente). Al iniciar un chat nuevo, pide el token directo al usuario cuando haga falta hacer `git push` — se ha rotado varias veces hoy por exposición repetida en el chat, así que no asumas que uno viejo sigue vivo. |
 | Supabase | `hjrexcdtrzesdcfkhnpd.supabase.co` |
 | Vercel | Deploy automático desde `main`, producción: **pliego.live** (⚠️ nunca probar en URLs de preview tipo `pliego-xxxxx-gelumi.vercel.app` — tienen candado SSO de Vercel que rompe el manifest) |
 | Frontend | Vite + React, sin Next.js |
