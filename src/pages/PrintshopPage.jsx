@@ -796,6 +796,20 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
             {o.estimated_cost != null && <Chip label={`$${o.estimated_cost}`} bold />}
           </div>
 
+          {/* Comentario del cliente — instrucciones especiales para esta impresión.
+              Antes se guardaba en la DB pero nunca se mostraba aquí. */}
+          {o.special_instructions && (
+            <div style={{
+              background:'var(--amber-light, #fff8e1)', border:'1.5px solid var(--amber, #f5b301)',
+              borderRadius:'var(--radius-md)', padding:'8px 12px', marginBottom:10,
+            }}>
+              <p style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary)', marginBottom:2 }}>
+                <i className="ti ti-message-circle" style={{ fontSize:12, verticalAlign:-1 }} /> COMENTARIO DEL CLIENTE
+              </p>
+              <p style={{ fontSize:13, fontWeight:600, lineHeight:1.35 }}>{o.special_instructions}</p>
+            </div>
+          )}
+
           {/* Productos de Tienda — separados de la impresión, NO cubiertos
               por la garantía anti-no-show (son empaquetados, sin merma) */}
           {o.store_items?.length > 0 && (
