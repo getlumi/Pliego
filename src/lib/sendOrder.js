@@ -32,6 +32,44 @@ function isDocx(file) {
   return /\.docx?$/i.test(file.name)
 }
 
+// Normaliza la orientación de una foto ANTES de meterla al PDF.
+// Causa real del bug: pdf-lib (embedJpg/embedPng) usa los bytes CRUDOS
+// del archivo, sin leer la etiqueta EXIF de orientación — muchas fotos
+// de celular guardan el sensor en horizontal + una bandera EXIF que le
+// dice a cualquier visor "gírala". El navegador respeta esa bandera al
+// mostrar la vista previa (por eso ahí se veía bien), pero pdf-lib no,
+// así que el PDF final salía rotado aunque la preview fuera correcta.
+//
+// Fix: dejamos que el propio <img> del navegador decodifique la imagen
+// (los navegadores modernos ya aplican la rotación EXIF por default al
+// pintarla, Safari incluido desde 2020) y la volvemos a dibujar en un
+// <canvas> — los bytes que salen de ahí ya están "derechos" de verdad,
+// sin depender de que pdf-lib entienda EXIF, porque nunca lo vuelve a
+// tocar. Esto es más confiable que parsear el EXIF a mano (formato
+// distinto según fabricante de cámara, fácil de romper).
+async function normalizeImageOrientation(file) {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image()
+      el.onload  = () => resolve(el)
+      el.onerror = () => reject(new Error('No se pudo leer la imagen'))
+      el.src = url
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width  = img.naturalWidth
+    canvas.height = img.naturalHeight
+    canvas.getContext('2d').drawImage(img, 0, 0)
+
+    const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, mime, 0.92))
+    const bytes = await blob.arrayBuffer()
+    return { bytes, width: canvas.width, height: canvas.height, mime }
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
 // Nombre final del archivo — determinable sin tocar Storage ni hacer
 // merge todavía (síncrono). Con un solo archivo, se usa su nombre real
 // (para que el usuario reconozca qué mandó) — "documento.pdf" genérico
@@ -63,8 +101,11 @@ async function buildUploadFile(files, orientation) {
       const pages = await merged.copyPages(src, src.getPageIndices())
       pages.forEach(p => merged.addPage(p))
     } else if (file.type.startsWith('image/')) {
-      const bytes = await file.arrayBuffer()
-      const img = file.type === 'image/png'
+      // Normalizada primero (ver comentario en normalizeImageOrientation) —
+      // así img.width/img.height que usa fitImageInFrame ya reflejan la
+      // orientación correcta también, no solo los píxeles.
+      const { bytes, mime } = await normalizeImageOrientation(file)
+      const img = mime === 'image/png'
         ? await merged.embedPng(bytes)
         : await merged.embedJpg(bytes)
       // Cada tamaño (cuarto/media/completa) es una página físicamente

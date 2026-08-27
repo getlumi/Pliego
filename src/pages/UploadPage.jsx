@@ -556,6 +556,31 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
               </div>
             </div>
 
+            {/* Comentario para la papelería — SIEMPRE visible, sin IA de
+                por medio. Antes esto vivía escondido dentro del bloque de
+                IA (abajo), que está apagado con AI_INSTRUCTIONS_ENABLED —
+                por eso nunca aparecía en pantalla. Reutiliza el mismo
+                draft.instructions, que ya viaja hasta special_instructions
+                en sendOrder.js y ya se muestra en el panel de la papelería. */}
+            <div className="card">
+              <label style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <i className="ti ti-message-circle" style={{ fontSize: 15, color: 'var(--green)' }} />
+                Comentario para la papelería (opcional)
+              </label>
+              <textarea
+                value={instructions} onChange={e => onUpdateDraft({ instructions: e.target.value })}
+                placeholder="Ej. imprimir solo la página 2, o cualquier detalle que necesiten saber"
+                style={{
+                  width: '100%', minHeight: 60, resize: 'none', fontSize: 16,
+                  padding: '10px 12px', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)', fontFamily: 'inherit',
+                }}
+              />
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                La papelería lo verá junto con tu pedido.
+              </p>
+            </div>
+
             {/* Ajustes especiales con IA — escondido por ahora: la app solo soporta
                 documentos listos para imprimir. Se reactivará con funciones completas. */}
             {AI_INSTRUCTIONS_ENABLED && (
