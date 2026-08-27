@@ -8,19 +8,58 @@ const PACKAGES = [
 ]
 const MENSUALIDAD = { amount: 75, label: 'Ilimitado' }
 
+// Un pago con tarjeta en curso se guarda aquí para sobrevivir a que iOS
+// descargue la página de memoria cuando el usuario sale a otra app (ej.
+// su app de banco para copiar el número de tarjeta) y vuelve — sin esto,
+// React pierde todo su estado y el panel se ve "cerrado" de la nada.
+const PENDING_PAYMENT_KEY = 'pliego:pending_payment'
+
+function readPendingPayment() {
+  try {
+    const raw = sessionStorage.getItem(PENDING_PAYMENT_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function savePendingPayment(data) {
+  try { sessionStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(data)) } catch {}
+}
+
+function clearPendingPayment() {
+  try { sessionStorage.removeItem(PENDING_PAYMENT_KEY) } catch {}
+}
+
 export default function WalletPage({ session }) {
+  const pending = readPendingPayment()
+
   const [balance, setBalance]       = useState(null)
   const [held, setHeld]             = useState(0)
   const [subStatus, setSubStatus]   = useState(null) // 'none' | 'active' | 'past_due' | 'canceled'
   const [subPeriodEnd, setSubPeriodEnd] = useState(null)
-  const [selectedPkg, setSelectedPkg]   = useState('mensualidad') // por defecto en el plan destacado
-  const [activeTab, setActiveTab]       = useState('mensual') // 'mensual' | 'creditos'
+  const [selectedPkg, setSelectedPkg]   = useState(pending?.selectedPkg ?? 'mensualidad') // por defecto en el plan destacado
+  // Si había un pago de créditos (no suscripción) en curso, el panel vive
+  // dentro de la pestaña "Créditos" — hay que restaurar ahí también, o
+  // el estado existe pero queda oculto en la pestaña equivocada.
+  const [activeTab, setActiveTab]       = useState(pending?.cardStep === 'form' ? 'creditos' : 'mensual')
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState('')
   const [oxxoData, setOxxoData]     = useState(null) // voucher OXXO
-  const [cardStep, setCardStep]     = useState(null)  // 'form' | 'done'
-  const [cardSecret, setCardSecret] = useState(null)
+  // Restaura el paso y el client_secret si había un pago de tarjeta en
+  // curso antes de que la página se recargara (ver PENDING_PAYMENT_KEY)
+  const [cardStep, setCardStep]     = useState(pending?.cardStep ?? null)  // 'form' | 'done'
+  const [cardSecret, setCardSecret] = useState(pending?.cardSecret ?? null)
   const [cancelling, setCancelling] = useState(false)
+
+  // Mantiene sessionStorage sincronizado mientras hay un pago de tarjeta
+  // en curso, y lo limpia en cuanto ya no aplica (éxito, cancelado, u
+  // otro flujo distinto a tarjeta).
+  useEffect(() => {
+    if ((cardStep === 'form' || cardStep === 'form-sub') && cardSecret) {
+      savePendingPayment({ cardStep, cardSecret, selectedPkg })
+    } else {
+      clearPendingPayment()
+    }
+  }, [cardStep, cardSecret, selectedPkg])
 
   useEffect(() => {
     if (!session) return

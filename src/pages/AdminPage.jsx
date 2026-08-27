@@ -841,8 +841,10 @@ function FinancesTab() {
       byDayUsers[day] = (byDayUsers[day] ?? 0) + 1
     })
 
-    // Comisión Stripe estimada (3.6% + $3 MXN por transacción)
-    const stripeCommission = txs.reduce((s, t) => s + ((t.amount ?? 0) * 0.036 + 3), 0)
+    // Comisión Stripe estimada (3.6% + $3 MXN por transacción, + IVA 16% sobre la comisión —
+    // confirmado con datos reales de Stripe: $26.50 bruto -> $21.92 neto = $4.58 de comisión,
+    // que solo cuadra con (monto*0.036+3)*1.16, no sin el IVA)
+    const stripeCommission = txs.reduce((s, t) => s + ((t.amount ?? 0) * 0.036 + 3) * 1.16, 0)
     const netRevenue = totalRecargas - stripeCommission
 
     setData({
@@ -888,7 +890,7 @@ function FinancesTab() {
           <div className="card" style={{ textAlign:'center' }}>
             <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Comisión Stripe est.</p>
             <p style={{ fontSize:22, fontWeight:900, color:'var(--red)' }}>-${data.stripeCommission.toFixed(2)}</p>
-            <p style={{ fontSize:10, color:'var(--text-muted)' }}>3.6% + $3 por tx</p>
+            <p style={{ fontSize:10, color:'var(--text-muted)' }}>(3.6% + $3) + IVA por tx</p>
           </div>
           <div className="card" style={{ textAlign:'center' }}>
             <p style={{ fontSize:11, color:'var(--text-secondary)' }}>Pedidos</p>
