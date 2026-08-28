@@ -32,13 +32,20 @@ function isDocx(file) {
   return /\.docx?$/i.test(file.name)
 }
 
-// Normaliza la orientación de una foto ANTES de meterla al PDF.
-// Causa real del bug: pdf-lib (embedJpg/embedPng) usa los bytes CRUDOS
-// del archivo, sin leer la etiqueta EXIF de orientación — muchas fotos
-// de celular guardan el sensor en horizontal + una bandera EXIF que le
-// dice a cualquier visor "gírala". El navegador respeta esa bandera al
-// mostrar la vista previa (por eso ahí se veía bien), pero pdf-lib no,
-// así que el PDF final salía rotado aunque la preview fuera correcta.
+// Normaliza la orientación de una foto ANTES de meterla al PDF, y
+// aplica también la rotación adicional que el usuario haya elegido con
+// el botón "Girar" (0/90/180/270) — un solo lugar con la matemática
+// real, igual que fitImageInFrame en imageFraming.js, para que la
+// vista previa (rotación con CSS, solo visual) y el PDF final
+// (rotación real de píxeles, aquí) representen siempre lo mismo.
+//
+// Causa real del bug original: pdf-lib (embedJpg/embedPng) usa los
+// bytes CRUDOS del archivo, sin leer la etiqueta EXIF de orientación —
+// muchas fotos de celular guardan el sensor en horizontal + una
+// bandera EXIF que le dice a cualquier visor "gírala". El navegador
+// respeta esa bandera al mostrar la vista previa (por eso ahí se veía
+// bien), pero pdf-lib no, así que el PDF final salía rotado aunque la
+// preview fuera correcta.
 //
 // Fix: dejamos que el propio <img> del navegador decodifique la imagen
 // (los navegadores modernos ya aplican la rotación EXIF por default al
@@ -46,8 +53,10 @@ function isDocx(file) {
 // <canvas> — los bytes que salen de ahí ya están "derechos" de verdad,
 // sin depender de que pdf-lib entienda EXIF, porque nunca lo vuelve a
 // tocar. Esto es más confiable que parsear el EXIF a mano (formato
-// distinto según fabricante de cámara, fácil de romper).
-async function normalizeImageOrientation(file) {
+// distinto según fabricante de cámara, fácil de romper). La rotación
+// elegida por el usuario se aplica en el mismo paso de canvas, girando
+// el lienzo y —si es 90°/270°— intercambiando ancho/alto de salida.
+async function normalizeImageOrientation(file, extraRotationDeg = 0) {
   const url = URL.createObjectURL(file)
   try {
     const img = await new Promise((resolve, reject) => {
@@ -56,10 +65,22 @@ async function normalizeImageOrientation(file) {
       el.onerror = () => reject(new Error('No se pudo leer la imagen'))
       el.src = url
     })
+
+    const rot = ((extraRotationDeg % 360) + 360) % 360
+    const swapped = rot === 90 || rot === 270
+    const outW = swapped ? img.naturalHeight : img.naturalWidth
+    const outH = swapped ? img.naturalWidth  : img.naturalHeight
+
     const canvas = document.createElement('canvas')
-    canvas.width  = img.naturalWidth
-    canvas.height = img.naturalHeight
-    canvas.getContext('2d').drawImage(img, 0, 0)
+    canvas.width  = outW
+    canvas.height = outH
+    const ctx = canvas.getContext('2d')
+    ctx.translate(outW / 2, outH / 2)
+    ctx.rotate((rot * Math.PI) / 180)
+    // La imagen se dibuja centrada con SUS dimensiones originales — el
+    // translate+rotate ya la deja en el lugar correcto del lienzo
+    // (swapeado si hacía falta), sin deformarla.
+    ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2)
 
     const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
     const blob = await new Promise(resolve => canvas.toBlob(resolve, mime, 0.92))
@@ -101,10 +122,10 @@ async function buildUploadFile(files, orientation) {
       const pages = await merged.copyPages(src, src.getPageIndices())
       pages.forEach(p => merged.addPage(p))
     } else if (file.type.startsWith('image/')) {
-      // Normalizada primero (ver comentario en normalizeImageOrientation) —
+      // Normalizada primero (EXIF + rotación elegida por el usuario) —
       // así img.width/img.height que usa fitImageInFrame ya reflejan la
-      // orientación correcta también, no solo los píxeles.
-      const { bytes, mime } = await normalizeImageOrientation(file)
+      // orientación final correcta también, no solo los píxeles.
+      const { bytes, mime } = await normalizeImageOrientation(file, f.imageRotation ?? 0)
       const img = mime === 'image/png'
         ? await merged.embedPng(bytes)
         : await merged.embedJpg(bytes)

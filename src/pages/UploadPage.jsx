@@ -176,6 +176,18 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     const copy = files.map((f, i) => i === activeIndex ? { ...f, imageAlign: align } : f)
     onUpdateDraft({ files: copy })
   }
+
+  // Rota la foto DENTRO de la hoja (no cambia Vertical/Horizontal, que es
+  // la hoja en sí) — cada clic avanza 90°, ciclo de 4 hasta volver a 0.
+  // Solo cambia un número (imageRotation); el giro real de píxeles para
+  // el PDF final se hace una sola vez al enviar, en sendOrder.js — aquí
+  // solo se ve con CSS, para que el botón se sienta instantáneo.
+  const rotateImage = () => {
+    const current = activeFile.imageRotation ?? 0
+    const next = (current + 90) % 360
+    const copy = files.map((f, i) => i === activeIndex ? { ...f, imageRotation: next } : f)
+    onUpdateDraft({ files: copy })
+  }
   const selectedService = enabledServices.find(s => s.id === serviceId)
   const totalPages = files.reduce((sum, f) => sum + (f.pageCount ?? 1), 0)
   const pricePerSheet = selectedService?.price_per_sheet ?? 0
@@ -369,6 +381,13 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                 const pageW = page.w * previewScale
                 const pageH = page.h * previewScale
 
+                // Rotación elegida con el botón "Girar" — solo aplica a
+                // fotos, nunca a documentos. Solo es visual aquí (CSS);
+                // el giro real de píxeles para el PDF pasa una sola vez
+                // al enviar, en sendOrder.js (misma lógica, sin duplicar).
+                const rot = activeIsImage ? (activeFile.imageRotation ?? 0) : 0
+                const swapped = rot === 90 || rot === 270
+
                 let box = null, boxLeft = 0, boxTop = 0
                 if (showFramedPreview) {
                   const rawBox = frameBoxSize(activeFile.imageFrame ?? 'completa', orientation)
@@ -394,17 +413,28 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                         showFramedPreview ? (
                           <div style={{
                             position: 'absolute', left: boxLeft, top: boxTop, width: box.w, height: box.h,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            overflow: 'hidden',
                           }}>
                             <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
-                              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                              style={{
+                                position: 'absolute', top: '50%', left: '50%',
+                                // Se piden las dimensiones INVERTIDAS antes de girar
+                                // (swapped), para que al rotar 90°/270° el resultado
+                                // visual quede exactamente dentro de la caja real —
+                                // mismo truco que usa cualquier editor de fotos.
+                                width: swapped ? box.h : box.w, height: swapped ? box.w : box.h,
+                                transform: `translate(-50%, -50%) rotate(${rot}deg)`,
+                                objectFit: 'contain', transition: 'transform 0.2s',
+                              }} />
                           </div>
                         ) : (
                           <img src={files[activeIndex].previewUrl} alt={files[activeIndex].file.name}
                             style={{
-                              width: '100%', height: '100%',
+                              position: 'absolute', top: '50%', left: '50%',
+                              width: swapped ? pageH : pageW, height: swapped ? pageW : pageH,
+                              transform: `translate(-50%, -50%) rotate(${rot}deg)`,
                               objectFit: fit === 'actual' ? 'cover' : 'contain',
-                              transition: 'object-fit 0.2s',
+                              transition: 'object-fit 0.2s, transform 0.2s',
                             }} />
                         )
                       ) : (
@@ -486,6 +516,27 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Girar — solo para fotos sueltas, nunca documentos (un PDF/Word
+                  ya trae su propia orientación fija). Gira la imagen DENTRO
+                  de la hoja, sin tocar el botón Vertical/Horizontal de abajo
+                  (ese es el tamaño de la hoja, esto es solo el contenido). */}
+              {activeIsImage && (
+                <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>GIRAR IMAGEN</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {(activeFile.imageRotation ?? 0) === 0 ? 'Posición original' : `${activeFile.imageRotation}°`}
+                    </p>
+                  </div>
+                  <button onClick={rotateImage} aria-label="Girar imagen 90 grados" style={{
+                    width: 44, height: 44, borderRadius: '50%', border: '1px solid var(--border)',
+                    background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                  }}>
+                    <i className="ti ti-rotate-clockwise" style={{ fontSize: 20 }} />
+                  </button>
                 </div>
               )}
 
