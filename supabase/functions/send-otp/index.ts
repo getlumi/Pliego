@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
           phone_number:  digits,
           country_code:  ladaCode,
           company:       'Pliego',
-          message:       '{{code}} es tu código de verificación de {{company}}. No lo compartas.',
+          message:       '{{company}}: tu codigo es {{code}}. No lo compartas.',
           code_length:   6,
           code_format:   'numeric',
         }),
