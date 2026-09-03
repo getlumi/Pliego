@@ -299,6 +299,35 @@ function PrintshopsTab() {
     rejected: { label:'Rechazada',  bg:'var(--red-light)',   color:'var(--red)' },
   }
 
+  // Traduce subscription_status + grace_period_ends_at a una etiqueta
+  // clara para el Admin — antes esto se traía de la base de datos pero
+  // nunca se mostraba en ningún lado.
+  function subscriptionBadge(shop) {
+    if (shop.subscription_status === 'exento') {
+      return { label: '🏆 Exenta para siempre', bg: 'var(--green-light)', color: 'var(--green-dark)' }
+    }
+    if (shop.subscription_status === 'active') {
+      return { label: 'Suscrita · $75/mes', bg: 'var(--green-light)', color: 'var(--green-dark)' }
+    }
+    if (shop.subscription_status === 'past_due') {
+      return { label: '⚠️ Pago pendiente', bg: 'var(--red-light)', color: 'var(--red)' }
+    }
+    if (shop.subscription_status === 'bloqueada') {
+      return { label: '🔒 Bloqueada (gracia vencida)', bg: 'var(--red-light)', color: 'var(--red)' }
+    }
+    if (shop.subscription_status === 'gracia') {
+      const daysLeft = shop.grace_period_ends_at
+        ? Math.max(0, Math.ceil((new Date(shop.grace_period_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+        : null
+      const tipo = shop.is_founding ? 'Fundadora' : 'Nueva'
+      return {
+        label: daysLeft != null ? `${tipo} · ${daysLeft} días de gracia` : `${tipo} · en gracia`,
+        bg: 'var(--amber-light)', color: '#92530a',
+      }
+    }
+    return { label: shop.subscription_status ?? '—', bg: 'var(--border-light)', color: 'var(--text-secondary)' }
+  }
+
   return (
     <div className="scroll-content">
       <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
@@ -314,6 +343,7 @@ function PrintshopsTab() {
       {loading ? <p style={{ textAlign:'center', color:'var(--text-muted)', padding:32 }}>Cargando...</p> :
         filtered.map(shop => {
           const st = STATUS[shop.verification_status] ?? STATUS.pending
+          const sub = subscriptionBadge(shop)
           return (
             <div key={shop.id} className="card">
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
@@ -323,6 +353,24 @@ function PrintshopsTab() {
                 </div>
                 <span style={{ fontSize:11, background:st.bg, color:st.color, padding:'3px 8px', borderRadius:'var(--radius-full)', fontWeight:700 }}>{st.label}</span>
               </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:6 }}>
+                <span style={{ fontSize:11, background:sub.bg, color:sub.color, padding:'3px 8px', borderRadius:'var(--radius-full)', fontWeight:700 }}>{sub.label}</span>
+              </div>
+              {shop.address && (
+                <p style={{ fontSize:11, color:'var(--text-muted)', marginTop:6 }}>
+                  <i className="ti ti-map-pin" style={{ fontSize:12, verticalAlign:-1, marginRight:3 }} />
+                  {shop.address}
+                  {shop.latitude && shop.longitude && (
+                    <a
+                      href={`https://maps.google.com/?q=${shop.latitude},${shop.longitude}`}
+                      target="_blank" rel="noreferrer"
+                      style={{ marginLeft:6, color:'var(--green-dark)', fontWeight:700, textDecoration:'underline' }}
+                    >
+                      Ver en el mapa (confirmar)
+                    </a>
+                  )}
+                </p>
+              )}
               {shop.rejection_reason && (
                 <p style={{ fontSize:11, color:'var(--red)', marginTop:4 }}>Motivo: {shop.rejection_reason}</p>
               )}

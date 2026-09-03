@@ -349,6 +349,7 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
   const [shopId, setShopId]     = useState(existingShopId ?? null)
   const [name, setName]         = useState(pendingShop?.name ?? '')
   const [whatsapp, setWhatsapp] = useState(pendingShop?.whatsapp ?? '')
+  const [address, setAddress]   = useState(pendingShop?.address ?? '')
   const [coords, setCoords]     = useState(pendingShop?.coords ?? null)
   const [locating, setLocating] = useState(false)
   const [saving, setSaving]     = useState(false)
@@ -364,10 +365,10 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
   // enviarse (aún no hay shopId) — así una recarga de iOS no borra lo que
   // ya se había escrito antes del permiso de ubicación.
   useEffect(() => {
-    if (step === 1 && !shopId && (name || whatsapp || coords)) {
-      savePendingShop({ name, whatsapp, coords })
+    if (step === 1 && !shopId && (name || whatsapp || address || coords)) {
+      savePendingShop({ name, whatsapp, address, coords })
     }
-  }, [step, shopId, name, whatsapp, coords])
+  }, [step, shopId, name, whatsapp, address, coords])
 
   const getLocation = () => {
     setError('')
@@ -383,6 +384,7 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
     setError('')
     if (!name.trim())     return setError('Escribe el nombre de tu negocio')
     if (!whatsapp.trim()) return setError('Escribe tu número de teléfono')
+    if (!address.trim()) return setError('Escribe la dirección completa de tu negocio')
     if (!coords)          return setError('Necesitamos tu ubicación para registrarte')
 
     setSaving(true)
@@ -390,6 +392,7 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
       .from('printshops')
       .insert({
         name: name.trim(),
+        address: address.trim(),
         latitude: coords.lat,
         longitude: coords.lng,
         whatsapp: whatsapp.replace(/\s/g,''),
@@ -563,9 +566,16 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
           <input type="text" placeholder="Ej. Papelería Lupita" value={name} onChange={e => setName(e.target.value)}
             style={{ width:'100%', marginBottom:14, padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
 
-          <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>TELÉFONO PARA AVISOS DE PEDIDOS (SMS)</label>
+          <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>TELÉFONO PARA AVISOS DE PEDIDOS (WHATSAPP)</label>
           <input type="tel" placeholder="998 123 4567" value={whatsapp} onChange={e => setWhatsapp(e.target.value)}
             style={{ width:'100%', marginBottom:14, padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
+
+          <label style={{ fontSize:12, fontWeight:700, color:'var(--text-secondary)', display:'block', marginBottom:6 }}>DIRECCIÓN COMPLETA</label>
+          <input type="text" placeholder="Calle, número, colonia" value={address} onChange={e => setAddress(e.target.value)}
+            style={{ width:'100%', marginBottom:4, padding:'12px 14px', border:'1.5px solid var(--border)', borderRadius:'var(--radius-md)' }} />
+          <p style={{ fontSize:11, color:'var(--text-muted)', marginBottom:14, lineHeight:1.4 }}>
+            La usamos para confirmar que tu ubicación en el mapa (arriba) es correcta.
+          </p>
 
           {error && (
             <div style={{ background:'var(--red-light)', border:'1px solid #F09595', borderRadius:12, padding:'10px 14px', marginBottom:14, display:'flex', gap:8, alignItems:'center' }}>
