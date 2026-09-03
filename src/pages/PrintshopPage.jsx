@@ -1627,6 +1627,25 @@ function ShopSubscriptionCard({ shop, onReload }) {
 
   if (shop.subscription_status === 'gracia') return null // ya se muestra arriba en el banner
 
+  // Estado especial, solo para papelerías exentas de pago para siempre
+  // (ej. Happy Colors, la primera que confió en Pliego) — nunca ven un
+  // precio ni un botón de cancelar que no aplicaría a su caso.
+  if (shop.subscription_status === 'exento') return (
+    <div className="card" style={{ marginBottom:16, background:'var(--green-light)', border:'1px solid var(--green)' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+        <div style={{ width:36, height:36, borderRadius:10, background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+          <i className="ti ti-award" style={{ fontSize:18, color:'var(--green)' }} />
+        </div>
+        <div>
+          <p style={{ fontSize:13, fontWeight:800 }}>Papelería fundadora</p>
+          <p style={{ fontSize:11, color:'var(--text-secondary)' }}>
+            Nunca pagarás la suscripción — gracias por confiar en Pliego desde el inicio.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+
   const handleCancel = async () => {
     if (!window.confirm('¿Seguro que quieres cancelar? Sigues recibiendo pedidos hasta el final de tu periodo ya pagado.')) return
     setCancelling(true); setError('')
