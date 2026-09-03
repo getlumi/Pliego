@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 // Ladas soportadas. México primero y por defecto — el resto queda listo
@@ -24,21 +24,57 @@ function isValidPhoneFormat(digits) {
   return true
 }
 
+// Un registro en curso se guarda aquí para sobrevivir a que iOS recargue
+// la página cuando el usuario sale a otra app (ej. Ajustes, para activar
+// el permiso de ubicación) y vuelve — sin esto, React pierde todo su
+// estado, incluido "intent" (negocio vs. usuario), y el registro puede
+// terminar completándose con el tipo de cuenta equivocado. Ya pasó una
+// vez: una papelería terminó registrada como usuario normal por esto.
+const PENDING_AUTH_KEY = 'pliego:pending_auth'
+
+function readPendingAuth() {
+  try {
+    const raw = sessionStorage.getItem(PENDING_AUTH_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function savePendingAuth(data) {
+  try { sessionStorage.setItem(PENDING_AUTH_KEY, JSON.stringify(data)) } catch {}
+}
+
+function clearPendingAuth() {
+  try { sessionStorage.removeItem(PENDING_AUTH_KEY) } catch {}
+}
+
 export default function AuthPage({ onAuth }) {
-  const [mode,     setMode]     = useState('login')
-  const [countryCode, setCountryCode] = useState('52')
-  const [phone,    setPhone]    = useState('')
-  const [password, setPassword] = useState('')
-  const [name,     setName]     = useState('')
+  const pending = readPendingAuth()
+
+  const [mode,     setMode]     = useState(pending?.mode ?? 'login')
+  const [countryCode, setCountryCode] = useState(pending?.countryCode ?? '52')
+  const [phone,    setPhone]    = useState(pending?.phone ?? '')
+  const [password, setPassword] = useState(pending?.password ?? '')
+  const [name,     setName]     = useState(pending?.name ?? '')
   const [remember, setRemember] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
-  const [intent, setIntent] = useState('consumer') // 'consumer' | 'business'
+  const [intent, setIntent] = useState(pending?.intent ?? 'consumer') // 'consumer' | 'business'
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
   // OTP
-  const [otpStep,    setOtpStep]    = useState(false)
+  const [otpStep,    setOtpStep]    = useState(pending?.otpStep ?? false)
   const [otpCode,    setOtpCode]    = useState('')
   const [otpLoading, setOtpLoading] = useState(false)
+
+  // Mantiene sessionStorage sincronizado mientras hay un registro de
+  // negocio o de usuario en curso, y lo limpia en cuanto ya no aplica
+  // (login normal sin OTP pendiente, o registro completado).
+  useEffect(() => {
+    if (mode === 'register' && (otpStep || intent === 'business')) {
+      savePendingAuth({ mode, countryCode, phone, password, name, intent, otpStep })
+    } else {
+      clearPendingAuth()
+    }
+  }, [mode, countryCode, phone, password, name, intent, otpStep])
 
   const handleSubmit = async () => {
     setError('')
@@ -127,6 +163,7 @@ export default function AuthPage({ onAuth }) {
       const email = `${cleanPhone}@pliego.com`
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) throw new Error('Tu cuenta se creó. Ahora entra con "Entrar".')
+      clearPendingAuth() // registro completado con éxito — ya no hace falta el respaldo
       onAuth(intent)
     } catch (e) {
       setError(e.message)

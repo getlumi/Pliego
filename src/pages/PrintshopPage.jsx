@@ -1648,22 +1648,44 @@ function ConfigTab({ shop, services, onServicesChange, onSaved }) {
   const [deleteError, setDeleteError] = useState(false)
   const [locating, setLocating] = useState(false)
   const [locSaved, setLocSaved] = useState(false)
+  const [locError, setLocError] = useState('')
 
   const updateLocation = () => {
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation) {
+      alert('Tu navegador no soporta geolocalización.')
+      return
+    }
     setLocating(true)
     setLocSaved(false)
+    setLocError('')
     navigator.geolocation.getCurrentPosition(
       async pos => {
-        await supabase.from('printshops').update({
+        const { error: updErr } = await supabase.from('printshops').update({
           latitude:  pos.coords.latitude,
           longitude: pos.coords.longitude,
         }).eq('id', shop.id)
         setLocating(false)
+        if (updErr) {
+          console.error('Error al actualizar ubicación:', updErr)
+          setLocError('No se pudo guardar la ubicación. Intenta de nuevo.')
+          return
+        }
         setLocSaved(true)
         setTimeout(() => setLocSaved(false), 3000)
       },
-      () => setLocating(false),
+      (geoErr) => {
+        // Antes esto se tragaba el error en silencio — el botón dejaba de
+        // girar sin decir nada, se sentía como que "no hacía nada". Ahora
+        // sí se muestra la causa real (permiso denegado, tardó demasiado, etc.)
+        setLocating(false)
+        console.error('Error de geolocalización:', geoErr)
+        const messages = {
+          1: 'Permiso de ubicación denegado. Revisa los ajustes de tu navegador/celular.',
+          2: 'No se pudo determinar tu ubicación. Verifica tu señal GPS o conexión.',
+          3: 'Se agotó el tiempo esperando tu ubicación. Intenta de nuevo.',
+        }
+        setLocError(messages[geoErr.code] || 'No se pudo obtener tu ubicación.')
+      },
       { enableHighAccuracy: true, timeout: 10000 }
     )
   }
@@ -1865,6 +1887,9 @@ function ConfigTab({ shop, services, onServicesChange, onSaved }) {
           <i className={`ti ${locSaved ? 'ti-circle-check' : 'ti-current-location'}`} style={{ fontSize:16 }} />
           {locating ? 'Obteniendo ubicación...' : locSaved ? '✓ Ubicación actualizada' : 'Actualizar ubicación'}
         </button>
+        {locError && (
+          <p style={{ fontSize:12, color:'var(--red)', marginTop:8, textAlign:'center' }}>{locError}</p>
+        )}
       </div>
 
       {deleteError && (
