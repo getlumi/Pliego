@@ -73,14 +73,24 @@ export default function AuthPage({ onAuth }) {
         const { data: otpData, error: otpError } = await supabase.functions.invoke('send-otp', {
           body: { action: 'send', phone: cleanPhone, country_code: countryCode }
         })
-        // Antes esto mostraba SIEMPRE "Verifica tu número", sin importar
-        // la causa real (API key faltante, SMS Masivos rechazando el
-        // envío, etc.) — imposible de diagnosticar desde la app. Ahora
-        // se muestra el mensaje real que devuelve la función/proveedor,
-        // con un texto genérico solo como último respaldo.
+        // Cuando la función responde con un código de error HTTP (4xx/5xx),
+        // supabase-js NO mete el mensaje real en otpError.message — solo
+        // pone un texto genérico de la librería ("Edge Function returned a
+        // non-2xx status code"). El mensaje real que sí devuelve nuestra
+        // función (ej. "SMS Masivos no configurado") vive en
+        // otpError.context, que es la Response cruda — hay que leerla
+        // aparte con .json(). Por eso el intento anterior de mostrar el
+        // error real no alcanzaba a mostrar nada útil en este caso.
         if (otpError || otpData?.error) {
-          console.error('send-otp falló:', otpError, otpData)
-          throw new Error(otpData?.error || otpError?.message || 'No pudimos enviar el código. Intenta de nuevo.')
+          let realMessage = otpData?.error
+          if (!realMessage && otpError?.context) {
+            try {
+              const body = await otpError.context.json()
+              realMessage = body?.error
+            } catch { /* la respuesta no traía JSON legible, seguimos con el fallback */ }
+          }
+          console.error('send-otp falló:', realMessage || otpError?.message, { otpError, otpData })
+          throw new Error(realMessage || 'No pudimos enviar el código. Intenta de nuevo.')
         }
 
         // 2) Mostrar campo OTP
