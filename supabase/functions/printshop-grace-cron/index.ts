@@ -77,7 +77,7 @@ Deno.serve(async (_req) => {
     if (err1d) results.errors.push(`1d query: ${err1d.message}`)
 
     for (const shop of due1d ?? []) {
-      const message = `Pliego: MAÑANA termina tu periodo de gracia. ` +
+      const message = `Pliego: MANANA termina tu periodo de gracia. ` +
         `Suscribete por $75/mes en la app para seguir recibiendo pedidos sin interrupcion.`
       const result = await sendSms(SMS_API_KEY, shop.phone, shop.country_code, message)
       if (result.ok) {
