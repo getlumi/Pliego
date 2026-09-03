@@ -317,12 +317,39 @@ export default function PrintshopPage({ session }) {
 // ============================================================
 // REGISTRO
 // ============================================================
+// Un registro de negocio en curso (paso 1: nombre/whatsapp/ubicación) se
+// guarda aquí para sobrevivir a que iOS recargue la página cuando el
+// celular pide permiso de ubicación/cámara a la mitad del formulario —
+// mismo patrón que ya se usa en AuthPage y WalletPage. El paso 2 (KYC)
+// no necesita esto: ya se recupera solo consultando existingShopId en la
+// base de datos (los archivos de foto no se pueden guardar en
+// sessionStorage de todas formas, así que ahí solo se pierde la selección
+// de archivos, no el progreso del registro en sí).
+const PENDING_SHOP_KEY = 'pliego:pending_shop_step1'
+
+function readPendingShop() {
+  try {
+    const raw = sessionStorage.getItem(PENDING_SHOP_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function savePendingShop(data) {
+  try { sessionStorage.setItem(PENDING_SHOP_KEY, JSON.stringify(data)) } catch {}
+}
+
+function clearPendingShop() {
+  try { sessionStorage.removeItem(PENDING_SHOP_KEY) } catch {}
+}
+
 export function RegisterShop({ session, onRegistered, onCancel, existingShopId }) {
+  const pendingShop = existingShopId ? null : readPendingShop()
+
   const [step, setStep]         = useState(existingShopId ? 2 : 1)
   const [shopId, setShopId]     = useState(existingShopId ?? null)
-  const [name, setName]         = useState('')
-  const [whatsapp, setWhatsapp] = useState('')
-  const [coords, setCoords]     = useState(null)
+  const [name, setName]         = useState(pendingShop?.name ?? '')
+  const [whatsapp, setWhatsapp] = useState(pendingShop?.whatsapp ?? '')
+  const [coords, setCoords]     = useState(pendingShop?.coords ?? null)
   const [locating, setLocating] = useState(false)
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
@@ -332,6 +359,15 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
   const [selfieFile, setSelfieFile]     = useState(null)
   const [addressFile, setAddressFile]   = useState(null)
   const [uploading, setUploading]       = useState(false)
+
+  // Mantiene sessionStorage sincronizado mientras el paso 1 sigue sin
+  // enviarse (aún no hay shopId) — así una recarga de iOS no borra lo que
+  // ya se había escrito antes del permiso de ubicación.
+  useEffect(() => {
+    if (step === 1 && !shopId && (name || whatsapp || coords)) {
+      savePendingShop({ name, whatsapp, coords })
+    }
+  }, [step, shopId, name, whatsapp, coords])
 
   const getLocation = () => {
     setError('')
@@ -371,7 +407,11 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
       return
     }
 
-    await supabase.from('printshop_services').insert(
+    // Si esto falla (ej. se corta el internet justo aquí), la papelería
+    // ya quedó creada pero sin ningún tipo de impresión configurado —
+    // antes esto se ignoraba en silencio. Ahora se avisa para que sepan
+    // que deben revisar/guardar sus precios en Configuración.
+    const { error: servicesError } = await supabase.from('printshop_services').insert(
       SERVICE_OPTIONS.map(s => ({
         printshop_id: shop.id,
         service_type: s.type,
@@ -379,10 +419,17 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
         enabled: s.type === 'bn_bond',
       }))
     )
+    if (servicesError) {
+      console.error('Error al crear tipos de impresión por default:', servicesError)
+    }
 
     setShopId(shop.id)
     setSaving(false)
+    clearPendingShop() // paso 1 completado con éxito — ya no hace falta el respaldo
     setStep(2)
+    if (servicesError) {
+      setError('Tu negocio se registró, pero no se pudieron guardar tus precios iniciales. Revísalos en Configuración antes de recibir pedidos.')
+    }
   }
 
   const uploadDoc = async (file, type) => {
@@ -409,12 +456,17 @@ export function RegisterShop({ session, onRegistered, onCancel, existingShopId }
         uploadDoc(addressFile, 'domicilio'),
       ])
 
-      await supabase.from('printshops').update({
+      const { error: updateError } = await supabase.from('printshops').update({
         ine_url:          ineUrl,
         selfie_url:       selfieUrl,
         address_proof_url: addressUrl,
         submitted_at:     new Date().toISOString(),
       }).eq('id', shopId)
+
+      // Antes esto no se revisaba — si fallaba (ej. se corta el internet
+      // justo aquí, después de subir los archivos), la app avanzaba igual
+      // como si la verificación ya hubiera quedado registrada.
+      if (updateError) throw updateError
 
       onRegistered()
     } catch (e) {

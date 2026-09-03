@@ -11,6 +11,7 @@
     "@supabase/supabase-js": "^2.45.0",
     "framer-motion": "^11.3.0",
     "html5-qrcode": "^2.3.8",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.383.0",
     "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
