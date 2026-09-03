@@ -73,7 +73,15 @@ export default function AuthPage({ onAuth }) {
         const { data: otpData, error: otpError } = await supabase.functions.invoke('send-otp', {
           body: { action: 'send', phone: cleanPhone, country_code: countryCode }
         })
-        if (otpError || otpData?.error) throw new Error('No pudimos enviar el código. Verifica tu número.')
+        // Antes esto mostraba SIEMPRE "Verifica tu número", sin importar
+        // la causa real (API key faltante, SMS Masivos rechazando el
+        // envío, etc.) — imposible de diagnosticar desde la app. Ahora
+        // se muestra el mensaje real que devuelve la función/proveedor,
+        // con un texto genérico solo como último respaldo.
+        if (otpError || otpData?.error) {
+          console.error('send-otp falló:', otpError, otpData)
+          throw new Error(otpData?.error || otpError?.message || 'No pudimos enviar el código. Intenta de nuevo.')
+        }
 
         // 2) Mostrar campo OTP
         setOtpStep(true)
