@@ -59,7 +59,6 @@ export default function HistoryPage({ session }) {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
           if (payload.eventType !== 'UPDATE') return
           if (payload.new.user_id !== session?.user?.id) return // filtro en JS
-          console.log('[Pliego][realtime] UPDATE orders recibido:', payload.new)
           setOrders(prev => prev.map(o => {
             if (o.id !== payload.new.id) return o
             // Si acaba de ser marcado como entregado, mostrar encuesta
@@ -70,8 +69,8 @@ export default function HistoryPage({ session }) {
           }))
         })
         .subscribe((status, err) => {
-          console.log('[Pliego][realtime] estado del canal orders:', status, err ?? '')
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn('[Pliego][realtime] canal orders perdido, reconectando:', status, err ?? '')
             setTimeout(setupChannel, 3000)
           }
         })
@@ -86,19 +85,6 @@ export default function HistoryPage({ session }) {
         .subscribe()
     }
     setupChannel()
-
-    // DIAGNÓSTICO TEMPORAL (otra vez) — canal aparte, mínimo posible,
-    // UN SOLO listener, SIN el segundo .on() de wallet_transactions
-    // encadenado. Si este SÍ recibe el evento y el canal "arreglado"
-    // de arriba no, el problema está en algo específico de cómo armé
-    // ese canal (los 2 .on() encadenados, o algo similar) — no es un
-    // problema general de la plataforma.
-    const debugChannel = supabase
-      .channel(`debug2:orders:${Date.now()}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
-        console.log('[Pliego][DEBUG2] evento orders recibido:', payload.eventType, payload.new ?? payload.old)
-      })
-      .subscribe((status) => console.log('[Pliego][DEBUG2] estado:', status))
 
     // Reconexión cuando la app vuelve al foreground — iOS mata los
     // WebSockets en segundo plano (por eso el QR se quedaba "trabado"
@@ -118,7 +104,6 @@ export default function HistoryPage({ session }) {
       document.removeEventListener('visibilitychange', handleVisibility)
       if (channel) supabase.removeChannel(channel)
       if (txChannel) supabase.removeChannel(txChannel)
-      supabase.removeChannel(debugChannel)
     }
     // Dependencia en session?.user?.id (texto estable), NO en el objeto
     // `session` completo — Supabase crea un objeto de sesión NUEVO cada

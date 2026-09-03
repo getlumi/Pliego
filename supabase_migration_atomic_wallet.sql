@@ -1,6 +1,18 @@
 -- Pliego · Migración: función atómica para acreditar saldo
 -- Evita que el webhook acredite el mismo pago dos veces
 -- Pegar en Supabase → SQL Editor → Run
+--
+-- ⚠️ SUPERADO — NO VOLVER A CORRER ESTE ARCHIVO ⚠️
+-- Esta versión (5 parámetros) tenía un bug real: insertaba p_method sin
+-- convertirlo al tipo payment_method, causando el error real de Stripe
+-- webhook documentado en BUGS_ENCONTRADOS_20_08_2026.md (sección 3).
+-- supabase_migration_credits.sql (20 agosto 2026) ya BORRÓ esta versión
+-- de 5 parámetros y la reemplazó por una de 6 parámetros con el cast
+-- correcto (p_method::payment_method). Si este archivo se vuelve a
+-- correr, recrea la versión vieja y rota al lado de la buena — Postgres
+-- permite funciones sobrecargadas por firma distinta, así que ambas
+-- podrían coexistir y una llamada con 5 argumentos volvería a caer en
+-- el bug. Se deja aquí solo como referencia histórica.
 
 create or replace function credit_wallet(
   p_user_id     uuid,
