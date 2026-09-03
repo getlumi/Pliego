@@ -38,8 +38,9 @@ const TUTORIAL_USER = [
   {
     icon:  'ti-bell',
     title: '5. Espera el aviso',
-    desc:  'Cuando tu impresión esté lista, te llega un SMS al número con el que te registraste. También puedes ver el estado en "Historial": Enviado → Imprimiendo → Listo para recoger.',
-    tip:   '💡 "Historial" también tiene una pestaña "Saldo" con todos tus movimientos de créditos y recargas.',
+    desc:  'Cuando tu impresión esté lista, te avisamos por WhatsApp desde nuestro número — si por algo no llega, lo mandamos por SMS como respaldo automático. También puedes ver el estado en "Historial": Enviado → Imprimiendo → Listo para recoger.',
+    tip:   '📱 Guarda nuestro número en tus contactos apenas te llegue el primer mensaje, así no te lo pierdes la próxima vez.',
+    tipColor: '#25D366',
   },
   {
     icon:  'ti-shield-check',
@@ -73,8 +74,9 @@ const TUTORIAL_PRINTSHOP = [
     icon:    'ti-bell',
     color:   '#1A1A1A',
     title:   '1. Así llegan los pedidos',
-    desc:    'Cuando un cliente envía un documento, aparece instantáneamente en tu pantalla de "Pedidos" con un aviso sonoro. También te llega un SMS por si no tienes la app abierta en ese momento.',
-    tip:     '💡 No necesitas recargar la página — los pedidos llegan solos en tiempo real.',
+    desc:    'Cuando un cliente envía un documento, aparece instantáneamente en tu pantalla de "Pedidos" con un aviso sonoro. También te avisamos por WhatsApp desde nuestro número por si no tienes la app abierta — con SMS como respaldo automático si no llega.',
+    tip:     '📱 Agrega nuestro número a tus contactos para no perderte ningún aviso de pedido nuevo.',
+    tipColor: '#25D366',
   },
   {
     icon:    'ti-download',
@@ -95,7 +97,8 @@ const TUTORIAL_PRINTSHOP = [
     color:   '#1A1A1A',
     title:   '4. Los 3 botones del pedido',
     desc:    'Cada pedido tiene 3 botones: "Imprimir" confirma que empezaste, "Listo" avisa al cliente que puede pasar a recoger (y arranca las 24 horas de la garantía), y "Entregar" cierra el pedido al hacer la entrega.',
-    tip:     '💡 Cuando tocas "Listo", el cliente recibe un SMS automático.',
+    tip:     '📱 Cuando tocas "Listo", el cliente recibe el aviso por WhatsApp (con SMS de respaldo si no llega).',
+    tipColor: '#25D366',
   },
   {
     icon:    'ti-cash',
@@ -186,13 +189,16 @@ export default function TutorialPage({ type = 'user', onClose }) {
         {current.desc}
       </p>
 
-      {/* Tip */}
+      {/* Tip — si el paso trae tipColor (ej. verde WhatsApp), resalta distinto
+          de los demás para que un aviso importante no se pierda entre los otros */}
       {current.tip && (
         <div style={{
-          background: 'rgba(255,255,255,0.1)', borderRadius: 12,
+          background: current.tipColor ? `${current.tipColor}22` : 'rgba(255,255,255,0.1)',
+          border: current.tipColor ? `1.5px solid ${current.tipColor}` : 'none',
+          borderRadius: 12,
           padding: '10px 16px', marginBottom: 24, maxWidth: 300,
         }}>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', lineHeight: 1.5 }}>{current.tip}</p>
+          <p style={{ fontSize: 13, color: current.tipColor || 'rgba(255,255,255,0.8)', lineHeight: 1.5, fontWeight: current.tipColor ? 700 : 400 }}>{current.tip}</p>
         </div>
       )}
 

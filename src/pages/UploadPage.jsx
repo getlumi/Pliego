@@ -695,6 +695,20 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
               </p>
             </div>
 
+            {/* Aviso de notificación — verde WhatsApp para que resalte y el
+                usuario sepa de antemano que el mensaje va a venir de un
+                número nuevo, reduciendo la probabilidad de que lo reporte
+                como spam sin reconocerlo */}
+            <div className="card" style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: '#25D36618', border: '1.5px solid #25D366',
+            }}>
+              <i className="ti ti-brand-whatsapp" style={{ fontSize: 22, color: '#25D366', flexShrink: 0 }} />
+              <p style={{ fontSize: 12.5, lineHeight: 1.4, fontWeight: 600, color: '#1A1A1A' }}>
+                Te avisaremos por WhatsApp cuando tu pedido esté listo — guarda el número para no perdértelo.
+              </p>
+            </div>
+
             <button onClick={continuar} className="btn-primary">
               Listo, continuar
               <i className="ti ti-arrow-right" style={{ fontSize: 16 }} />

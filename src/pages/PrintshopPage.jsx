@@ -710,6 +710,20 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
         <ToggleSwitch checked={shop.is_available} onChange={toggleAvailable} disabled={toggling} />
       </div>
 
+      {/* Aviso de notificación — verde WhatsApp, mismo criterio que en la
+          app de usuario: reduce la probabilidad de reporte por spam si
+          la papelería ya sabe de antemano que va a llegar de un número
+          que no reconoce todavía */}
+      <div className="card" style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        background: '#25D36618', border: '1.5px solid #25D366',
+      }}>
+        <i className="ti ti-brand-whatsapp" style={{ fontSize: 22, color: '#25D366', flexShrink: 0 }} />
+        <p style={{ fontSize: 12.5, lineHeight: 1.4, fontWeight: 600, color: '#1A1A1A' }}>
+          Recibirás un WhatsApp cada vez que llegue un pedido nuevo — agrega el número a tus contactos.
+        </p>
+      </div>
+
       <button onClick={() => setShowScanner(true)} className="btn-primary">
         <i className="ti ti-qrcode" style={{ fontSize:18 }} />
         Escanear código de cliente
