@@ -11,13 +11,12 @@
 // restricciones del proveedor antes de agregar cualquier tipo de mensaje
 // nuevo a esta función.
 //
-// ⚠️ Punto a verificar en el primer envío real: el parámetro exacto para
-// pedirle a SMS Masivos que use el canal WhatsApp en /sms/send no está
-// confirmado con documentación 100% oficial (se infiere del mismo patrón
-// que ya usa su endpoint de OTP, channel: 'whatsapp'). Revisar los Logs de
-// esta función en Supabase después del primer pedido real — si el campo
-// "method" del log dice "whatsapp", funcionó; si dice "sms (respaldo)",
-// hay que ajustar el parámetro con soporte de SMS Masivos.
+// ✅ Confirmado con un envío real (03/09/2026): el parámetro channel:
+// 'whatsapp' SÍ es correcto — la causa real de que cayera a SMS la
+// primera vez fue que el mensaje excedía el límite de 160 caracteres que
+// este proveedor aplica a cualquier canal, no un parámetro equivocado.
+// Ver capMessageLength() más abajo — ahora es imposible que esto se
+// repita, sin importar qué tan largos sean los nombres/direcciones.
 //
 // Secrets: SMSMASIVOS_API_KEY
 
@@ -36,33 +35,34 @@ const json = (body: unknown, status = 200) =>
 
 const SMS_MASIVOS_BASE = 'https://api.smsmasivos.com.mx'
 
+// SMS Masivos aplica un límite de 160 caracteres a CUALQUIER mensaje que
+// pase por /sms/send — confirmado con un envío real que falló con
+// "Mensaje es muy largo, máximo 160 caracteres" incluso pidiendo el canal
+// WhatsApp (WhatsApp en sí no tiene ese límite, pero el endpoint de este
+// proveedor lo aplica igual sin importar el canal). Esta función recorta
+// como último respaldo — las plantillas de abajo ya están pensadas para
+// caber cómodas incluso con nombres/direcciones largos, esto es solo una
+// red de seguridad para que nunca vuelva a fallar un envío por longitud.
+function capMessageLength(msg: string, max = 160): string {
+  return msg.length <= max ? msg : msg.slice(0, max - 1) + '…'
+}
+
 // ── Mensaje para WhatsApp — texto libre real (no requiere aprobación de
 // plantilla, a diferencia de Meta), adaptado de las plantillas que ya se
 // habían redactado y enviado a revisión de Meta (pliego_nuevo_pedido /
-// pliego_pedido_listo) — mismo contenido, mismo tono, con el formato de
-// negritas propio de WhatsApp (asteriscos), que aquí sí es seguro usar
-// porque WhatsApp no tiene la restricción GSM-7 de los SMS.
+// pliego_pedido_listo) — mismo contenido, mismo tono, más compacto para
+// caber en el límite de 160 caracteres del proveedor.
 function buildWhatsappMessage(tipo: string, data: Record<string, string>): string {
   switch (tipo) {
     case 'nuevo_pedido': {
-      const warning = data.garantia === 'no'
-        ? '\n\n⚠️ *NO cubierto por garantía* — no imprimas hasta que el cliente esté en tu local.'
-        : ''
-      const nota = data.instrucciones ? `\n📝 Nota del cliente: _${data.instrucciones}_` : ''
-      return `🖨️ *Nuevo pedido en Pliego*\n\n` +
-        `👤 Cliente: *${data.cliente ?? 'Cliente'}*\n` +
-        `📄 Archivo: *${data.archivo ?? 'documento.pdf'}* (${data.paginas ?? '?'} páginas)\n` +
-        `🖨️ Tipo: *${data.tipo_impresion ?? 'B/N Bond'}*\n` +
-        `📋 Copias: *${data.copias ?? '1'}*` +
-        `${nota}${warning}\n\n` +
-        `Entra a pliego.live para descargarlo y marcarlo como listo.`
+      const warning = data.garantia === 'no' ? ' ⚠️NO cubierto por garantía.' : ''
+      return `🖨️ Nuevo pedido de *${data.cliente ?? 'Cliente'}*: ` +
+        `${data.archivo ?? 'documento.pdf'} (${data.paginas ?? '?'}p, ${data.tipo_impresion ?? 'B/N Bond'}, ${data.copias ?? '1'}x).` +
+        `${warning} Entra a pliego.live`
     }
     case 'pedido_listo':
-      return `✅ *Tu impresión está lista*\n\n` +
-        `Tu pedido en *${data.papeleria ?? 'la papelería'}* ya está listo para recoger.\n\n` +
-        `📍 ${data.direccion ?? 'Ver ubicación en la app'}\n` +
-        `⏰ Tienes 24 horas para recogerlo.\n\n` +
-        `_Pliego — Imprime cerca de ti_`
+      return `✅ Tu pedido en *${data.papeleria ?? 'la papelería'}* ya está listo. ` +
+        `${data.direccion ?? 'Ver mapa en la app'} · Tienes 24h para recogerlo.`
     default:
       return data.mensaje ?? 'Mensaje de Pliego'
   }
@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
     if (digits.length === 12 && digits.startsWith('52')) digits = digits.slice(2)
     if (digits.length === 11 && digits.startsWith('1'))  digits = digits.slice(1)
 
-    const waMessage = buildWhatsappMessage(tipo, data)
+    const waMessage = capMessageLength(buildWhatsappMessage(tipo, data))
     const wa = await sendVia(SMS_API_KEY, 'whatsapp', digits, ladaCode, waMessage, tipo)
 
     if (wa.ok) {
@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
 
     console.warn(`⚠️ WhatsApp falló (HTTP ${wa.status}) para ${digits} (${tipo}), cayendo a SMS:`, wa.result)
 
-    const smsMessage = buildSmsMessage(tipo, data)
+    const smsMessage = capMessageLength(buildSmsMessage(tipo, data))
     const sms = await sendVia(SMS_API_KEY, 'sms', digits, ladaCode, smsMessage, tipo)
 
     if (!sms.ok) {
