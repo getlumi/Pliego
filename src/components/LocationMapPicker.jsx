@@ -23,7 +23,15 @@ export default function LocationMapPicker({ coords, onChange, height = 260 }) {
   const markerRef = useRef(null)
 
   useEffect(() => {
-    if (!coords || !containerRef.current) return
+    if (!coords) {
+      // Si la ubicación llegara a vaciarse mientras el mapa ya existe,
+      // se destruye por completo aquí — así, si más adelante vuelve a
+      // haber una ubicación, Leaflet puede crear el mapa de cero sin
+      // toparse con uno "fantasma" en el mismo contenedor.
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; markerRef.current = null }
+      return
+    }
+    if (!containerRef.current) return
 
     if (!mapRef.current) {
       const map = L.map(containerRef.current, { zoomControl: true }).setView([coords.lat, coords.lng], 18)
