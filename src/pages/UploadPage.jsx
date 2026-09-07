@@ -127,11 +127,22 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   const activeFile = files[activeIndex]
   const activeIsImage = activeFile?.file?.type?.startsWith('image/')
 
+  // Tamaño de imagen × material de la hoja — dos ejes independientes.
+  // Si la papelería no ofrece la combinación exacta (ej. Opalina 1/4 de
+  // hoja), se cae de vuelta a la versión en Bond de ese mismo tamaño,
+  // para nunca dejar seleccionado un servicio que no corresponde.
   const FRAME_TO_SERVICE_TYPE = {
-    cuarto:   'color_imagen_cuarto',
-    medio:    'color_imagen_medio',
-    completa: 'color_imagen_completa',
+    bond:    { cuarto: 'color_imagen_cuarto',   medio: 'color_imagen_medio',   completa: 'color_imagen_completa' },
+    opalina: { cuarto: 'opalina_imagen_cuarto', medio: 'opalina_imagen_medio', completa: 'opalina_imagen_completa' },
   }
+  const ALL_IMAGE_SERVICE_TYPES = [...Object.values(FRAME_TO_SERVICE_TYPE.bond), ...Object.values(FRAME_TO_SERVICE_TYPE.opalina)]
+  const materialOf = (service) =>
+    service && Object.values(FRAME_TO_SERVICE_TYPE.opalina).includes(service.service_type) ? 'opalina' : 'bond'
+
+  // ¿La papelería ofrece Opalina en AL MENOS un tamaño? Si no, el botón
+  // de material ni siquiera se muestra — "solo tendrán la opción de
+  // opalina si el negocio la habilita".
+  const anyOpalinaImageOffered = enabledServices.some(s => Object.values(FRAME_TO_SERVICE_TYPE.opalina).includes(s.service_type))
 
   // Cubre el caso donde la persona NUNCA toca los botones de tamaño
   // (queda en "Completa" por default) — sin esto, podría quedar
@@ -140,11 +151,11 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   useEffect(() => {
     if (!activeIsImage || !anyImageFrameOffered) return
     const currentIsImageService = enabledServices.some(
-      s => s.id === serviceId && Object.values(FRAME_TO_SERVICE_TYPE).includes(s.service_type)
+      s => s.id === serviceId && ALL_IMAGE_SERVICE_TYPES.includes(s.service_type)
     )
     if (currentIsImageService) return // ya está en un servicio de imagen, no se pisa una elección real
     const frame = activeFile.imageFrame ?? 'completa'
-    const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[frame])
+    const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE.bond[frame])
     if (matchingService) onUpdateDraft({ serviceId: matchingService.id })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeIndex, activeIsImage, anyImageFrameOffered])
@@ -165,12 +176,25 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   const setImageFrame = (frame) => {
     const copy = files.map((f, i) => i === activeIndex ? { ...f, imageFrame: frame } : f)
     const updates = { files: copy }
-    // Si la papelería ofrece el servicio de imagen que corresponde a
-    // este tamaño, se selecciona solo — para que nadie mande "Imagen
-    // 1/4 de hoja" con el precio de "B/N Bond" seleccionado sin querer.
-    const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[frame])
+    // Si ya estaba en Opalina, cambiar de tamaño debe MANTENER Opalina
+    // (solo cambia el tamaño) — antes esto se reseteaba siempre a color
+    // normal, perdiendo la elección de material del usuario.
+    const currentService = enabledServices.find(s => s.id === serviceId)
+    const material = materialOf(currentService)
+    const matchingService =
+      enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[material][frame]) ??
+      enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE.bond[frame]) // esa combinación no existe en Opalina — cae a Bond de ese tamaño
     if (matchingService) updates.serviceId = matchingService.id
     onUpdateDraft(updates)
+  }
+
+  // Botón "Opalina" junto al tamaño — solo tiene sentido si la papelería
+  // ofrece opalina para el tamaño ACTUAL específicamente (puede que solo
+  // la habilite para algunos tamaños, no todos).
+  const setMaterial = (material) => {
+    const frame = activeFile.imageFrame ?? 'completa'
+    const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[material][frame])
+    if (matchingService) onUpdateDraft({ serviceId: matchingService.id })
   }
 
   const setImageAlign = (align) => {
@@ -584,6 +608,34 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                     ))}
                   </div>
 
+                  {anyOpalinaImageOffered && (() => {
+                    const frame = activeFile.imageFrame ?? 'completa'
+                    const material = materialOf(enabledServices.find(s => s.id === serviceId))
+                    const opalinaAvailable = enabledServices.some(s => s.service_type === FRAME_TO_SERVICE_TYPE.opalina[frame])
+                    return (
+                      <>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', margin: '12px 0 8px' }}>
+                          HOJA
+                        </p>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <ToggleButton active={material === 'bond'} onClick={() => setMaterial('bond')} icon="ti-file" label="Bond" />
+                          <ToggleButton
+                            active={material === 'opalina'}
+                            onClick={() => setMaterial('opalina')}
+                            icon="ti-sparkles"
+                            label="Opalina"
+                            disabled={!opalinaAvailable}
+                          />
+                        </div>
+                        {!opalinaAvailable && (
+                          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                            Esta papelería no ofrece Opalina en este tamaño.
+                          </p>
+                        )}
+                      </>
+                    )
+                  })()}
+
                   <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', margin: '12px 0 8px' }}>
                     ALINEACIÓN
                   </p>
@@ -760,17 +812,18 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   )
 }
 
-function ToggleButton({ active, onClick, icon, label }) {
+function ToggleButton({ active, onClick, icon, label, disabled }) {
   return (
-    <button onClick={onClick} style={{
+    <button onClick={disabled ? undefined : onClick} disabled={disabled} style={{
       flex: 1, fontSize: 13, padding: '8px 10px',
       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
       borderRadius: 'var(--radius-md)',
       border: active ? '1.5px solid var(--green)' : '1px solid var(--border)',
-      background: active ? 'var(--green-light)' : '#fff',
-      color: active ? 'var(--green)' : 'var(--text-secondary)',
+      background: active ? 'var(--green-light)' : disabled ? 'var(--bg)' : '#fff',
+      color: active ? 'var(--green)' : disabled ? 'var(--text-muted)' : 'var(--text-secondary)',
       fontWeight: active ? 700 : 500,
-      cursor: 'pointer', whiteSpace: 'nowrap',
+      cursor: disabled ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+      opacity: disabled ? 0.55 : 1,
     }}>
       {icon && <i className={`ti ${icon}`} style={{ fontSize: 15 }} />}
       {label}
