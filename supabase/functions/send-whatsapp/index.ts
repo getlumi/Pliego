@@ -4,21 +4,23 @@
 // Masivos), con SMS como respaldo automático si el envío por WhatsApp
 // falla — nunca debe pasar que un pedido se quede sin avisar a nadie.
 //
-// IMPORTANTE — uso permitido según las políticas de SMS Masivos/WhatsApp:
-// SOLO mensajes transaccionales disparados por un evento real del cliente
-// (pedido nuevo, pedido listo) — nunca promociones, nunca envíos masivos,
-// nunca a alguien que no inició una relación con Pliego. Ver documento de
-// restricciones del proveedor antes de agregar cualquier tipo de mensaje
-// nuevo a esta función.
+// IMPORTANTE — uso permitido según la documentación oficial de SMS
+// Masivos (app.smsmasivos.com.mx/api-docs/whatsapp): este canal es SOLO
+// para mensajes transaccionales uno a uno derivados de una acción real
+// del usuario (exactamente nuevo_pedido y pedido_listo). La regla
+// práctica del proveedor: "si disparas dos mensajes simultáneos, ya es
+// masivo" — nunca agregar aquí promociones, recordatorios en lote, ni
+// nada que no derive de un evento individual de un pedido real.
 //
-// ✅ Confirmado con un envío real (03/09/2026): el parámetro channel:
-// 'whatsapp' SÍ es correcto — la causa real de que cayera a SMS la
-// primera vez fue que el mensaje excedía el límite de 160 caracteres que
-// este proveedor aplica a cualquier canal, no un parámetro equivocado.
-// Ver capMessageLength() más abajo — ahora es imposible que esto se
-// repita, sin importar qué tan largos sean los nombres/direcciones.
+// ✅ CORREGIDO 07/09/2026: el endpoint real es POST /whatsapp/send (no
+// /sms/send con un flag de canal, como se había asumido antes) — requiere
+// un instance_id de la línea conectada, dato que nunca se estaba
+// mandando y por eso siempre fallaba con "Canal de envío no permitido".
+// Límite real de WhatsApp: 1000 caracteres (no 160 — eso era el límite
+// de /sms/send, que ya no aplica aquí).
+// Docs: https://app.smsmasivos.com.mx/api-docs/whatsapp
 //
-// Secrets: SMSMASIVOS_API_KEY
+// Secrets: SMSMASIVOS_API_KEY, SMSMASIVOS_WA_INSTANCE_ID
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -35,41 +37,44 @@ const json = (body: unknown, status = 200) =>
 
 const SMS_MASIVOS_BASE = 'https://api.smsmasivos.com.mx'
 
-// SMS Masivos aplica un límite de 160 caracteres a CUALQUIER mensaje que
-// pase por /sms/send — confirmado con un envío real que falló con
-// "Mensaje es muy largo, máximo 160 caracteres" incluso pidiendo el canal
-// WhatsApp (WhatsApp en sí no tiene ese límite, pero el endpoint de este
-// proveedor lo aplica igual sin importar el canal). Esta función recorta
-// como último respaldo — las plantillas de abajo ya están pensadas para
-// caber cómodas incluso con nombres/direcciones largos, esto es solo una
-// red de seguridad para que nunca vuelva a fallar un envío por longitud.
+// Límite real de SMS clásico (GSM-7) — solo aplica al mensaje de
+// respaldo, WhatsApp acepta hasta 1000 caracteres.
 function capMessageLength(msg: string, max = 160): string {
   return msg.length <= max ? msg : msg.slice(0, max - 1) + '…'
 }
 
-// ── Mensaje para WhatsApp — texto libre real (no requiere aprobación de
-// plantilla, a diferencia de Meta), adaptado de las plantillas que ya se
-// habían redactado y enviado a revisión de Meta (pliego_nuevo_pedido /
-// pliego_pedido_listo) — mismo contenido, mismo tono, más compacto para
-// caber en el límite de 160 caracteres del proveedor.
+// ── Mensaje para WhatsApp — texto libre real, hasta 1000 caracteres.
+// Adaptado de las plantillas que ya se habían redactado para Meta
+// (pliego_nuevo_pedido / pliego_pedido_listo), con el formato de
+// negritas propio de WhatsApp (asteriscos).
 function buildWhatsappMessage(tipo: string, data: Record<string, string>): string {
   switch (tipo) {
     case 'nuevo_pedido': {
-      const warning = data.garantia === 'no' ? ' ⚠️NO cubierto por garantía.' : ''
-      return `🖨️ Nuevo pedido de *${data.cliente ?? 'Cliente'}*: ` +
-        `${data.archivo ?? 'documento.pdf'} (${data.paginas ?? '?'}p, ${data.tipo_impresion ?? 'B/N Bond'}, ${data.copias ?? '1'}x).` +
-        `${warning} Entra a pliego.live`
+      const warning = data.garantia === 'no'
+        ? '\n\n⚠️ *NO cubierto por garantía* — no imprimas hasta que el cliente esté en tu local.'
+        : ''
+      const nota = data.instrucciones ? `\n📝 Nota del cliente: _${data.instrucciones}_` : ''
+      return `🖨️ *Nuevo pedido en Pliego*\n\n` +
+        `👤 Cliente: *${data.cliente ?? 'Cliente'}*\n` +
+        `📄 Archivo: *${data.archivo ?? 'documento.pdf'}* (${data.paginas ?? '?'} páginas)\n` +
+        `🖨️ Tipo: *${data.tipo_impresion ?? 'B/N Bond'}*\n` +
+        `📋 Copias: *${data.copias ?? '1'}*` +
+        `${nota}${warning}\n\n` +
+        `Entra a pliego.live para descargarlo y marcarlo como listo.`
     }
     case 'pedido_listo':
-      return `✅ Tu pedido en *${data.papeleria ?? 'la papelería'}* ya está listo. ` +
-        `${data.direccion ?? 'Ver mapa en la app'} · Tienes 24h para recogerlo.`
+      return `✅ *Tu impresión está lista*\n\n` +
+        `Tu pedido en *${data.papeleria ?? 'la papelería'}* ya está listo para recoger.\n\n` +
+        `📍 ${data.direccion ?? 'Ver ubicación en la app'}\n` +
+        `⏰ Tienes 24 horas para recogerlo.\n\n` +
+        `_Pliego — Imprime cerca de ti_`
     default:
       return data.mensaje ?? 'Mensaje de Pliego'
   }
 }
 
-// ── Mensaje para SMS (respaldo) — SIN acentos ni Ñ, GSM-7 seguro. Mismo
-// texto que ya funcionaba antes de agregar WhatsApp, sin tocarlo.
+// ── Mensaje para SMS (respaldo) — SIN acentos ni Ñ, GSM-7 seguro, tope
+// real de 160 caracteres.
 function buildSmsMessage(tipo: string, data: Record<string, string>): string {
   switch (tipo) {
     case 'nuevo_pedido': {
@@ -90,19 +95,32 @@ function buildSmsMessage(tipo: string, data: Record<string, string>): string {
   }
 }
 
-async function sendVia(apiKey: string, channel: 'whatsapp' | 'sms', digits: string, ladaCode: string, message: string, tipo: string) {
-  const body: Record<string, unknown> = {
-    message,
-    numbers: digits,
-    country_code: Number(ladaCode.replace(/\D/g, '') || '52'),
-    name: `pliego_${tipo}`,
-  }
-  if (channel === 'whatsapp') body.channel = 'whatsapp'
+async function sendWhatsapp(apiKey: string, instanceId: string, digits: string, message: string) {
+  const r = await fetch(`${SMS_MASIVOS_BASE}/whatsapp/send`, {
+    method: 'POST',
+    headers: { 'apikey': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      instance_id: instanceId,
+      number: digits,
+      message,
+      type: 'text',
+    }),
+  })
+  const result = await r.json().catch(() => ({}))
+  const ok = r.ok && result.success !== false
+  return { ok, status: r.status, result }
+}
 
+async function sendSms(apiKey: string, digits: string, ladaCode: string, message: string, tipo: string) {
   const r = await fetch(`${SMS_MASIVOS_BASE}/sms/send`, {
     method: 'POST',
     headers: { 'apikey': apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      message,
+      numbers: digits,
+      country_code: Number(ladaCode.replace(/\D/g, '') || '52'),
+      name: `pliego_${tipo}`,
+    }),
   })
   const result = await r.json().catch(() => ({}))
   const ok = r.ok && result.success !== false
@@ -114,6 +132,7 @@ Deno.serve(async (req) => {
 
   try {
     const SMS_API_KEY = Deno.env.get('SMSMASIVOS_API_KEY')
+    const WA_INSTANCE_ID = Deno.env.get('SMSMASIVOS_WA_INSTANCE_ID')
 
     if (!SMS_API_KEY) {
       console.error('Falta secret SMSMASIVOS_API_KEY')
@@ -151,18 +170,25 @@ Deno.serve(async (req) => {
     if (digits.length === 12 && digits.startsWith('52')) digits = digits.slice(2)
     if (digits.length === 11 && digits.startsWith('1'))  digits = digits.slice(1)
 
-    const waMessage = capMessageLength(buildWhatsappMessage(tipo, data))
-    const wa = await sendVia(SMS_API_KEY, 'whatsapp', digits, ladaCode, waMessage, tipo)
+    // 1) Intentar WhatsApp — solo si hay instance_id configurado. Sin
+    // esto, ni vale la pena intentarlo (fallaría siempre con
+    // whatsapp_04/08 por instancia inexistente).
+    if (WA_INSTANCE_ID) {
+      const waMessage = buildWhatsappMessage(tipo, data)
+      const wa = await sendWhatsapp(SMS_API_KEY, WA_INSTANCE_ID, digits, waMessage)
 
-    if (wa.ok) {
-      console.log(`✅ [WhatsApp] enviado a ${digits} (${tipo}) — ${wa.result.request_id ?? ''}`)
-      return json({ ok: true, method: 'whatsapp', to: digits })
+      if (wa.ok) {
+        console.log(`✅ [WhatsApp] enviado a ${digits} (${tipo}) — ${wa.result.request_id ?? wa.result.code ?? ''}`)
+        return json({ ok: true, method: 'whatsapp', to: digits })
+      }
+      console.warn(`⚠️ WhatsApp falló (HTTP ${wa.status}) para ${digits} (${tipo}), cayendo a SMS:`, wa.result)
+    } else {
+      console.warn('SMSMASIVOS_WA_INSTANCE_ID no configurado — enviando directo por SMS')
     }
 
-    console.warn(`⚠️ WhatsApp falló (HTTP ${wa.status}) para ${digits} (${tipo}), cayendo a SMS:`, wa.result)
-
+    // 2) Respaldo automático por SMS.
     const smsMessage = capMessageLength(buildSmsMessage(tipo, data))
-    const sms = await sendVia(SMS_API_KEY, 'sms', digits, ladaCode, smsMessage, tipo)
+    const sms = await sendSms(SMS_API_KEY, digits, ladaCode, smsMessage, tipo)
 
     if (!sms.ok) {
       console.error(`❌ SMS de respaldo también falló para ${digits} (${tipo}):`, sms.result)
