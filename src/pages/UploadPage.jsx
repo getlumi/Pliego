@@ -37,6 +37,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   const { files, orientation, fit, copies, instructions, activeIndex, shopId, serviceId, containsId } = draft
   const [shop, setShop] = useState(null)
   const [loadingShop, setLoadingShop] = useState(true)
+  const [serviceListOpen, setServiceListOpen] = useState(false) // colapsado por default — la lista es larga
   const [justSent, setJustSent] = useState(false)
   const [showIneCapture, setShowIneCapture] = useState(false)
   const [showDocScanner, setShowDocScanner] = useState(false)
@@ -333,28 +334,52 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
               )}
             </div>
 
-            {/* Tipo de impresión (de la papelería elegida) */}
+            {/* Tipo de impresión (de la papelería elegida) — colapsado por
+                default; la lista puede tener muchas opciones y no hace
+                falta verlas todas si ya hay una elegida. El encabezado
+                siempre muestra la selección actual, aunque esté cerrado. */}
             {shopId && (
               <div className="card">
-                <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)', marginBottom:8 }}>TIPO DE IMPRESIÓN</p>
-                {loadingShop ? (
-                  <p style={{ fontSize:13, color:'var(--text-muted)' }}>Cargando opciones...</p>
-                ) : enabledServices.length === 0 ? (
-                  <p style={{ fontSize:13, color:'var(--text-muted)' }}>Esta papelería no configuró tipos de impresión todavía.</p>
-                ) : (
-                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                    {enabledServices.map(s => (
-                      <button key={s.id} onClick={() => onUpdateDraft({ serviceId: s.id })} style={{
-                        display:'flex', alignItems:'center', gap:10,
-                        border: s.id === serviceId ? '1.5px solid var(--green)' : '1px solid var(--border)',
-                        background: s.id === serviceId ? 'var(--green-light)' : '#fff',
-                        borderRadius:'var(--radius-md)', padding:'10px 12px', cursor:'pointer', textAlign:'left',
-                      }}>
-                        <i className={`ti ${serviceIcon(s)}`} style={{ fontSize:18, color: s.id === serviceId ? 'var(--green)' : 'var(--text-secondary)' }} />
-                        <span style={{ flex:1, fontSize:14, fontWeight: s.id === serviceId ? 700 : 500 }}>{serviceLabel(s)}</span>
-                        <span style={{ fontSize:13, fontWeight:700, color: s.id === serviceId ? 'var(--green)' : 'var(--text-secondary)' }}>${s.price_per_sheet}/hoja</span>
-                      </button>
-                    ))}
+                <button
+                  onClick={() => setServiceListOpen(o => !o)}
+                  style={{
+                    display:'flex', alignItems:'center', justifyContent:'space-between',
+                    width:'100%', background:'none', border:'none', padding:0, cursor:'pointer', textAlign:'left',
+                  }}
+                >
+                  <div>
+                    <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)' }}>TIPO DE IMPRESIÓN</p>
+                    {selectedService && (
+                      <p style={{ fontSize:14, fontWeight:700, marginTop:2 }}>
+                        {serviceLabel(selectedService)} · <span style={{ color:'var(--green)' }}>${selectedService.price_per_sheet}/hoja</span>
+                      </p>
+                    )}
+                  </div>
+                  <i className={`ti ${serviceListOpen ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize:20, color:'var(--text-secondary)', flexShrink:0 }} />
+                </button>
+
+                {serviceListOpen && (
+                  <div style={{ marginTop:12 }}>
+                    {loadingShop ? (
+                      <p style={{ fontSize:13, color:'var(--text-muted)' }}>Cargando opciones...</p>
+                    ) : enabledServices.length === 0 ? (
+                      <p style={{ fontSize:13, color:'var(--text-muted)' }}>Esta papelería no configuró tipos de impresión todavía.</p>
+                    ) : (
+                      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                        {enabledServices.map(s => (
+                          <button key={s.id} onClick={() => { onUpdateDraft({ serviceId: s.id }); setServiceListOpen(false) }} style={{
+                            display:'flex', alignItems:'center', gap:10,
+                            border: s.id === serviceId ? '1.5px solid var(--green)' : '1px solid var(--border)',
+                            background: s.id === serviceId ? 'var(--green-light)' : '#fff',
+                            borderRadius:'var(--radius-md)', padding:'10px 12px', cursor:'pointer', textAlign:'left',
+                          }}>
+                            <i className={`ti ${serviceIcon(s)}`} style={{ fontSize:18, color: s.id === serviceId ? 'var(--green)' : 'var(--text-secondary)' }} />
+                            <span style={{ flex:1, fontSize:14, fontWeight: s.id === serviceId ? 700 : 500 }}>{serviceLabel(s)}</span>
+                            <span style={{ fontSize:13, fontWeight:700, color: s.id === serviceId ? 'var(--green)' : 'var(--text-secondary)' }}>${s.price_per_sheet}/hoja</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
