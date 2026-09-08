@@ -5,14 +5,25 @@
 // automáticamente" que ya está en tutoriales y aviso de privacidad.
 // IMPORTANTE: desplegar con "Verify JWT" DESACTIVADO — pg_net la llama
 // sin token de usuario, solo desde la base de datos.
-// Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+//
+// 🔒 SEGURIDAD (agregado 07/09/2026): con "Verify JWT" apagado,
+// cualquiera que supiera esta URL podía dispararla manualmente sin
+// ninguna otra verificación. Ahora exige un secreto compartido en el
+// header x-cron-secret, que solo pg_cron (y quien administre el
+// proyecto) conoce — ver supabase_migration_cleanup.sql actualizado.
+// Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
-Deno.serve(async (_req) => {
+Deno.serve(async (req) => {
+  const cronSecret = Deno.env.get('CRON_SECRET')
+  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+    return json({ error: 'No autorizado' }, 401)
+  }
+
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,

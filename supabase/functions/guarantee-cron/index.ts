@@ -11,7 +11,12 @@
 // IMPORTANTE: esta función debe desplegarse con "Verify JWT" DESACTIVADO
 // en su configuración de Supabase — pg_cron/pg_net la llama sin token de
 // usuario, solo con la Service Role a nivel de base de datos.
-// Secrets: SMSMASIVOS_API_KEY, STRIPE_SECRET_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+//
+// 🔒 SEGURIDAD (agregado 07/09/2026): exige un secreto compartido en el
+// header x-cron-secret — sin esto, con "Verify JWT" apagado, cualquiera
+// que supiera esta URL podía dispararla manualmente (ej. forzar
+// suspensiones o descuentos de garantía antes de tiempo).
+// Secrets: SMSMASIVOS_API_KEY, STRIPE_SECRET_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -52,7 +57,12 @@ async function sendSms(apiKey: string, phone: string, countryCode: string, messa
   return { ok: r.ok && d.success !== false, raw: d }
 }
 
-Deno.serve(async (_req) => {
+Deno.serve(async (req) => {
+  const cronSecret = Deno.env.get('CRON_SECRET')
+  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+    return json({ error: 'No autorizado' }, 401)
+  }
+
   try {
     const SMS_API_KEY = Deno.env.get('SMSMASIVOS_API_KEY')
     if (!SMS_API_KEY) return json({ error: 'SMS Masivos no configurado' }, 500)

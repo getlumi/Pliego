@@ -725,7 +725,7 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
     if (status === 'listo' && order?.user_id) {
       supabase.functions.invoke('send-whatsapp', {
         body: {
-          user_id: order.user_id,
+          order_id: orderId,
           tipo:    'pedido_listo',
           data: {
             papeleria: shop.name ?? 'la papelería',

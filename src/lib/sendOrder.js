@@ -279,7 +279,7 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
           : ''
         await supabase.functions.invoke('send-whatsapp', {
           body: {
-            user_id: shopRow.owner_id,
+            order_id: orderId,
             tipo:    'nuevo_pedido',
             data: {
               cliente:        userRow.name ?? 'Cliente',

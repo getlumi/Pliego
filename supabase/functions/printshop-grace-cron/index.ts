@@ -10,7 +10,11 @@
 // guarantee-cron — el periodo de gracia se mide en días, no en horas.
 // IMPORTANTE: desplegar con "Verify JWT" DESACTIVADO — la llama
 // pg_cron/pg_net sin token de usuario.
-// Secrets: SMSMASIVOS_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+//
+// 🔒 SEGURIDAD (agregado 07/09/2026): exige un secreto compartido en el
+// header x-cron-secret — sin esto, con "Verify JWT" apagado, cualquiera
+// que supiera esta URL podía dispararla manualmente sin verificación.
+// Secrets: SMSMASIVOS_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -39,7 +43,12 @@ async function sendSms(apiKey: string, phone: string, countryCode: string, messa
   return { ok: r.ok && d.success !== false, raw: d }
 }
 
-Deno.serve(async (_req) => {
+Deno.serve(async (req) => {
+  const cronSecret = Deno.env.get('CRON_SECRET')
+  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+    return json({ error: 'No autorizado' }, 401)
+  }
+
   try {
     const SMS_API_KEY = Deno.env.get('SMSMASIVOS_API_KEY')
     if (!SMS_API_KEY) return json({ error: 'SMS Masivos no configurado' }, 500)

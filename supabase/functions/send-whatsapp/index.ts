@@ -4,20 +4,26 @@
 // Masivos), con SMS como respaldo automático si el envío por WhatsApp
 // falla — nunca debe pasar que un pedido se quede sin avisar a nadie.
 //
+// 🔒 SEGURIDAD (corregido 07/09/2026): antes esta función confiaba en un
+// `user_id`/`whatsapp` que mandaba el cliente directo en el body de la
+// petición, sin verificar nada — cualquiera con una cuenta en Pliego
+// (o incluso sin pasar por la app, golpeando la URL directo) podía
+// invocar esta función con cualquier número de teléfono y hacer que
+// Pliego mandara mensajes pagados a quien fuera, usando su propia marca.
+// Ahora la función NUNCA confía en el destinatario que manda el cliente:
+// recibe un `order_id`, verifica con el JWT de quien llama que de verdad
+// es el cliente dueño de ese pedido (para nuevo_pedido) o el dueño de la
+// papelería de ese pedido (para pedido_listo), y el número de teléfono
+// se busca siempre del lado del servidor, nunca del cuerpo de la
+// petición.
+//
 // IMPORTANTE — uso permitido según la documentación oficial de SMS
 // Masivos (app.smsmasivos.com.mx/api-docs/whatsapp): este canal es SOLO
 // para mensajes transaccionales uno a uno derivados de una acción real
-// del usuario (exactamente nuevo_pedido y pedido_listo). La regla
-// práctica del proveedor: "si disparas dos mensajes simultáneos, ya es
-// masivo" — nunca agregar aquí promociones, recordatorios en lote, ni
-// nada que no derive de un evento individual de un pedido real.
+// del usuario. Nunca agregar aquí promociones ni envíos en lote.
 //
-// ✅ CORREGIDO 07/09/2026: el endpoint real es POST /whatsapp/send (no
-// /sms/send con un flag de canal, como se había asumido antes) — requiere
-// un instance_id de la línea conectada, dato que nunca se estaba
-// mandando y por eso siempre fallaba con "Canal de envío no permitido".
-// Límite real de WhatsApp: 1000 caracteres (no 160 — eso era el límite
-// de /sms/send, que ya no aplica aquí).
+// Endpoint real: POST /whatsapp/send con instance_id (no /sms/send con
+// un flag de canal). Límite real de WhatsApp: 1000 caracteres.
 // Docs: https://app.smsmasivos.com.mx/api-docs/whatsapp
 //
 // Secrets: SMSMASIVOS_API_KEY, SMSMASIVOS_WA_INSTANCE_ID
@@ -37,16 +43,10 @@ const json = (body: unknown, status = 200) =>
 
 const SMS_MASIVOS_BASE = 'https://api.smsmasivos.com.mx'
 
-// Límite real de SMS clásico (GSM-7) — solo aplica al mensaje de
-// respaldo, WhatsApp acepta hasta 1000 caracteres.
 function capMessageLength(msg: string, max = 160): string {
   return msg.length <= max ? msg : msg.slice(0, max - 1) + '…'
 }
 
-// ── Mensaje para WhatsApp — texto libre real, hasta 1000 caracteres.
-// Adaptado de las plantillas que ya se habían redactado para Meta
-// (pliego_nuevo_pedido / pliego_pedido_listo), con el formato de
-// negritas propio de WhatsApp (asteriscos).
 function buildWhatsappMessage(tipo: string, data: Record<string, string>): string {
   switch (tipo) {
     case 'nuevo_pedido': {
@@ -73,8 +73,6 @@ function buildWhatsappMessage(tipo: string, data: Record<string, string>): strin
   }
 }
 
-// ── Mensaje para SMS (respaldo) — SIN acentos ni Ñ, GSM-7 seguro, tope
-// real de 160 caracteres.
 function buildSmsMessage(tipo: string, data: Record<string, string>): string {
   switch (tipo) {
     case 'nuevo_pedido': {
@@ -99,12 +97,7 @@ async function sendWhatsapp(apiKey: string, instanceId: string, digits: string, 
   const r = await fetch(`${SMS_MASIVOS_BASE}/whatsapp/send`, {
     method: 'POST',
     headers: { 'apikey': apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      instance_id: instanceId,
-      number: digits,
-      message,
-      type: 'text',
-    }),
+    body: JSON.stringify({ instance_id: instanceId, number: digits, message, type: 'text' }),
   })
   const result = await r.json().catch(() => ({}))
   const ok = r.ok && result.success !== false
@@ -116,8 +109,7 @@ async function sendSms(apiKey: string, digits: string, ladaCode: string, message
     method: 'POST',
     headers: { 'apikey': apiKey, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      message,
-      numbers: digits,
+      message, numbers: digits,
       country_code: Number(ladaCode.replace(/\D/g, '') || '52'),
       name: `pliego_${tipo}`,
     }),
@@ -139,46 +131,75 @@ Deno.serve(async (req) => {
       return json({ error: 'SMS Masivos no configurado' }, 500)
     }
 
-    const supabase = createClient(
+    // ── Verificar QUIÉN llama, con su propio JWT — nunca confiar en un
+    // user_id/teléfono que venga en el cuerpo de la petición.
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) return json({ error: 'No autenticado' }, 401)
+
+    const anonClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    )
+    const { data: { user: caller }, error: authError } = await anonClient.auth.getUser()
+    if (authError || !caller) return json({ error: 'No autenticado' }, 401)
+
+    const { order_id, tipo, data = {} } = await req.json()
+    if (!order_id) return json({ error: 'order_id es requerido' }, 400)
+    if (!tipo)     return json({ error: 'tipo es requerido' }, 400)
+
+    const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    const { user_id, whatsapp: directPhone, tipo, data = {} } = await req.json()
+    const { data: order } = await admin
+      .from('orders').select('id, user_id, printshop_id').eq('id', order_id).maybeSingle()
+    if (!order) return json({ error: 'Pedido no encontrado' }, 404)
 
-    if (!tipo) return json({ error: 'tipo es requerido' }, 400)
+    let toNumber: string | null = null
+    let ladaCode = '52'
 
-    let toNumber = directPhone
-    let ladaCode  = '52'
-
-    if (!toNumber && user_id) {
-      const { data: userRow } = await supabase
-        .from('users').select('phone, country_code').eq('id', user_id).maybeSingle()
-      if (userRow?.phone) {
-        toNumber = userRow.phone
-        ladaCode = userRow.country_code ?? '52'
-      } else {
-        const { data: shopRow } = await supabase
-          .from('printshops').select('whatsapp').eq('owner_id', user_id).maybeSingle()
-        toNumber = shopRow?.whatsapp
+    if (tipo === 'nuevo_pedido') {
+      // Solo el cliente DUEÑO de este pedido puede disparar su propio
+      // aviso de "nuevo pedido" hacia la papelería.
+      if (caller.id !== order.user_id) {
+        console.error(`🚫 ${caller.id} intentó notificar nuevo_pedido de la orden ${order_id} (dueño real: ${order.user_id})`)
+        return json({ error: 'No autorizado' }, 403)
       }
+      const { data: shop } = await admin
+        .from('printshops').select('whatsapp').eq('id', order.printshop_id).maybeSingle()
+      toNumber = shop?.whatsapp ?? null
+
+    } else if (tipo === 'pedido_listo') {
+      // Solo el DUEÑO de la papelería de este pedido puede disparar el
+      // aviso de "listo" hacia el cliente.
+      const { data: shop } = await admin
+        .from('printshops').select('owner_id').eq('id', order.printshop_id).maybeSingle()
+      if (!shop || caller.id !== shop.owner_id) {
+        console.error(`🚫 ${caller.id} intentó notificar pedido_listo de la orden ${order_id} (dueño real: ${shop?.owner_id})`)
+        return json({ error: 'No autorizado' }, 403)
+      }
+      const { data: userRow } = await admin
+        .from('users').select('phone, country_code').eq('id', order.user_id).maybeSingle()
+      toNumber = userRow?.phone ?? null
+      ladaCode = userRow?.country_code ?? '52'
+
+    } else {
+      return json({ error: 'tipo debe ser "nuevo_pedido" o "pedido_listo"' }, 400)
     }
 
-    if (!toNumber) return json({ error: 'No se encontró número de teléfono' }, 400)
+    if (!toNumber) return json({ error: 'No se encontró número de teléfono para este pedido' }, 400)
 
     let digits = toNumber.replace(/\D/g, '')
     if (digits.length === 12 && digits.startsWith('52')) digits = digits.slice(2)
     if (digits.length === 11 && digits.startsWith('1'))  digits = digits.slice(1)
 
-    // 1) Intentar WhatsApp — solo si hay instance_id configurado. Sin
-    // esto, ni vale la pena intentarlo (fallaría siempre con
-    // whatsapp_04/08 por instancia inexistente).
     if (WA_INSTANCE_ID) {
       const waMessage = buildWhatsappMessage(tipo, data)
       const wa = await sendWhatsapp(SMS_API_KEY, WA_INSTANCE_ID, digits, waMessage)
-
       if (wa.ok) {
-        console.log(`✅ [WhatsApp] enviado a ${digits} (${tipo}) — ${wa.result.request_id ?? wa.result.code ?? ''}`)
+        console.log(`✅ [WhatsApp] enviado a ${digits} (${tipo}, orden ${order_id})`)
         return json({ ok: true, method: 'whatsapp', to: digits })
       }
       console.warn(`⚠️ WhatsApp falló (HTTP ${wa.status}) para ${digits} (${tipo}), cayendo a SMS:`, wa.result)
@@ -186,7 +207,6 @@ Deno.serve(async (req) => {
       console.warn('SMSMASIVOS_WA_INSTANCE_ID no configurado — enviando directo por SMS')
     }
 
-    // 2) Respaldo automático por SMS.
     const smsMessage = capMessageLength(buildSmsMessage(tipo, data))
     const sms = await sendSms(SMS_API_KEY, digits, ladaCode, smsMessage, tipo)
 
@@ -195,7 +215,7 @@ Deno.serve(async (req) => {
       return json({ error: sms.result.message ?? 'No se pudo enviar ni por WhatsApp ni por SMS' }, 500)
     }
 
-    console.log(`✅ [SMS · respaldo] enviado a ${digits} (${tipo}) — ${sms.result.request_id ?? ''}`)
+    console.log(`✅ [SMS · respaldo] enviado a ${digits} (${tipo}, orden ${order_id})`)
     return json({ ok: true, method: 'sms (respaldo)', to: digits })
 
   } catch (e) {
