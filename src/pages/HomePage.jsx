@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { isOpenNow, todayLabel } from '../lib/hours'
 import { sendOrder } from '../lib/sendOrder'
+import { calculateOrderTotal } from '../lib/pricing'
 import AppModal from '../components/AppModal'
 
 export default function HomePage({ session, onNavigate, draft, onUpdateDraft, onClearDraft, onShowTutorial }) {
@@ -332,14 +333,9 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
   const [modal, setModal] = useState(null) // { type, title?, message, onClose? } | null
   const services = shop.printshop_services?.filter(s => s.enabled) ?? []
 
-  const totalPages = draft.files.reduce((sum, f) => sum + (f.pageCount ?? 1), 0)
-
-  // Usa el servicio elegido en UploadPage, o el primero disponible si aún no eligió
-  const selectedService = shop.printshop_services?.find(s => s.id === draft.serviceId)
-    ?? services[0]
-    ?? null
-
-  const total = (selectedService?.price_per_sheet ?? 0) * totalPages * draft.copies
+  const { totalPages, total, selectedService } = calculateOrderTotal({
+    files: draft.files, serviceId: draft.serviceId, services, copies: draft.copies,
+  })
 
   // Productos de la Tienda elegidos para este pedido — se pagan junto
   // con la impresión al llegar, pero NUNCA cuentan para la garantía

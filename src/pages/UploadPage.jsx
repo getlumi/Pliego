@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { serviceLabel, serviceIcon } from '../lib/services'
+import { calculateOrderTotal } from '../lib/pricing'
 import IneCapture from './IneCapture'
 import DocumentScanner from './DocumentScanner'
 import { CARTA_H, MARGIN, pageSize, frameBoxSize } from '../lib/imageFraming'
@@ -213,10 +214,9 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     const copy = files.map((f, i) => i === activeIndex ? { ...f, imageRotation: next } : f)
     onUpdateDraft({ files: copy })
   }
-  const selectedService = enabledServices.find(s => s.id === serviceId)
-  const totalPages = files.reduce((sum, f) => sum + (f.pageCount ?? 1), 0)
-  const pricePerSheet = selectedService?.price_per_sheet ?? 0
-  const total = pricePerSheet * totalPages * copies
+  const { totalPages, pricePerSheet, total, selectedService } = calculateOrderTotal({
+    files, serviceId, services: enabledServices, copies,
+  })
 
   const pageWord = totalPages === 1 ? 'hoja' : 'hojas'
   const copyWord = copies === 1 ? 'copia' : 'copias'
