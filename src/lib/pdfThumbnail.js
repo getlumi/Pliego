@@ -8,21 +8,26 @@
 // proyecto) NO puede hacer esto, solo combina/manipula PDFs, no los
 // dibuja como imagen.
 //
-// Import ESTÁTICO, no dinámico — misma regla ya establecida en el
-// proyecto para pdf-lib (Regla 10: los imports dinámicos de librerías
-// de PDF fallan en Safari de iOS). El worker se referencia con el
-// patrón `new URL(..., import.meta.url)` que Vite entiende de forma
-// nativa y empaqueta correctamente, sin depender de un CDN externo.
-import * as pdfjsLib from 'pdfjs-dist'
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
-
-// Genera una miniatura JPEG de la primera página de un PDF, como un
-// Blob — mismo tipo de dato que ya produce el resto del flujo de fotos
-// (createObjectURL), así encaja sin fricciones en el patrón existente
-// de `previewUrl`.
+// ⚠️ CORREGIDO (reporte real): el import ESTÁTICO de pdf.js dejaba la
+// app COMPLETA en blanco en al menos un celular real (aunque
+// funcionara bien en otros celulares y en computadora) — pdf.js es una
+// librería pesada, y si algo de su código falla al evaluarse (antes de
+// que React siquiera monte la app), truena TODO el paquete, no solo
+// esta función. Esto es DISTINTO al problema que describe la Regla 10
+// del proyecto (imports dinámicos de pdf-lib fallando al cargar) — aquí
+// el riesgo es el opuesto: un import estático de una librería pesada
+// puede tronar la carga inicial completa si algo en ella no es
+// compatible con un dispositivo específico.
+//
+// Fix: import DINÁMICO, cargado solo cuando de verdad se sube un PDF —
+// nunca al abrir la app — y protegido con el mismo try/catch que ya
+// existía en UploadPage.jsx. Si esto falla en algún celular, se
+// degrada solo al ícono genérico, sin tronar nada más de la app.
 export async function renderPdfFirstPageThumbnail(file, targetWidth = 400) {
+  const pdfjsLib = await import('pdfjs-dist')
+  const { default: pdfWorkerUrl } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+
   const bytes = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: bytes }).promise
   const page = await pdf.getPage(1)
