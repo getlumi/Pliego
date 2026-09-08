@@ -235,6 +235,22 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   // ofrece opalina para el tamaño ACTUAL específicamente (puede que solo
   // la habilite para algunos tamaños, no todos).
   const setMaterial = (material) => {
+    // El material (Bond/Opalina) es una propiedad de la HOJA FÍSICA, no
+    // de una imagen individual — si dos imágenes comparten la misma
+    // hoja, no se puede imprimir la mitad en Bond y la mitad en Opalina
+    // (es literalmente el mismo papel). Si el archivo activo comparte
+    // grupo, el material cambia para TODAS las imágenes de ese grupo a
+    // la vez, cada una a la versión de su propio tamaño.
+    if (activeFile.groupId) {
+      const copy = files.map(f => {
+        if (f.groupId !== activeFile.groupId) return f
+        const frame = f.imageFrame ?? 'cuarto'
+        const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[material][frame])
+        return matchingService ? { ...f, serviceId: matchingService.id } : f
+      })
+      onUpdateDraft({ files: copy })
+      return
+    }
     const frame = activeFile.imageFrame ?? 'completa'
     const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[material][frame])
     if (!matchingService) return
@@ -258,11 +274,18 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     const copy = files.map((f, i) => i === activeIndex ? { ...f, imageRotation: next } : f)
     onUpdateDraft({ files: copy })
   }
-  const { totalPages, total, items: priceItems, selectedService } = calculateOrderTotal({
+  const { totalPages, total, items: priceItems, selectedService, physicalSheets } = calculateOrderTotal({
     files, services: enabledServices, copies,
   })
 
-  const pageWord = totalPages === 1 ? 'hoja' : 'hojas'
+  // "totalPages" (para el precio) cuenta 1 por CADA imagen, aunque
+  // varias compartan una misma hoja física — correcto para sumar el
+  // costo, pero engañoso si se le muestra al usuario como "hojas".
+  // "physicalSheets" es el número real de hojas que va a salir de la
+  // impresora (dos imágenes en la misma hoja = 1 hoja física) — esto es
+  // lo que debe verse en pantalla en cualquier lugar que diga "hojas" o
+  // "impresiones".
+  const pageWord = physicalSheets === 1 ? 'hoja' : 'hojas'
   const copyWord = copies === 1 ? 'copia' : 'copias'
 
   const continuar = () => onNavigate('home')
@@ -413,8 +436,8 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                     )
                   })()}
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:6 }}>
-                    <span style={{ fontSize:12, color:'rgba(255,255,255,0.6)' }}>{totalPages} {pageWord} × {copies} {copyWord}</span>
-                    <span style={{ fontSize:12, color:'rgba(255,255,255,0.6)' }}>{totalPages * copies} impresiones</span>
+                    <span style={{ fontSize:12, color:'rgba(255,255,255,0.6)' }}>{physicalSheets} {pageWord} × {copies} {copyWord}</span>
+                    <span style={{ fontSize:12, color:'rgba(255,255,255,0.6)' }}>{physicalSheets * copies} impresiones</span>
                   </div>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', paddingTop:8, borderTop:'1px solid rgba(255,255,255,0.15)' }}>
                     <span style={{ fontSize:14, fontWeight:700, color:'#fff' }}>Total</span>
@@ -490,7 +513,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
             <div className="card">
               <p style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <i className="ti ti-files" style={{ fontSize: 16, color: 'var(--green)' }} />
-                {files.length} archivo{files.length > 1 ? 's' : ''} · {totalPages} {pageWord} en total
+                {files.length} archivo{files.length > 1 ? 's' : ''} · {physicalSheets} {pageWord} en total
               </p>
 
               {/* Página grande — SIEMPRE hoja Carta real, respetando el
@@ -794,7 +817,14 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                   {anyOpalinaImageOffered && (() => {
                     const frame = activeFile.imageFrame ?? 'completa'
                     const material = materialOf(enabledServices.find(s => s.id === activeFile.serviceId))
-                    const opalinaAvailable = enabledServices.some(s => s.service_type === FRAME_TO_SERVICE_TYPE.opalina[frame])
+                    // Si el archivo activo comparte hoja con otros, TODOS
+                    // los tamaños del grupo necesitan tener Opalina
+                    // disponible — no se puede aplicar a la mitad de una
+                    // hoja física nada más.
+                    const groupFrames = activeFile.groupId
+                      ? files.filter(f => f.groupId === activeFile.groupId).map(f => f.imageFrame ?? 'cuarto')
+                      : [frame]
+                    const opalinaAvailable = groupFrames.every(fr => enabledServices.some(s => s.service_type === FRAME_TO_SERVICE_TYPE.opalina[fr]))
                     return (
                       <>
                         <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', margin: '12px 0 8px' }}>
@@ -812,7 +842,9 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                         </div>
                         {!opalinaAvailable && (
                           <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                            Esta papelería no ofrece Opalina en este tamaño.
+                            {activeFile.groupId
+                              ? 'Esta papelería no ofrece Opalina para todos los tamaños de esta hoja compartida.'
+                              : 'Esta papelería no ofrece Opalina en este tamaño.'}
                           </p>
                         )}
                       </>
@@ -946,7 +978,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                 Vas a imprimir
               </p>
               <p style={{ fontSize: 14, lineHeight: 1.6 }}>
-                <strong>{totalPages} {pageWord}</strong>
+                <strong>{physicalSheets} {pageWord}</strong>
                 {selectedService ? <>, {serviceLabel(selectedService).toLowerCase()}</> : ''},
                 {' '}{copies} {copyWord}
                 {fit === 'fit' ? ', ajustado a la hoja' : ', tamaño real'}

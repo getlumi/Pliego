@@ -9,6 +9,18 @@
 // que ya usan imageFrame/imageAlign/imageRotation por archivo. Un pedido
 // de un solo archivo (el caso normal de hoy) sigue funcionando igual,
 // simplemente con un arreglo de un solo elemento.
+//
+// Corrección real (08/09/2026, reporte directo de prueba en celular):
+// "totalPages" cuenta 1 por CADA IMAGEN, sin importar si dos imágenes
+// comparten la misma hoja física — correcto para el PRECIO (se sigue
+// cobrando por imagen, sumado como total del documento, tal como se
+// decidió), pero mostrar ese mismo número como "X hojas" en pantalla es
+// engañoso: dos imágenes que comparten hoja son 1 hoja física, no 2.
+// Se agrega `physicalSheets` — un conteo aparte, honesto, para todo lo
+// que la pantalla le muestre al usuario como "cuántas hojas van a
+// salir de la impresora".
+import { packImagesIntoPages } from './imageFraming'
+
 export function calculateOrderTotal({ files, services, copies }) {
   const list = services ?? []
   const fallback = list[0] ?? null
@@ -34,5 +46,34 @@ export function calculateOrderTotal({ files, services, copies }) {
   // en `items` y en la columna nueva `image_items`.
   const selectedService = items[0]?.service ?? fallback
 
-  return { totalPages, total, items, selectedService }
+  const physicalSheets = calculatePhysicalSheets(files)
+
+  return { totalPages, total, items, selectedService, physicalSheets }
 }
+
+// Cuántas hojas FÍSICAS reales va a usar la impresora — distinto de
+// totalPages (que es "cuántas imágenes/páginas lógicas", para el
+// precio). Un archivo sin groupId sigue siendo 1 hoja por su cuenta,
+// exactamente como siempre. Los archivos que comparten groupId se
+// empaquetan con el mismo motor que ya usa sendOrder.js para el PDF
+// real — así el número que ve el usuario es el mismo que va a imprimir,
+// no una aproximación aparte.
+export function calculatePhysicalSheets(files) {
+  let sheets = 0
+  const processedGroups = new Set()
+
+  for (const f of (files ?? [])) {
+    if (f.groupId) {
+      if (processedGroups.has(f.groupId)) continue
+      processedGroups.add(f.groupId)
+      const members = (files ?? []).filter(m => m.groupId === f.groupId)
+      const packed = packImagesIntoPages(members.map(m => ({ frame: m.imageFrame ?? 'cuarto' })))
+      sheets += packed.length
+    } else {
+      sheets += f.pageCount ?? 1
+    }
+  }
+
+  return sheets
+}
+
