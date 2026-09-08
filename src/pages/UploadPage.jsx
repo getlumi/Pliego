@@ -4,7 +4,7 @@ import { serviceLabel, serviceIcon } from '../lib/services'
 import { calculateOrderTotal } from '../lib/pricing'
 import IneCapture from './IneCapture'
 import DocumentScanner from './DocumentScanner'
-import { CARTA_H, MARGIN, pageSize, frameBoxSize } from '../lib/imageFraming'
+import { CARTA_H, MARGIN, pageSize, frameBoxSize, packImagesIntoPages, slotRect } from '../lib/imageFraming'
 
 // La caja de "ajustes especiales con IA" está temporalmente oculta:
 // por ahora la app solo soporta documentos ya listos para imprimir.
@@ -514,8 +514,34 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                 const rot = activeIsImage ? (activeFile.imageRotation ?? 0) : 0
                 const swapped = rot === 90 || rot === 270
 
+                // Si el archivo activo comparte hoja con otros (groupId),
+                // se calcula EXACTAMENTE el mismo acomodo que va a usar
+                // el PDF final (mismo packImagesIntoPages/slotRect que
+                // sendOrder.js) — así lo que se ve aquí es lo que sale
+                // impreso, letra por letra, no una aproximación.
+                let groupLayout = null
+                if (activeFile.groupId) {
+                  const members = files
+                    .map((f, i) => ({ f, i }))
+                    .filter(({ f }) => f.groupId === activeFile.groupId)
+                  const packed = packImagesIntoPages(members.map(({ f }) => ({ frame: f.imageFrame ?? 'cuarto' })))
+                  let idx = 0, activePageIndex = 0
+                  const pagesWithMembers = packed.map(pageItems => pageItems.map(({ slot }) => {
+                    const member = members[idx]; idx++
+                    return { ...member, slot }
+                  }))
+                  pagesWithMembers.forEach((pageItems, pgIdx) => {
+                    if (pageItems.some(it => it.i === activeIndex)) activePageIndex = pgIdx
+                  })
+                  groupLayout = {
+                    items: pagesWithMembers[activePageIndex] ?? [],
+                    pageIndex: activePageIndex,
+                    totalPages: pagesWithMembers.length,
+                  }
+                }
+
                 let box = null, boxLeft = 0, boxTop = 0
-                if (showFramedPreview) {
+                if (showFramedPreview && !groupLayout) {
                   const rawBox = frameBoxSize(activeFile.imageFrame ?? 'completa', orientation)
                   box = { w: rawBox.w * previewScale, h: rawBox.h * previewScale }
                   const align = activeFile.imageAlign ?? 'centro'
@@ -526,16 +552,45 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
 
                 return (
                   <div style={{
-                    display: 'flex', justifyContent: 'center', alignItems: 'center',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
                     background: 'var(--bg)', borderRadius: 'var(--radius-md)', padding: 20, marginBottom: 12,
                   }}>
+                    {groupLayout && groupLayout.totalPages > 1 && (
+                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                        Hoja {groupLayout.pageIndex + 1} de {groupLayout.totalPages} de este grupo
+                      </p>
+                    )}
                     <div style={{
                       background: '#fff', border: '1px solid var(--border)', borderRadius: 6,
                       boxShadow: 'var(--shadow-sm)',
                       width: pageW, height: pageH,
                       overflow: 'hidden', transition: 'width 0.2s, height 0.2s', position: 'relative',
                     }}>
-                      {files[activeIndex]?.previewUrl ? (
+                      {groupLayout ? (
+                        groupLayout.items.map(({ f, i, slot }) => {
+                          const rect = slotRect(slot, orientation)
+                          const r = { x: rect.x * previewScale, y: (rect.pageH - rect.y - rect.h) * previewScale, w: rect.w * previewScale, h: rect.h * previewScale }
+                          const memberRot = f.imageRotation ?? 0
+                          const memberSwapped = memberRot === 90 || memberRot === 270
+                          return (
+                            <div key={i} onClick={() => onUpdateDraft({ activeIndex: i })} style={{
+                              position: 'absolute', left: r.x, top: r.y, width: r.w, height: r.h,
+                              overflow: 'hidden', cursor: 'pointer',
+                              outline: i === activeIndex ? '2px solid var(--green)' : '1px solid var(--border)',
+                              outlineOffset: -1,
+                            }}>
+                              {f.previewUrl && (
+                                <img src={f.previewUrl} alt={f.file.name} style={{
+                                  position: 'absolute', top: '50%', left: '50%',
+                                  width: memberSwapped ? r.h : r.w, height: memberSwapped ? r.w : r.h,
+                                  transform: `translate(-50%, -50%) rotate(${memberRot}deg)`,
+                                  objectFit: 'contain',
+                                }} />
+                              )}
+                            </div>
+                          )
+                        })
+                      ) : files[activeIndex]?.previewUrl ? (
                         showFramedPreview ? (
                           <div style={{
                             position: 'absolute', left: boxLeft, top: boxTop, width: box.w, height: box.h,
