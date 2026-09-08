@@ -17,7 +17,7 @@
 
 import { supabase } from './supabase'
 import { PDFDocument } from 'pdf-lib'
-import { fitImageInFrame } from './imageFraming'
+import { fitImageInFrame, packImagesIntoPages, slotRect, fitImageInRect, pageSize } from './imageFraming'
 
 // Deriva color_mode / paper_size (columnas legadas del esquema) a partir
 // del service_type elegido, para tipos predefinidos y personalizados.
@@ -113,6 +113,12 @@ async function buildUploadFile(files, orientation) {
   }
 
   const merged = await PDFDocument.create()
+  // Idea 1 (Nodo 4b) — archivos que comparten groupId se colocan JUNTOS
+  // en la(s) misma(s) hoja(s), usando el empaquetador de imageFraming.js
+  // (ya probado por separado). Un archivo SIN groupId sigue exactamente
+  // igual que siempre: una hoja para él solo, con fitImageInFrame — cero
+  // cambio de comportamiento para el caso normal de un solo archivo.
+  const processedGroups = new Set()
 
   for (const f of printable) {
     const file = f.file
@@ -121,21 +127,54 @@ async function buildUploadFile(files, orientation) {
       const src = await PDFDocument.load(bytes, { ignoreEncryption: true })
       const pages = await merged.copyPages(src, src.getPageIndices())
       pages.forEach(p => merged.addPage(p))
-    } else if (file.type.startsWith('image/')) {
-      // Normalizada primero (EXIF + rotación elegida por el usuario) —
-      // así img.width/img.height que usa fitImageInFrame ya reflejan la
-      // orientación final correcta también, no solo los píxeles.
-      const { bytes, mime } = await normalizeImageOrientation(file, f.imageRotation ?? 0)
-      const img = mime === 'image/png'
-        ? await merged.embedPng(bytes)
-        : await merged.embedJpg(bytes)
-      // Cada tamaño (cuarto/media/completa) es una página físicamente
-      // distinta, no una imagen chica en una hoja Carta fija — mismo
-      // cálculo exacto que ve el usuario en la vista previa.
-      const { x, y, w, h, pageW, pageH } = fitImageInFrame(img.width, img.height, f.imageFrame ?? 'completa', orientation ?? 'vertical', f.imageAlign ?? 'centro')
-      const page = merged.addPage([pageW, pageH])
-      page.drawImage(img, { x, y, width: w, height: h })
+      continue
     }
+
+    if (!file.type.startsWith('image/')) continue
+
+    if (f.groupId) {
+      if (processedGroups.has(f.groupId)) continue // ya se colocó junto con el resto de su grupo
+      processedGroups.add(f.groupId)
+
+      const groupFiles = printable.filter(gf => gf.groupId === f.groupId)
+      // Se normalizan TODAS las imágenes del grupo primero — hace falta
+      // saber sus dimensiones reales para centrarlas bien dentro de
+      // cada espacio de la cuadrícula.
+      const normalized = []
+      for (const gf of groupFiles) {
+        const { bytes, mime } = await normalizeImageOrientation(gf.file, gf.imageRotation ?? 0)
+        const img = mime === 'image/png' ? await merged.embedPng(bytes) : await merged.embedJpg(bytes)
+        normalized.push({ img, frame: gf.imageFrame ?? 'cuarto' })
+      }
+
+      // El empaquetador solo necesita saber el "frame" de cada una —
+      // decide en qué hoja y en qué espacio cae cada imagen. Se vuelve a
+      // emparejar por índice, en el MISMO orden en que se consumieron
+      // (packImagesIntoPages nunca reordena su entrada).
+      const packedPages = packImagesIntoPages(normalized.map(n => ({ frame: n.frame })))
+      let idx = 0
+      for (const pageItems of packedPages) {
+        const { w: pageW, h: pageH } = pageSize(orientation ?? 'vertical')
+        const page = merged.addPage([pageW, pageH])
+        for (const { slot } of pageItems) {
+          const n = normalized[idx]; idx++
+          const rect = slotRect(slot, orientation ?? 'vertical')
+          const { x, y, w, h } = fitImageInRect(n.img.width, n.img.height, rect)
+          page.drawImage(n.img, { x, y, width: w, height: h })
+        }
+      }
+      continue
+    }
+
+    // Caso normal — sin grupo, un archivo, una hoja, exactamente como
+    // siempre ha funcionado.
+    const { bytes, mime } = await normalizeImageOrientation(file, f.imageRotation ?? 0)
+    const img = mime === 'image/png'
+      ? await merged.embedPng(bytes)
+      : await merged.embedJpg(bytes)
+    const { x, y, w, h, pageW, pageH } = fitImageInFrame(img.width, img.height, f.imageFrame ?? 'completa', orientation ?? 'vertical', f.imageAlign ?? 'centro')
+    const page = merged.addPage([pageW, pageH])
+    page.drawImage(img, { x, y, width: w, height: h })
   }
 
   const pdfBytes = await merged.save()
