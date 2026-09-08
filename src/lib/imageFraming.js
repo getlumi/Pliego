@@ -65,3 +65,112 @@ export const FRAME_LABELS = {
   medio:    'Media hoja',
   completa: 'Hoja completa',
 }
+
+// ============================================================
+// NODO 4 (Idea 1) — varias imágenes compartiendo la misma hoja.
+// ============================================================
+// Importante: esto es una matemática NUEVA y separada de fitImageInFrame
+// de arriba — esa sigue exactamente igual para el caso de una sola
+// imagen (el 99% de los pedidos). Esta solo se usa cuando dos o más
+// imágenes comparten un grupo (ver "groupId" en los archivos).
+//
+// Por qué no se reutiliza frameBoxSize: esa función centra una caja del
+// tamaño pedido donde sea (según alineación), sin garantizar que dos
+// cajas "cuarto" no se encimen entre sí. Para que varias imágenes
+// convivan sin pisarse, cada una necesita una POSICIÓN FIJA dentro de
+// una cuadrícula de 2×2 — no un tamaño suelto.
+//
+// Cuadrícula:  [ TL | TR ]
+//              [ BL | BR ]
+// - "cuarto"   ocupa 1 celda.
+// - "medio"    ocupa una fila completa (TOP = TL+TR, o BOTTOM = BL+BR).
+// - "completa" ocupa las 4 celdas — siempre sola en su propia hoja.
+
+// Da la posición y tamaño real (en puntos PDF) de un espacio de la
+// cuadrícula, dentro del área imprimible de una hoja Carta. Verificado
+// a mano: TL+TR+BL+BR cubren exactamente el área imprimible completa,
+// sin huecos ni traslapes entre sí; TOP = TL∪TR y BOTTOM = BL∪BR letra
+// por letra.
+export function slotRect(slot, orientation = 'vertical') {
+  const page = pageSize(orientation)
+  const printableW = page.w - MARGIN * 2
+  const printableH = page.h - MARGIN * 2
+  const halfW = printableW / 2
+  const halfH = printableH / 2
+
+  const rects = {
+    TL:     { x: MARGIN,          y: MARGIN + halfH, w: halfW,      h: halfH },
+    TR:     { x: MARGIN + halfW,  y: MARGIN + halfH, w: halfW,      h: halfH },
+    BL:     { x: MARGIN,          y: MARGIN,          w: halfW,      h: halfH },
+    BR:     { x: MARGIN + halfW,  y: MARGIN,          w: halfW,      h: halfH },
+    TOP:    { x: MARGIN,          y: MARGIN + halfH, w: printableW, h: halfH },
+    BOTTOM: { x: MARGIN,          y: MARGIN,          w: printableW, h: halfH },
+    FULL:   { x: MARGIN,          y: MARGIN,          w: printableW, h: printableH },
+  }
+  return { ...rects[slot], pageW: page.w, pageH: page.h }
+}
+
+// Centra una imagen dentro de CUALQUIER rectángulo dado (no solo una
+// caja calculada por frameBoxSize) — misma matemática de "contener y
+// centrar sin deformar" que ya usa fitImageInFrame, pero reutilizable
+// para los espacios de la cuadrícula de arriba.
+export function fitImageInRect(imgWidth, imgHeight, rect) {
+  const scale = Math.min(rect.w / imgWidth, rect.h / imgHeight)
+  const w = imgWidth * scale
+  const h = imgHeight * scale
+  const x = rect.x + (rect.w - w) / 2
+  const y = rect.y + (rect.h - h) / 2
+  return { x, y, w, h, pageW: rect.pageW, pageH: rect.pageH }
+}
+
+// El "empaquetador" — recibe una lista ordenada de imágenes (cada una
+// solo con su frame: 'cuarto'|'medio'|'completa') y decide en qué hoja y
+// en qué espacio de la cuadrícula cae cada una, llenando espacio antes
+// de abrir una hoja nueva. Es una función PURA (no toca React ni PDF),
+// así se puede usar igual en la vista previa y en el armado del PDF
+// final, sin que se puedan desincronizar.
+//
+// Devuelve: [ [ {item, slot}, {item, slot}, ... ],   ← hoja 1
+//             [ {item, slot}, ... ],                  ← hoja 2
+//             ... ]
+export function packImagesIntoPages(images) {
+  const pages = []
+  let current = null // { free: Set de slots libres, items: [] }
+
+  const startNewPage = () => {
+    current = { free: new Set(['TL', 'TR', 'BL', 'BR']), items: [] }
+    pages.push(current.items)
+  }
+
+  for (const item of images) {
+    if (item.frame === 'completa') {
+      // Siempre sola en su propia hoja — si la actual ya tiene algo, se
+      // cierra y se abre una nueva.
+      if (!current || current.items.length > 0) startNewPage()
+      current.items.push({ item, slot: 'FULL' })
+      current.free.clear()
+      continue
+    }
+
+    if (item.frame === 'medio') {
+      const hasTop = current && current.free.has('TL') && current.free.has('TR')
+      const hasBottom = current && current.free.has('BL') && current.free.has('BR')
+      if (!current || (!hasTop && !hasBottom)) startNewPage()
+      const useTop = current.free.has('TL') && current.free.has('TR')
+      const slot = useTop ? 'TOP' : 'BOTTOM'
+      current.items.push({ item, slot })
+      if (useTop) { current.free.delete('TL'); current.free.delete('TR') }
+      else { current.free.delete('BL'); current.free.delete('BR') }
+      continue
+    }
+
+    // 'cuarto' — cualquier celda libre, en orden de lectura
+    if (!current || current.free.size === 0) startNewPage()
+    const order = ['TL', 'TR', 'BL', 'BR']
+    const slot = order.find(s => current.free.has(s))
+    current.items.push({ item, slot })
+    current.free.delete(slot)
+  }
+
+  return pages
+}
