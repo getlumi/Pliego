@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { serviceLabel, serviceIcon } from '../lib/services'
 import { calculateOrderTotal } from '../lib/pricing'
+import { renderPdfFirstPageThumbnail } from '../lib/pdfThumbnail'
 import IneCapture from './IneCapture'
 import DocumentScanner from './DocumentScanner'
 import { CARTA_H, MARGIN, pageSize, frameBoxSize, packImagesIntoPages, slotRect } from '../lib/imageFraming'
@@ -92,9 +93,20 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     if (list.length === 0) return
     const mapped = await Promise.all(list.map(async file => {
       const { pageCount, pageCountAuto } = await detectPageCount(file)
+      let previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+      if (!previewUrl && file.type === 'application/pdf') {
+        // Miniatura real de la primera página — si falla por cualquier
+        // motivo (PDF dañado, protegido con contraseña, etc.) se
+        // degrada solo al ícono genérico que ya existía, sin tronar la
+        // subida del archivo.
+        try {
+          previewUrl = await renderPdfFirstPageThumbnail(file)
+        } catch (err) {
+          console.warn('No se pudo generar miniatura de PDF:', err)
+        }
+      }
       return {
-        file,
-        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+        file, previewUrl,
         pageCount, pageCountAuto, serviceId: null,
       }
     }))
