@@ -450,8 +450,16 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
             {/* Tipo de impresión (de la papelería elegida) — colapsado por
                 default; la lista puede tener muchas opciones y no hace
                 falta verlas todas si ya hay una elegida. El encabezado
-                siempre muestra la selección actual, aunque esté cerrado. */}
-            {shopId && (
+                siempre muestra la selección actual, aunque esté cerrado.
+                Para FOTOS con tamaño (cuarto/media/completa), esta lista
+                se ESCONDE por completo — es la causa real de un bug real
+                (reporte 08/09/2026): elegir aquí manualmente para una
+                sola imagen de un grupo rompía la regla de "toda la hoja
+                comparte el mismo material", porque esta lista nunca supo
+                de grupos. La única forma correcta de elegir tipo para
+                una foto es el tamaño + el botón Bond/Opalina — ambos ya
+                sí respetan el grupo completo. */}
+            {shopId && !(activeIsImage && anyImageFrameOffered) && (
               <div className="card">
                 <button
                   onClick={() => setServiceListOpen(o => !o)}
