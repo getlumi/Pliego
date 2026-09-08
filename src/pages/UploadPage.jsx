@@ -116,6 +116,28 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     onUpdateDraft({ files: copy })
   }
 
+  const groupFileInputRef = useRef(null)
+
+  // Agrega OTRA imagen al mismo grupo que el archivo activo — comparten
+  // hoja en el PDF final (motor ya probado de extremo a extremo en
+  // imageFraming.js/sendOrder.js). Si el archivo activo aún no tenía
+  // groupId, se le asigna uno nuevo aquí, compartido con la imagen que
+  // se está agregando.
+  const handleAddToGroup = async (e) => {
+    const list = Array.from(e.target.files ?? [])
+    if (list.length === 0) return
+    const file = list[0]
+    const { pageCount, pageCountAuto } = await detectPageCount(file)
+    const groupId = activeFile.groupId ?? crypto.randomUUID()
+    const newImage = {
+      file, previewUrl: URL.createObjectURL(file), pageCount, pageCountAuto,
+      groupId, imageFrame: 'cuarto', serviceId: null,
+    }
+    const copy = files.map((f, i) => (i === activeIndex && !f.groupId) ? { ...f, groupId } : f)
+    onUpdateDraft({ files: [...copy, newImage], activeIndex: copy.length }) // activa la recién agregada
+    e.target.value = ''
+  }
+
   const cancelAll = () => {
     if (window.confirm('¿Empezarás de cero? Se perderá el documento que estás editando.')) {
       onClearDraft()
@@ -662,6 +684,57 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                       />
                     ))}
                   </div>
+
+                  {/* "+" para agregar otra imagen a la MISMA hoja — no
+                      tiene sentido si el tamaño elegido es "Completa"
+                      (esa siempre va sola, llena la hoja entera). */}
+                  {(activeFile.imageFrame ?? 'completa') !== 'completa' && (
+                    <div style={{ marginTop: 10 }}>
+                      <input type="file" accept="image/*" ref={groupFileInputRef} onChange={handleAddToGroup} style={{ display: 'none' }} />
+                      <button onClick={() => groupFileInputRef.current?.click()} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        width: '100%', padding: '8px 10px', fontSize: 12.5, fontWeight: 600,
+                        border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-md)',
+                        background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer',
+                      }}>
+                        <i className="ti ti-plus" style={{ fontSize: 14 }} />
+                        Agregar otra imagen a esta hoja
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Indicador del grupo — miniaturas de todas las
+                      imágenes que comparten hoja con esta, para que se
+                      vea claro que van juntas antes de mandar el pedido. */}
+                  {activeFile.groupId && (() => {
+                    const groupMembers = files
+                      .map((f, i) => ({ f, i }))
+                      .filter(({ f }) => f.groupId === activeFile.groupId)
+                    return (
+                      <div style={{ marginTop: 10, padding: 10, background: 'var(--green-light)', borderRadius: 'var(--radius-md)' }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--green-dark)', marginBottom: 6 }}>
+                          <i className="ti ti-layout-grid" style={{ fontSize: 12, verticalAlign: -1, marginRight: 3 }} />
+                          {groupMembers.length} imágenes comparten esta hoja
+                        </p>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {groupMembers.map(({ f, i }) => (
+                            <div key={i} onClick={() => onUpdateDraft({ activeIndex: i })} style={{
+                              position: 'relative', width: 44, height: 44, borderRadius: 6, overflow: 'hidden',
+                              border: i === activeIndex ? '2px solid var(--green)' : '1px solid var(--border)',
+                              cursor: 'pointer', flexShrink: 0,
+                            }}>
+                              <img src={f.previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <button onClick={(e) => { e.stopPropagation(); removeFile(i) }} style={{
+                                position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: '50%',
+                                background: 'var(--red)', color: '#fff', border: 'none', fontSize: 10, lineHeight: 1,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                              }}>×</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   {anyOpalinaImageOffered && (() => {
                     const frame = activeFile.imageFrame ?? 'completa'
