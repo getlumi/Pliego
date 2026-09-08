@@ -35,7 +35,7 @@ async function detectPageCount(file) {
 }
 
 export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, onClearDraft }) {
-  const { files, orientation, fit, copies, instructions, activeIndex, shopId, serviceId, containsId } = draft
+  const { files, orientation, fit, copies, instructions, activeIndex, shopId, containsId } = draft
   const [shop, setShop] = useState(null)
   const [loadingShop, setLoadingShop] = useState(true)
   const [serviceListOpen, setServiceListOpen] = useState(false) // colapsado por default — la lista es larga
@@ -47,7 +47,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   const handleIneDone = (file, previewUrl) => {
     setShowIneCapture(false)
     onUpdateDraft({
-      files: [...files, { file, previewUrl: previewUrl ?? null, pageCount: 1, pageCountAuto: false }],
+      files: [...files, { file, previewUrl: previewUrl ?? null, pageCount: 1, pageCountAuto: false, serviceId: null }],
       containsId: true,
     })
   }
@@ -55,7 +55,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   const handleScanDone = (file, pageCount, previewUrl) => {
     setShowDocScanner(false)
     onUpdateDraft({
-      files: [...files, { file, previewUrl: previewUrl ?? null, pageCount, pageCountAuto: true }],
+      files: [...files, { file, previewUrl: previewUrl ?? null, pageCount, pageCountAuto: true, serviceId: null }],
     })
   }
 
@@ -71,8 +71,17 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
       .then(({ data }) => {
         setShop(data)
         const enabled = (data?.printshop_services ?? []).filter(s => s.enabled)
-        if (enabled.length > 0 && !enabled.some(s => s.id === serviceId)) {
-          onUpdateDraft({ serviceId: enabled[0].id })
+        // Cada archivo trae su PROPIO serviceId ahora — este default
+        // aplica a cualquier archivo que aún no tenga uno válido para
+        // esta papelería, uno por uno, no solo a "el" pedido.
+        if (enabled.length > 0) {
+          const needsDefault = files.some(f => !enabled.some(s => s.id === f.serviceId))
+          if (needsDefault) {
+            const copy = files.map(f =>
+              enabled.some(s => s.id === f.serviceId) ? f : { ...f, serviceId: enabled[0].id }
+            )
+            onUpdateDraft({ files: copy })
+          }
         }
         setLoadingShop(false)
       })
@@ -86,7 +95,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
       return {
         file,
         previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-        pageCount, pageCountAuto,
+        pageCount, pageCountAuto, serviceId: null,
       }
     }))
     onUpdateDraft({ files: [...files, ...mapped] })
@@ -152,12 +161,15 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   useEffect(() => {
     if (!activeIsImage || !anyImageFrameOffered) return
     const currentIsImageService = enabledServices.some(
-      s => s.id === serviceId && ALL_IMAGE_SERVICE_TYPES.includes(s.service_type)
+      s => s.id === activeFile.serviceId && ALL_IMAGE_SERVICE_TYPES.includes(s.service_type)
     )
     if (currentIsImageService) return // ya está en un servicio de imagen, no se pisa una elección real
     const frame = activeFile.imageFrame ?? 'completa'
     const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE.bond[frame])
-    if (matchingService) onUpdateDraft({ serviceId: matchingService.id })
+    if (matchingService) {
+      const copy = files.map((f, i) => i === activeIndex ? { ...f, serviceId: matchingService.id } : f)
+      onUpdateDraft({ files: copy })
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeIndex, activeIsImage, anyImageFrameOffered])
 
@@ -170,23 +182,31 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   useEffect(() => {
     if (!containsId) return
     const idService = enabledServices.find(s => s.service_type === 'identificacion_2_lados')
-    if (idService && serviceId !== idService.id) onUpdateDraft({ serviceId: idService.id })
+    if (!idService) return
+    // Apunta al archivo de identificación específico por nombre — no al
+    // "archivo activo" en general, porque pueden ser archivos distintos
+    // (ej. el usuario está viendo otra foto cuando esto corre).
+    const idFileIndex = files.findIndex(f => f.file.name === 'identificacion.pdf')
+    if (idFileIndex === -1) return
+    if (files[idFileIndex].serviceId === idService.id) return
+    const copy = files.map((f, i) => i === idFileIndex ? { ...f, serviceId: idService.id } : f)
+    onUpdateDraft({ files: copy })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [containsId, shop?.id])
 
   const setImageFrame = (frame) => {
-    const copy = files.map((f, i) => i === activeIndex ? { ...f, imageFrame: frame } : f)
-    const updates = { files: copy }
     // Si ya estaba en Opalina, cambiar de tamaño debe MANTENER Opalina
     // (solo cambia el tamaño) — antes esto se reseteaba siempre a color
     // normal, perdiendo la elección de material del usuario.
-    const currentService = enabledServices.find(s => s.id === serviceId)
+    const currentService = enabledServices.find(s => s.id === activeFile.serviceId)
     const material = materialOf(currentService)
     const matchingService =
       enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[material][frame]) ??
       enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE.bond[frame]) // esa combinación no existe en Opalina — cae a Bond de ese tamaño
-    if (matchingService) updates.serviceId = matchingService.id
-    onUpdateDraft(updates)
+    const copy = files.map((f, i) => i === activeIndex
+      ? { ...f, imageFrame: frame, serviceId: matchingService ? matchingService.id : f.serviceId }
+      : f)
+    onUpdateDraft({ files: copy })
   }
 
   // Botón "Opalina" junto al tamaño — solo tiene sentido si la papelería
@@ -195,7 +215,9 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   const setMaterial = (material) => {
     const frame = activeFile.imageFrame ?? 'completa'
     const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[material][frame])
-    if (matchingService) onUpdateDraft({ serviceId: matchingService.id })
+    if (!matchingService) return
+    const copy = files.map((f, i) => i === activeIndex ? { ...f, serviceId: matchingService.id } : f)
+    onUpdateDraft({ files: copy })
   }
 
   const setImageAlign = (align) => {
@@ -214,8 +236,8 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     const copy = files.map((f, i) => i === activeIndex ? { ...f, imageRotation: next } : f)
     onUpdateDraft({ files: copy })
   }
-  const { totalPages, pricePerSheet, total, selectedService } = calculateOrderTotal({
-    files, serviceId, services: enabledServices, copies,
+  const { totalPages, total, items: priceItems, selectedService } = calculateOrderTotal({
+    files, services: enabledServices, copies,
   })
 
   const pageWord = totalPages === 1 ? 'hoja' : 'hojas'
@@ -342,10 +364,32 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                 </p>
               ) : (
                 <>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:6 }}>
-                    <span style={{ fontSize:12, color:'rgba(255,255,255,0.6)' }}>Precio por hoja</span>
-                    <span style={{ fontSize:16, fontWeight:700, color:'#fff' }}>${pricePerSheet.toFixed(2)}</span>
-                  </div>
+                  {(() => {
+                    // Si todos los archivos tienen el mismo precio por
+                    // hoja (el caso normal de hoy, un solo archivo),
+                    // se ve simple como siempre. Solo se muestra el
+                    // desglose cuando de verdad hay precios distintos
+                    // entre archivos del mismo pedido.
+                    const distinctPrices = new Set(priceItems.map(it => it.pricePerSheet))
+                    if (distinctPrices.size > 1) {
+                      return (
+                        <div style={{ marginBottom: 6 }}>
+                          {priceItems.map((it, i) => (
+                            <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'rgba(255,255,255,0.65)', marginBottom:2 }}>
+                              <span>Archivo {i + 1} ({it.pages} {it.pages === 1 ? 'hoja' : 'hojas'})</span>
+                              <span>${it.pricePerSheet.toFixed(2)}/hoja</span>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    }
+                    return (
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:6 }}>
+                        <span style={{ fontSize:12, color:'rgba(255,255,255,0.6)' }}>Precio por hoja</span>
+                        <span style={{ fontSize:16, fontWeight:700, color:'#fff' }}>${(priceItems[0]?.pricePerSheet ?? 0).toFixed(2)}</span>
+                      </div>
+                    )
+                  })()}
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:6 }}>
                     <span style={{ fontSize:12, color:'rgba(255,255,255,0.6)' }}>{totalPages} {pageWord} × {copies} {copyWord}</span>
                     <span style={{ fontSize:12, color:'rgba(255,255,255,0.6)' }}>{totalPages * copies} impresiones</span>
@@ -373,11 +417,18 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                 >
                   <div>
                     <p style={{ fontSize:13, fontWeight:700, color:'var(--text-secondary)' }}>TIPO DE IMPRESIÓN</p>
-                    {selectedService && (
-                      <p style={{ fontSize:14, fontWeight:700, marginTop:2 }}>
-                        {serviceLabel(selectedService)} · <span style={{ color:'var(--green)' }}>${selectedService.price_per_sheet}/hoja</span>
-                      </p>
-                    )}
+                    {(() => {
+                      // El encabezado muestra el tipo del ARCHIVO ACTIVO
+                      // específicamente (no un resumen de todo el
+                      // pedido) — importante en cuanto haya más de un
+                      // archivo con precios distintos entre sí.
+                      const activeFileService = enabledServices.find(s => s.id === activeFile.serviceId)
+                      return activeFileService && (
+                        <p style={{ fontSize:14, fontWeight:700, marginTop:2 }}>
+                          {serviceLabel(activeFileService)} · <span style={{ color:'var(--green)' }}>${activeFileService.price_per_sheet}/hoja</span>
+                        </p>
+                      )
+                    })()}
                   </div>
                   <i className={`ti ${serviceListOpen ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize:20, color:'var(--text-secondary)', flexShrink:0 }} />
                 </button>
@@ -391,15 +442,19 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                     ) : (
                       <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                         {enabledServices.map(s => (
-                          <button key={s.id} onClick={() => { onUpdateDraft({ serviceId: s.id }); setServiceListOpen(false) }} style={{
+                          <button key={s.id} onClick={() => {
+                            const copy = files.map((f, i) => i === activeIndex ? { ...f, serviceId: s.id } : f)
+                            onUpdateDraft({ files: copy })
+                            setServiceListOpen(false)
+                          }} style={{
                             display:'flex', alignItems:'center', gap:10,
-                            border: s.id === serviceId ? '1.5px solid var(--green)' : '1px solid var(--border)',
-                            background: s.id === serviceId ? 'var(--green-light)' : '#fff',
+                            border: s.id === activeFile.serviceId ? '1.5px solid var(--green)' : '1px solid var(--border)',
+                            background: s.id === activeFile.serviceId ? 'var(--green-light)' : '#fff',
                             borderRadius:'var(--radius-md)', padding:'10px 12px', cursor:'pointer', textAlign:'left',
                           }}>
-                            <i className={`ti ${serviceIcon(s)}`} style={{ fontSize:18, color: s.id === serviceId ? 'var(--green)' : 'var(--text-secondary)' }} />
-                            <span style={{ flex:1, fontSize:14, fontWeight: s.id === serviceId ? 700 : 500 }}>{serviceLabel(s)}</span>
-                            <span style={{ fontSize:13, fontWeight:700, color: s.id === serviceId ? 'var(--green)' : 'var(--text-secondary)' }}>${s.price_per_sheet}/hoja</span>
+                            <i className={`ti ${serviceIcon(s)}`} style={{ fontSize:18, color: s.id === activeFile.serviceId ? 'var(--green)' : 'var(--text-secondary)' }} />
+                            <span style={{ flex:1, fontSize:14, fontWeight: s.id === activeFile.serviceId ? 700 : 500 }}>{serviceLabel(s)}</span>
+                            <span style={{ fontSize:13, fontWeight:700, color: s.id === activeFile.serviceId ? 'var(--green)' : 'var(--text-secondary)' }}>${s.price_per_sheet}/hoja</span>
                           </button>
                         ))}
                       </div>
@@ -610,7 +665,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
 
                   {anyOpalinaImageOffered && (() => {
                     const frame = activeFile.imageFrame ?? 'completa'
-                    const material = materialOf(enabledServices.find(s => s.id === serviceId))
+                    const material = materialOf(enabledServices.find(s => s.id === activeFile.serviceId))
                     const opalinaAvailable = enabledServices.some(s => s.service_type === FRAME_TO_SERVICE_TYPE.opalina[frame])
                     return (
                       <>

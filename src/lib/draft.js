@@ -4,9 +4,12 @@
 
 export function createEmptyDraft() {
   return {
-    files: [],          // [{ file: File, previewUrl: string|null, pageCount: number, pageCountAuto: boolean }]
+    files: [],          // [{ file: File, previewUrl, pageCount, pageCountAuto, serviceId }]
+                          // Nodo 3 (varias imágenes con su propio precio): serviceId
+                          // ahora vive POR ARCHIVO, no a nivel de borrador — cada
+                          // archivo trae el suyo, igual que ya hacían imageFrame/
+                          // imageAlign/imageRotation.
     shopId: null,        // papelería elegida para este pedido
-    serviceId: null,     // printshop_services.id elegido (define precio y tipo de hoja)
     orientation: 'vertical', // 'vertical' | 'horizontal'
     fit: 'fit',          // 'fit' | 'actual'
     copies: 1,

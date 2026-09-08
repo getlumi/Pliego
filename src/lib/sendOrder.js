@@ -143,7 +143,7 @@ async function buildUploadFile(files, orientation) {
 }
 
 // result: { success: true, orderId } | { success: false, error: string }
-export async function sendOrder({ session, draft, selectedService, totalPages, total, storeItems = [], storeTotal = 0 }) {
+export async function sendOrder({ session, draft, selectedService, imageItems = [], totalPages, total, storeItems = [], storeTotal = 0 }) {
   const orderId = crypto.randomUUID()
   let orderCreated = false
   let credited = false
@@ -183,6 +183,10 @@ export async function sendOrder({ session, draft, selectedService, totalPages, t
       special_instructions: draft.instructions || null,
       service_fee: isSubscriber ? 0 : SERVICE_FEE_MXN_EQUIV,
       estimated_cost: total, // SOLO impresión — la garantía nunca cuenta productos
+      // Desglose real por archivo (Idea 1 — varias imágenes, cada una
+      // con su propio tamaño/precio). null si es un pedido "clásico" de
+      // un solo tipo — no cambia nada del comportamiento de siempre.
+      image_items: imageItems.length > 1 ? imageItems : null,
       store_items: storeItems.length > 0 ? storeItems : null,
       store_total: storeTotal,
       user_name: userRow.name ?? null,

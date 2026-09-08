@@ -334,7 +334,7 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
   const services = shop.printshop_services?.filter(s => s.enabled) ?? []
 
   const { totalPages, total, selectedService } = calculateOrderTotal({
-    files: draft.files, serviceId: draft.serviceId, services, copies: draft.copies,
+    files: draft.files, services, copies: draft.copies,
   })
 
   // Productos de la Tienda elegidos para este pedido — se pagan junto
@@ -344,11 +344,25 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
   const storeTotal = storeItems.reduce((sum, it) => sum + it.price * it.quantity, 0)
   const grandTotal = total + storeTotal
 
+  // Desglose por archivo para guardar en la base de datos (columna
+  // image_items) — construido directo de los archivos reales, no del
+  // resumen de precio, para que quede trazable: qué archivo, qué tamaño,
+  // qué tipo de servicio y a qué precio se congeló al momento de enviar.
+  const imageItems = draft.files.map(f => {
+    const service = services.find(s => s.id === f.serviceId)
+    return {
+      frame: f.imageFrame ?? null,
+      service_type: service?.service_type ?? null,
+      price: service?.price_per_sheet ?? 0,
+      pages: f.pageCount ?? 1,
+    }
+  })
+
   const handleSend = async (e) => {
     e.stopPropagation()
     if (!window.confirm(`¿Vas a enviar tu documento a ${shop.name}? Esto no se puede deshacer. Total a pagar al llegar: $${grandTotal.toFixed(2)}.`)) return
     setSending(true)
-    const result = await sendOrder({ session, draft, selectedService, totalPages, total, storeItems, storeTotal })
+    const result = await sendOrder({ session, draft, selectedService, imageItems, totalPages, total, storeItems, storeTotal })
     setSending(false)
     if (result.success) {
       onClearDraft()
