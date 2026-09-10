@@ -93,11 +93,17 @@ function buildSmsMessage(tipo: string, data: Record<string, string>): string {
   }
 }
 
-async function sendWhatsapp(apiKey: string, instanceId: string, digits: string, message: string) {
+async function sendWhatsapp(apiKey: string, instanceId: string, digits: string, ladaCode: string, message: string) {
   const r = await fetch(`${SMS_MASIVOS_BASE}/whatsapp/send`, {
     method: 'POST',
     headers: { 'apikey': apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ instance_id: instanceId, number: digits, message, type: 'text' }),
+    body: JSON.stringify({
+      instance_id: instanceId,
+      number: digits,
+      country_code: Number(ladaCode.replace(/\D/g, '') || '52'), // faltaba - causa real de "Codigo de pais no definido"
+      message,
+      type: 'text',
+    }),
   })
   const result = await r.json().catch(() => ({}))
   const ok = r.ok && result.success !== false
@@ -197,7 +203,7 @@ Deno.serve(async (req) => {
 
     if (WA_INSTANCE_ID) {
       const waMessage = buildWhatsappMessage(tipo, data)
-      const wa = await sendWhatsapp(SMS_API_KEY, WA_INSTANCE_ID, digits, waMessage)
+      const wa = await sendWhatsapp(SMS_API_KEY, WA_INSTANCE_ID, digits, ladaCode, waMessage)
       if (wa.ok) {
         console.log(`✅ [WhatsApp] enviado a ${digits} (${tipo}, orden ${order_id})`)
         return json({ ok: true, method: 'whatsapp', to: digits })
