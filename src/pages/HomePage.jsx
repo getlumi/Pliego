@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { isOpenNow, todayLabel } from '../lib/hours'
 import { sendOrder } from '../lib/sendOrder'
 import { calculateOrderTotal } from '../lib/pricing'
+import { serviceLabel } from '../lib/services'
 import AppModal from '../components/AppModal'
 
 export default function HomePage({ session, onNavigate, draft, onUpdateDraft, onClearDraft, onShowTutorial }) {
@@ -348,11 +349,29 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
   // image_items) — construido directo de los archivos reales, no del
   // resumen de precio, para que quede trazable: qué archivo, qué tamaño,
   // qué tipo de servicio y a qué precio se congeló al momento de enviar.
+  //
+  // 2026-09-29 — generalización: antes esto solo se guardaba de forma
+  // útil para imágenes (sin `name` ni `label`, y sin el mismo fallback de
+  // servicio que ya usa pricing.js), así que un pedido de varios
+  // ARCHIVOS normales (no imágenes) con distinto tipo cada uno perdía el
+  // detalle igual que antes. Ahora cada item trae:
+  //   - name:  nombre real del archivo (para identificarlo en la lista,
+  //            ya que un pedido combinado se sube como "documento.pdf"
+  //            genérico y ese nombre por sí solo no distingue nada).
+  //   - label: etiqueta legible (serviceLabel — respeta nombres
+  //            personalizados de cada papelería) en vez de solo el
+  //            código interno service_type.
+  //   - mismo fallback a services[0] que calculateOrderTotal(), para que
+  //     el precio/tipo guardado aquí coincida siempre con lo que
+  //     realmente se cobró (antes, sin serviceId explícito, quedaba en
+  //     null/0 aunque sí se hubiera cobrado algo).
   const imageItems = draft.files.map(f => {
-    const service = services.find(s => s.id === f.serviceId)
+    const service = services.find(s => s.id === f.serviceId) ?? services[0] ?? null
     return {
+      name: f.file?.name ?? null,
       frame: f.imageFrame ?? null,
       service_type: service?.service_type ?? null,
+      label: service ? serviceLabel(service) : null,
       price: service?.price_per_sheet ?? 0,
       pages: f.pageCount ?? 1,
     }

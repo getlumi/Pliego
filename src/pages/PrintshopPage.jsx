@@ -148,7 +148,7 @@ export default function PrintshopPage({ session }) {
   const loadOrders = async (shopId) => {
     const { data } = await supabase
       .from('orders')
-      .select('id, created_at, status, file_name, file_url, file_count, copies, orientation, color_mode, paper_size, service_type, estimated_cost, special_instructions, ready_at, delivered_at, user_name, expires_at, user_id, guarantee_covered, guarantee_credits, store_items, store_total')
+      .select('id, created_at, status, file_name, file_url, file_count, copies, orientation, color_mode, paper_size, service_type, estimated_cost, special_instructions, image_items, ready_at, delivered_at, user_name, expires_at, user_id, guarantee_covered, guarantee_credits, store_items, store_total')
       .eq('printshop_id', shopId)
       .order('created_at', { ascending: false })
     setOrders(data ?? [])
@@ -859,18 +859,64 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
             </div>
           )}
 
-          {/* Nombre del archivo */}
+          {/* Nombre del archivo — cuando el pedido combina varios archivos en
+              un solo PDF, el nombre real ("documento.pdf") es genérico y no
+              dice nada útil; se avisa que son varios y el desglose de abajo
+              da el detalle real de cada uno. */}
           <p style={{ fontSize:13, fontWeight:700, marginBottom:8, color:'var(--text-secondary)' }}>
-            <i className="ti ti-file-text" style={{ fontSize:14, verticalAlign:-2 }} /> {o.file_name ?? 'Documento'}
+            <i className="ti ti-file-text" style={{ fontSize:14, verticalAlign:-2 }} />{' '}
+            {o.image_items?.length > 1 ? `Documento combinado (${o.image_items.length} archivos)` : (o.file_name ?? 'Documento')}
           </p>
 
-          {/* Chips de detalle — SOLO impresión (esto es lo que cubre la garantía) */}
+          {/* Chips de detalle — SOLO impresión (esto es lo que cubre la garantía).
+              El chip único de Color/B-N solo describe el PRIMER archivo del
+              pedido (limitación real del esquema: esas columnas son un
+              resumen legado de un solo tipo por pedido) — con más de un
+              archivo se omite aquí para no mostrar un dato engañoso, y en
+              su lugar se usa el desglose por archivo de abajo. */}
           <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom: o.store_items?.length > 0 ? 8 : 10 }}>
             <Chip icon="ti-file-text" label={`${o.file_count} hoja${o.file_count > 1 ? 's' : ''}`} />
             <Chip icon="ti-copy" label={`${o.copies} copia${o.copies > 1 ? 's' : ''}`} />
-            <Chip icon={o.color_mode === 'color' ? 'ti-palette' : 'ti-file-text'} label={`${o.color_mode === 'color' ? 'Color' : 'B/N'} · ${o.paper_size}`} />
+            {(!o.image_items || o.image_items.length <= 1) && (
+              <Chip icon={o.color_mode === 'color' ? 'ti-palette' : 'ti-file-text'} label={`${o.color_mode === 'color' ? 'Color' : 'B/N'} · ${o.paper_size}`} />
+            )}
             {o.estimated_cost != null && <Chip label={`$${o.estimated_cost}`} bold />}
           </div>
+
+          {/* Desglose por archivo — cuando el pedido tiene más de un
+              archivo, cada uno puede traer su PROPIO tipo de impresión
+              (Bond/Opalina, color/B-N, tamaño de imagen). Antes esto se
+              guardaba en `image_items` pero nunca se consultaba ni se
+              mostraba aquí, así que la papelería solo veía el tipo del
+              primer archivo aplicado a todo el pedido. Con orders viejas
+              (`image_items` sin `name`/`label`, de antes de este cambio) cae
+              a "Archivo N" / el código interno — sigue siendo mejor que nada. */}
+          {o.image_items?.length > 1 && (
+            <div style={{
+              background:'var(--bg)', border:'1px solid var(--border-light)',
+              borderRadius:'var(--radius-md)', padding:'8px 12px', marginBottom:10,
+            }}>
+              <p style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary)', marginBottom:4 }}>
+                <i className="ti ti-stack-2" style={{ fontSize:12, verticalAlign:-1 }} /> {o.image_items.length} ARCHIVOS EN ESTE PEDIDO — CADA UNO CON SU TIPO
+              </p>
+              {o.image_items.map((it, i) => (
+                <p key={i} style={{
+                  fontSize:13, fontWeight:600, display:'flex',
+                  justifyContent:'space-between', alignItems:'baseline', gap:8,
+                  padding: i > 0 ? '4px 0 0' : 0,
+                  borderTop: i > 0 ? '1px solid var(--border-light)' : 'none',
+                  marginTop: i > 0 ? 4 : 0,
+                }}>
+                  <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {i + 1}. {it.name ?? `Archivo ${i + 1}`}{it.pages > 1 ? ` (${it.pages} pág.)` : ''}
+                  </span>
+                  <span style={{ color:'var(--text-secondary)', fontWeight:700, flexShrink:0 }}>
+                    {it.label ?? it.service_type ?? '—'}
+                  </span>
+                </p>
+              ))}
+            </div>
+          )}
 
           {/* Comentario del cliente — instrucciones especiales para esta impresión.
               Antes se guardaba en la DB pero nunca se mostraba aquí. */}
