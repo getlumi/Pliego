@@ -104,7 +104,7 @@ function resolveFileName(files) {
 }
 
 // Combina los archivos en un único PDF. Si todos son Word, sube el primero tal cual.
-async function buildUploadFile(files, orientation) {
+export async function buildUploadFile(files, orientation) { // export: usado también por las pruebas
   const printable = files.filter(f => !isDocx(f.file))
 
   if (printable.length === 0) {
@@ -135,50 +135,151 @@ async function buildUploadFile(files, orientation) {
     if (f.groupId) {
       if (processedGroups.has(f.groupId)) continue // ya se colocó junto con el resto de su grupo
       processedGroups.add(f.groupId)
-
-      const groupFiles = printable.filter(gf => gf.groupId === f.groupId)
-      // Se normalizan TODAS las imágenes del grupo primero — hace falta
-      // saber sus dimensiones reales para centrarlas bien dentro de
-      // cada espacio de la cuadrícula.
-      const normalized = []
-      for (const gf of groupFiles) {
-        const { bytes, mime } = await normalizeImageOrientation(gf.file, gf.imageRotation ?? 0)
-        const img = mime === 'image/png' ? await merged.embedPng(bytes) : await merged.embedJpg(bytes)
-        normalized.push({ img, frame: gf.imageFrame ?? 'cuarto' })
-      }
-
-      // El empaquetador solo necesita saber el "frame" de cada una —
-      // decide en qué hoja y en qué espacio cae cada imagen. Se vuelve a
-      // emparejar por índice, en el MISMO orden en que se consumieron
-      // (packImagesIntoPages nunca reordena su entrada).
-      const packedPages = packImagesIntoPages(normalized.map(n => ({ frame: n.frame })))
-      let idx = 0
-      for (const pageItems of packedPages) {
-        const { w: pageW, h: pageH } = pageSize(orientation ?? 'vertical')
-        const page = merged.addPage([pageW, pageH])
-        for (const { slot } of pageItems) {
-          const n = normalized[idx]; idx++
-          const rect = slotRect(slot, orientation ?? 'vertical')
-          const { x, y, w, h } = fitImageInRect(n.img.width, n.img.height, rect)
-          page.drawImage(n.img, { x, y, width: w, height: h })
-        }
-      }
+      await drawImageGroup(merged, printable.filter(gf => gf.groupId === f.groupId), orientation)
       continue
     }
 
     // Caso normal — sin grupo, un archivo, una hoja, exactamente como
     // siempre ha funcionado.
-    const { bytes, mime } = await normalizeImageOrientation(file, f.imageRotation ?? 0)
-    const img = mime === 'image/png'
-      ? await merged.embedPng(bytes)
-      : await merged.embedJpg(bytes)
-    const { x, y, w, h, pageW, pageH } = fitImageInFrame(img.width, img.height, f.imageFrame ?? 'completa', orientation ?? 'vertical', f.imageAlign ?? 'centro')
-    const page = merged.addPage([pageW, pageH])
-    page.drawImage(img, { x, y, width: w, height: h })
+    await drawSingleImage(merged, f, orientation)
   }
 
   const pdfBytes = await merged.save()
   return { blob: new Blob([pdfBytes], { type: 'application/pdf' }), contentType: 'application/pdf' }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Dibujado de imágenes — extraído de buildUploadFile (12/10/2026) SIN
+// cambiar su lógica, para que el PDF combinado y los archivos
+// individuales por pedido (buildUnitUploads, abajo) usen EXACTAMENTE el
+// mismo código y nunca se desfasen entre sí.
+// ─────────────────────────────────────────────────────────────────────
+
+// Una imagen sin grupo: una hoja para ella sola, con su tamaño/alineación.
+async function drawSingleImage(doc, f, orientation) {
+  const { bytes, mime } = await normalizeImageOrientation(f.file, f.imageRotation ?? 0)
+  const img = mime === 'image/png'
+    ? await doc.embedPng(bytes)
+    : await doc.embedJpg(bytes)
+  const { x, y, w, h, pageW, pageH } = fitImageInFrame(img.width, img.height, f.imageFrame ?? 'completa', orientation ?? 'vertical', f.imageAlign ?? 'centro')
+  const page = doc.addPage([pageW, pageH])
+  page.drawImage(img, { x, y, width: w, height: h })
+}
+
+// Varias imágenes que comparten hoja(s) (mismo groupId).
+async function drawImageGroup(doc, groupFiles, orientation) {
+  // Se normalizan TODAS las imágenes del grupo primero — hace falta
+  // saber sus dimensiones reales para centrarlas bien dentro de
+  // cada espacio de la cuadrícula.
+  const normalized = []
+  for (const gf of groupFiles) {
+    const { bytes, mime } = await normalizeImageOrientation(gf.file, gf.imageRotation ?? 0)
+    const img = mime === 'image/png' ? await doc.embedPng(bytes) : await doc.embedJpg(bytes)
+    normalized.push({ img, frame: gf.imageFrame ?? 'cuarto' })
+  }
+
+  // El empaquetador solo necesita saber el "frame" de cada una —
+  // decide en qué hoja y en qué espacio cae cada imagen. Se vuelve a
+  // emparejar por índice, en el MISMO orden en que se consumieron
+  // (packImagesIntoPages nunca reordena su entrada).
+  const packedPages = packImagesIntoPages(normalized.map(n => ({ frame: n.frame })))
+  let idx = 0
+  for (const pageItems of packedPages) {
+    const { w: pageW, h: pageH } = pageSize(orientation ?? 'vertical')
+    const page = doc.addPage([pageW, pageH])
+    for (const { slot } of pageItems) {
+      const n = normalized[idx]; idx++
+      const rect = slotRect(slot, orientation ?? 'vertical')
+      const { x, y, w, h } = fitImageInRect(n.img.width, n.img.height, rect)
+      page.drawImage(n.img, { x, y, width: w, height: h })
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Archivos INDIVIDUALES por pedido (12/10/2026) — solo pedidos con más
+// de un archivo.
+//
+// Problema real (reporte de la papelería): con varios archivos, la
+// papelería solo podía abrir UNO (el PDF combinado). Peor: los Word
+// (.docx) no se pueden meter a un PDF desde el navegador, así que
+// buildUploadFile los descarta en silencio cuando hay otros archivos —
+// el cliente pagaba por un documento que la papelería nunca recibía.
+//
+// Solución: además del PDF combinado (que se conserva igual, para el
+// historial del cliente y compatibilidad), cada "unidad de impresión"
+// se sube por separado a la MISMA carpeta del pedido:
+//   - PDF  → el original, tal cual (sin recomprimir)
+//   - Word → el original, tal cual
+//   - Imagen suelta → un PDF de 1 hoja con su tamaño/giro ya aplicados
+//   - Imágenes que comparten hoja → UN solo PDF con esa(s) hoja(s)
+// La ruta de cada una queda en image_items[i].path para que la
+// papelería abra cada archivo de forma independiente.
+//
+// IMPORTANTE (privacidad): todos viven en `${user}/${pedido}/`, la misma
+// carpeta del PDF combinado — cleanup-expired-files borra la carpeta
+// completa al vencer el pedido (ver supabase/functions).
+// ─────────────────────────────────────────────────────────────────────
+
+// Nombre seguro para una llave de Storage (sin acentos ni símbolos raros).
+// El nombre real que ve la papelería se guarda aparte, en image_items.name.
+function safeStorageName(name) {
+  const cleaned = (name ?? 'archivo')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return (cleaned || 'archivo').slice(-80)
+}
+
+// Plan SÍNCRONO (sin tocar red ni Storage): decide qué unidades habrá y
+// en qué ruta irá cada una — hace falta antes de crear el pedido, para
+// guardar las rutas en image_items. Devuelve:
+//   units:      [{ fileIndexes: [..], path, kind }]  en orden de aparición
+//   pathByFile: ruta de la unidad de cada archivo (mismo largo que files)
+export function planUnitUploads(files, userId, orderId) {
+  const units = []
+  const unitOfGroup = new Map()
+  const pathByFile = []
+
+  files.forEach((f, i) => {
+    if (f.groupId && unitOfGroup.has(f.groupId)) {
+      const u = unitOfGroup.get(f.groupId)
+      u.fileIndexes.push(i)
+      pathByFile[i] = u.path
+      return
+    }
+    const n = String(units.length + 1).padStart(2, '0')
+    const file = f.file
+    let kind, name
+    if (f.groupId) {
+      kind = 'group'; name = 'hoja_compartida.pdf'
+    } else if (file.type?.startsWith('image/')) {
+      kind = 'image'; name = safeStorageName(file.name).replace(/\.[^.]*$/, '') + '.pdf'
+    } else {
+      kind = 'original'; name = safeStorageName(file.name)
+    }
+    const unit = { fileIndexes: [i], path: `${userId}/${orderId}/${n}_${name}`, kind }
+    units.push(unit)
+    if (f.groupId) unitOfGroup.set(f.groupId, unit)
+    pathByFile[i] = unit.path
+  })
+
+  return { units, pathByFile }
+}
+
+// Arma el contenido de UNA unidad (se llama después de cobrar, igual que
+// buildUploadFile).
+export async function buildUnitBlob(unit, files, orientation) { // export: usado también por las pruebas
+  const members = unit.fileIndexes.map(i => files[i])
+  if (unit.kind === 'original') {
+    const file = members[0].file
+    return { blob: file, contentType: file.type || 'application/octet-stream' }
+  }
+  const doc = await PDFDocument.create()
+  if (unit.kind === 'group') await drawImageGroup(doc, members, orientation)
+  else await drawSingleImage(doc, members[0], orientation)
+  const bytes = await doc.save()
+  return { blob: new Blob([bytes], { type: 'application/pdf' }), contentType: 'application/pdf' }
 }
 
 // result: { success: true, orderId } | { success: false, error: string }
@@ -187,6 +288,10 @@ export async function sendOrder({ session, draft, selectedService, imageItems = 
   let orderCreated = false
   let credited = false
   let path = null
+  // Rutas de los archivos INDIVIDUALES (solo pedidos con más de un
+  // archivo) — se acumulan aquí para poder borrarlos TODOS si algo falla
+  // después de haberlos subido. Ver planUnitUploads arriba.
+  let unitPaths = []
 
   try {
     // 1) Obtener nombre y estado de suscripción (para el pedido y el cobro)
@@ -200,6 +305,21 @@ export async function sendOrder({ session, draft, selectedService, imageItems = 
     // 2) Calcular nombre/ruta final del archivo (sin tocar Storage todavía)
     const name = resolveFileName(draft.files)
     path = `${session.user.id}/${orderId}/${name}`
+
+    // 2b) Pedidos con más de un archivo: planear (sin red) la ruta de cada
+    //     archivo individual y guardarla en image_items[i].path — así la
+    //     papelería puede abrir cada uno por separado. Un pedido de un solo
+    //     archivo no cambia en nada.
+    const unitPlan = draft.files.length > 1 && imageItems.length === draft.files.length
+      ? planUnitUploads(draft.files, session.user.id, orderId)
+      : null
+    const imageItemsForDb = unitPlan
+      ? imageItems.map((it, i) => ({
+          ...it,
+          path: unitPlan.pathByFile[i],
+          shared_sheet: !!draft.files[i].groupId,
+        }))
+      : imageItems
 
     // 3) Crear el pedido PRIMERO — necesario para que el cobro (paso 4)
     //    pueda referenciar un order_id que ya existe de verdad.
@@ -225,7 +345,7 @@ export async function sendOrder({ session, draft, selectedService, imageItems = 
       // Desglose real por archivo (Idea 1 — varias imágenes, cada una
       // con su propio tamaño/precio). null si es un pedido "clásico" de
       // un solo tipo — no cambia nada del comportamiento de siempre.
-      image_items: imageItems.length > 1 ? imageItems : null,
+      image_items: imageItemsForDb.length > 1 ? imageItemsForDb : null,
       store_items: storeItems.length > 0 ? storeItems : null,
       store_total: storeTotal,
       user_name: userRow.name ?? null,
@@ -272,6 +392,41 @@ export async function sendOrder({ session, draft, selectedService, imageItems = 
       }
     }
 
+    // 5b) Pedidos con más de un archivo: subir cada archivo individual a la
+    //     misma carpeta del pedido. Si CUALQUIERA falla, se deshace todo
+    //     (mismo criterio que el paso 5): reembolso, borrar lo ya subido
+    //     y borrar el pedido — nunca queda un pedido a medias donde la
+    //     papelería vea archivos que no existen.
+    if (unitPlan) {
+      unitPaths = unitPlan.units.map(u => u.path) // se declaran ya, para limpiar aunque falle a la mitad
+      let unitError = null
+      for (const unit of unitPlan.units) {
+        try {
+          const { blob: ub, contentType: uct } = await buildUnitBlob(unit, draft.files, draft.orientation)
+          const { error } = await supabase.storage.from('documents').upload(unit.path, ub, {
+            contentType: uct, upsert: false,
+          })
+          if (error) { unitError = error; break }
+        } catch (e) { unitError = e; break }
+      }
+      if (unitError) {
+        // Suscriptores no pagaron crédito (isSubscriber), nada que reembolsar.
+        const { data: refunded } = isSubscriber
+          ? { data: null }
+          : await supabase.rpc('refund_credit', { p_order_id: orderId })
+        try { await supabase.storage.from('documents').remove([path, ...unitPaths]) } catch (_) {}
+        await supabase.from('orders').delete().eq('id', orderId)
+        return {
+          success: false,
+          error: isSubscriber
+            ? 'No se pudieron subir todos tus archivos. Intenta de nuevo.'
+            : refunded
+              ? 'No se pudieron subir todos tus archivos. Se te devolvió el crédito, intenta de nuevo.'
+              : 'No se pudieron subir todos tus archivos. Contacta a soporte si tu saldo no se ajusta solo.',
+        }
+      }
+    }
+
     // 6) Decidir si el pedido queda cubierto por la garantía anti-no-show.
     //    Créditos: cabe si hay saldo suficiente apartado (place_guarantee_hold).
     //    Suscriptores: cabe si el pedido cuesta $50 o menos (tope fijo, sin
@@ -286,7 +441,7 @@ export async function sendOrder({ session, draft, selectedService, imageItems = 
         p_estimated_cost: total,
       })
       if (guaranteeError) {
-        await supabase.storage.from('documents').remove([path])
+        await supabase.storage.from('documents').remove([path, ...unitPaths])
         await supabase.from('orders').delete().eq('id', orderId)
         return { success: false, error: 'No se pudo procesar tu pedido. Intenta de nuevo.' }
       }
@@ -299,7 +454,7 @@ export async function sendOrder({ session, draft, selectedService, imageItems = 
       })
       if (guaranteeError) {
         const { data: refunded } = await supabase.rpc('refund_credit', { p_order_id: orderId })
-        await supabase.storage.from('documents').remove([path])
+        await supabase.storage.from('documents').remove([path, ...unitPaths])
         await supabase.from('orders').delete().eq('id', orderId)
         return {
           success: false,
@@ -346,7 +501,7 @@ export async function sendOrder({ session, draft, selectedService, imageItems = 
       try { await supabase.rpc('refund_credit', { p_order_id: orderId }) } catch (_) {}
     }
     if (path) {
-      try { await supabase.storage.from('documents').remove([path]) } catch (_) {}
+      try { await supabase.storage.from('documents').remove([path, ...unitPaths]) } catch (_) {}
     }
     if (orderCreated) {
       try { await supabase.from('orders').delete().eq('id', orderId) } catch (_) {}

@@ -36,8 +36,34 @@ Deno.serve(async (req) => {
     let deleted = 0
     const errors: string[] = []
 
+    // Cada pedido vive en su propia carpeta "<user_id>/<order_id>/". Los pedidos
+    // con varios archivos guardan ahí además del PDF combinado (file_url) un
+    // archivo por cada documento (12/10/2026) — hay que borrarlos TODOS, no
+    // solo file_url, o quedarían archivos de clientes más allá de la promesa
+    // de privacidad. Solo se lista la carpeta si tiene EXACTAMENTE esa forma
+    // (dos UUID): si file_url trajera cualquier otra ruta, se borra solo ese
+    // archivo — nunca se lista una carpeta que pudiera ser la raíz del bucket.
+    const ORDER_FOLDER = /^[0-9a-f-]{36}\/[0-9a-f-]{36}$/i
+
     for (const order of due ?? []) {
-      const { error: removeError } = await supabase.storage.from('documents').remove([order.file_url])
+      let paths: string[] = [order.file_url]
+      const folder = order.file_url.split('/').slice(0, -1).join('/')
+      if (ORDER_FOLDER.test(folder)) {
+        const { data: listed, error: listError } = await supabase.storage
+          .from('documents').list(folder, { limit: 1000 })
+        if (listError) {
+          // Sin poder listar no se marca como borrado: se reintenta en el
+          // siguiente ciclo (2 h) en vez de dejar archivos huérfanos.
+          errors.push(`${order.id}: list: ${listError.message}`)
+          continue
+        }
+        for (const f of listed ?? []) {
+          if (f.id) paths.push(`${folder}/${f.name}`) // f.id nulo = subcarpeta, se omite
+        }
+        paths = [...new Set(paths)]
+      }
+
+      const { error: removeError } = await supabase.storage.from('documents').remove(paths)
       if (removeError) {
         errors.push(`${order.id}: ${removeError.message}`)
         continue

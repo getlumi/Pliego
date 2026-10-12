@@ -6,6 +6,7 @@ import StripeCardForm from '../components/StripeCardForm'
 import LocationMapPicker from '../components/LocationMapPicker'
 import AppModal from '../components/AppModal'
 import QrScanner from '../components/QrScanner'
+import OrderItemRows from '../components/OrderItemRows'
 import { DAY_KEYS, DAY_LABELS, DEFAULT_HOURS } from '../lib/hours'
 
 const SERVICE_OPTIONS = [
@@ -899,22 +900,7 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
               <p style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary)', marginBottom:4 }}>
                 <i className="ti ti-stack-2" style={{ fontSize:12, verticalAlign:-1 }} /> {o.image_items.length} ARCHIVOS EN ESTE PEDIDO — CADA UNO CON SU TIPO
               </p>
-              {o.image_items.map((it, i) => (
-                <p key={i} style={{
-                  fontSize:13, fontWeight:600, display:'flex',
-                  justifyContent:'space-between', alignItems:'baseline', gap:8,
-                  padding: i > 0 ? '4px 0 0' : 0,
-                  borderTop: i > 0 ? '1px solid var(--border-light)' : 'none',
-                  marginTop: i > 0 ? 4 : 0,
-                }}>
-                  <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                    {i + 1}. {it.name ?? `Archivo ${i + 1}`}{it.pages > 1 ? ` (${it.pages} pág.)` : ''}
-                  </span>
-                  <span style={{ color:'var(--text-secondary)', fontWeight:700, flexShrink:0 }}>
-                    {it.label ?? it.service_type ?? '—'}
-                  </span>
-                </p>
-              ))}
+              <OrderItemRows order={o} />
             </div>
           )}
 
@@ -964,8 +950,21 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
           {/* 3 botones independientes, siempre visibles */}
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6 }}>
 
-            {/* Botón 1: Descargar — siempre activo */}
-            {downloadUrls[o.id] ? (
+            {/* Botón 1: Descargar — siempre activo.
+                Con varios archivos (cada uno se abre en su fila de arriba) este
+                botón abre el PDF combinado: "Todo junto". Ese PDF NO incluye
+                archivos Word (no se pueden meter a un PDF desde el navegador),
+                así que si el pedido trae alguno se avisa en vez de ofrecer un
+                "todo" incompleto. */}
+            {o.image_items?.length > 1 && o.image_items.every(it => it.path) && o.image_items.some(it => /\.docx?$/i.test(it.name ?? '')) ? (
+              <span style={{
+                padding:'8px 4px', fontSize:11, fontWeight:700, textAlign:'center', lineHeight:1.2,
+                borderRadius:'var(--radius-md)', background:'var(--border)', color:'var(--text-muted)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+              }}>
+                Abre cada archivo arriba
+              </span>
+            ) : downloadUrls[o.id] ? (
               <a href={downloadUrls[o.id]} target="_blank" rel="noopener noreferrer" style={{
                 flex:1, padding:'8px 4px', fontSize:12, fontWeight:700,
                 borderRadius:'var(--radius-md)', border:'1px solid var(--green)',
@@ -973,7 +972,7 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
                 display:'flex', alignItems:'center', justifyContent:'center', gap:4,
                 textDecoration:'none',
               }}>
-                <i className="ti ti-external-link" style={{ fontSize:14 }} /> Abrir archivo
+                <i className="ti ti-external-link" style={{ fontSize:14 }} /> {o.image_items?.length > 1 ? 'Abrir todo junto' : 'Abrir archivo'}
               </a>
             ) : (
               <button onClick={() => download(o)} style={{
@@ -981,7 +980,7 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
                 borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'#fff',
                 color:'var(--text-primary)', display:'flex', alignItems:'center', justifyContent:'center', gap:4,
               }}>
-                <i className="ti ti-download" style={{ fontSize:14 }} /> Descargar
+                <i className="ti ti-download" style={{ fontSize:14 }} /> {o.image_items?.length > 1 ? 'Todo junto' : 'Descargar'}
               </button>
             )}
 
