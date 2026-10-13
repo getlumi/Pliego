@@ -35,7 +35,11 @@ export default function App() {
   })
   const [draft,    setDraft]    = useState(createEmptyDraft())
 
-  const updateDraft = (partial) => setDraft(d => ({ ...d, ...partial }))
+  // `partial` puede ser un objeto o una función (borrador actual) => objeto.
+  // La forma de función existe para resultados ASÍNCRONOS (p. ej. el análisis
+  // hoja por hoja de un PDF): evita pisar con datos viejos lo que el usuario
+  // haya cambiado mientras tanto.
+  const updateDraft = (partial) => setDraft(d => ({ ...d, ...(typeof partial === 'function' ? partial(d) : partial) }))
   const clearDraft = () => {
     revokeDraftUrls(draft)
     setDraft(createEmptyDraft())

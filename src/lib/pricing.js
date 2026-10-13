@@ -20,6 +20,7 @@
 // que la pantalla le muestre al usuario como "cuántas hojas van a
 // salir de la impresora".
 import { packImagesIntoPages } from './imageFraming'
+import { computeBreakdown } from './pageBreakdown'
 
 export function calculateOrderTotal({ files, services, copies }) {
   const list = services ?? []
@@ -33,6 +34,15 @@ export function calculateOrderTotal({ files, services, copies }) {
     const pages = f.pageCount ?? 1
     totalPages += pages
     const service = list.find(s => s.id === f.serviceId) ?? fallback
+    // Documento analizado hoja por hoja (imágenes/color): cada hoja se
+    // cobra según lo que lleva — ver pageBreakdown.js. Sin análisis (o con
+    // un tipo de impresión que no aplica) sigue siendo hojas × precio.
+    const breakdown = computeBreakdown(f, list)
+    if (breakdown) {
+      total += breakdown.total
+      items.push({ service, pricePerSheet: pages > 0 ? breakdown.total / pages : 0, pages, breakdown })
+      continue
+    }
     const pricePerSheet = service?.price_per_sheet ?? 0
     total += pricePerSheet * pages
     items.push({ service, pricePerSheet, pages })

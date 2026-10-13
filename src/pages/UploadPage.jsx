@@ -6,6 +6,8 @@ import { renderPdfFirstPageThumbnail } from '../lib/pdfThumbnail'
 import IneCapture from './IneCapture'
 import DocumentScanner from './DocumentScanner'
 import { CARTA_H, MARGIN, pageSize, frameBoxSize, packImagesIntoPages, slotRect } from '../lib/imageFraming'
+import { analyzePdfPages } from '../lib/pdfPageAnalysis'
+import { formatPageRanges, TIER_LABEL } from '../lib/pageBreakdown'
 import {
   FRAME_TO_SERVICE_TYPE, isImageFile, isImageOrBnService, colorModeOfService,
   materialOfService, resolveImageService, pickDefaultService,
@@ -122,9 +124,23 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     // lista hasta que alguien tocaba la miniatura.
     const withService = mapped.map(m => {
       const svc = pickDefaultService(m, enabledServices, anyImageFrameOffered)
-      return { ...m, serviceId: svc?.id ?? m.serviceId ?? null, ...(isImageFile(m) ? { colorMode: colorModeOfService(svc) } : {}) }
+      return {
+        ...m, serviceId: svc?.id ?? m.serviceId ?? null,
+        ...(isImageFile(m) ? { colorMode: colorModeOfService(svc) } : {}),
+        // PDF: se revisa hoja por hoja (imágenes/color) en segundo plano.
+        ...(m.file.type === 'application/pdf' ? { pageAnalysis: { status: 'pending' } } : {}),
+      }
     })
     onUpdateDraft({ files: [...files, ...withService] })
+    // El resultado llega después: se guarda con la forma de FUNCIÓN para no
+    // pisar lo que la persona haya cambiado mientras tanto. Tope de 45 s:
+    // si no termina, se sigue como siempre (hojas × precio del tipo).
+    withService.filter(m => m.file.type === 'application/pdf').forEach(m => {
+      const timeout = new Promise(resolve => setTimeout(() => resolve({ status: 'failed' }), 45000))
+      Promise.race([analyzePdfPages(m.file), timeout]).then(result => {
+        onUpdateDraft(d => ({ files: d.files.map(f => f.file === m.file ? { ...f, pageAnalysis: result } : f) }))
+      })
+    })
     e.target.value = ''
   }
 
@@ -313,6 +329,11 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     if (resolved) applyResolved(resolved)
   }
 
+  // "Todo en B/N" / "Color" para un DOCUMENTO analizado hoja por hoja.
+  const setDocColorMode = (mode) => {
+    onUpdateDraft({ files: files.map((f, i) => i === activeIndex ? { ...f, docColorMode: mode } : f) })
+  }
+
   const setImageAlign = (align) => {
     const copy = files.map((f, i) => i === activeIndex ? { ...f, imageAlign: align } : f)
     onUpdateDraft({ files: copy })
@@ -471,6 +492,32 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                     // desglose cuando de verdad hay precios distintos
                     // entre archivos del mismo pedido.
                     const distinctPrices = new Set(priceItems.map(it => it.pricePerSheet))
+                    // Documentos con detalle por hoja (imágenes/color): una
+                    // línea por tipo de hoja, con su subtotal.
+                    if (priceItems.some(it => it.breakdown)) {
+                      const lineName = (l) => l.kind === 'image'
+                        ? `con imagen${l.tier ? ' · ' + TIER_LABEL[l.tier] : ''}`
+                        : l.kind === 'color_text' ? 'texto a color' : 'B/N'
+                      const row = (k, a, b) => (
+                        <div key={k} style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'rgba(255,255,255,0.65)', marginBottom:2 }}>
+                          <span>{a}</span><span>{b}</span>
+                        </div>
+                      )
+                      return (
+                        <div style={{ marginBottom: 6 }}>
+                          {priceItems.map((it, i) => (
+                            <div key={i} style={{ marginBottom: 4 }}>
+                              {priceItems.length > 1 && (
+                                <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.85)', marginBottom:2 }}>Archivo {i + 1}</div>
+                              )}
+                              {it.breakdown
+                                ? it.breakdown.lines.map((l, j) => row(`${i}-${j}`, `${l.count} ${l.count === 1 ? 'hoja' : 'hojas'} ${lineName(l)}`, `$${(l.price * l.count).toFixed(2)}`))
+                                : row(`${i}-x`, `${it.pages} ${it.pages === 1 ? 'hoja' : 'hojas'} × $${it.pricePerSheet.toFixed(2)}`, `$${(it.pricePerSheet * it.pages).toFixed(2)}`)}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    }
                     if (distinctPrices.size > 1) {
                       return (
                         <div style={{ marginBottom: 6 }}>
@@ -965,6 +1012,84 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                 </div>
               )}
 
+              {/* Detalle HOJA POR HOJA de un documento (PDF): qué hojas llevan
+                  imagen o color y cómo se cobran. Solo informa y deja elegir
+                  "Todo en B/N"; el precio ya sale de pricing.js. */}
+              {!activeIsImage && activeFile?.pageAnalysis && (() => {
+                const a = activeFile.pageAnalysis
+                const bd = priceItems[activeIndex]?.breakdown
+                const box = { marginTop: 14, padding: 12, borderRadius: 'var(--radius-md)', background: 'var(--bg)', border: '1px solid var(--border-light)' }
+                if (a.status === 'pending') {
+                  return (
+                    <div style={box}>
+                      <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        <i className="ti ti-loader-2" style={{ fontSize: 14, verticalAlign: -2, marginRight: 6 }} />
+                        Revisando tus hojas (imágenes y color)…
+                      </p>
+                    </div>
+                  )
+                }
+                if (a.status === 'skipped') {
+                  return (
+                    <div style={box}>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        Documento muy largo: no revisamos hoja por hoja. Se cobra todo como el tipo de impresión elegido.
+                      </p>
+                    </div>
+                  )
+                }
+                if (a.status !== 'done') return null
+                if (!bd) {
+                  if (a.pages.some(p => p.image || p.color)) return null // tipo de impresión sin desglose (p. ej. doble carta)
+                  return (
+                    <div style={box}>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        <i className="ti ti-circle-check" style={{ fontSize: 14, verticalAlign: -2, marginRight: 4 }} />
+                        Revisamos tus {a.pages.length} {a.pages.length === 1 ? 'hoja' : 'hojas'}: solo texto, sin imágenes ni color.
+                      </p>
+                    </div>
+                  )
+                }
+                const lineName = (l) => l.kind === 'image'
+                  ? `Con imagen${l.tier ? ' · ' + TIER_LABEL[l.tier] : ''}`
+                  : l.kind === 'color_text' ? 'Texto a color' : 'Solo texto B/N'
+                return (
+                  <div style={{ ...box, background: 'var(--amber-light, #fff8e1)', border: '1.5px solid var(--amber, #f5b301)' }}>
+                    <p style={{ fontSize: 13, fontWeight: 800, marginBottom: 6 }}>
+                      <i className="ti ti-photo-search" style={{ fontSize: 15, verticalAlign: -2, marginRight: 4 }} />
+                      {bd.colorPageCount} {bd.colorPageCount === 1 ? 'hoja lleva' : 'hojas llevan'} imagen o color
+                    </p>
+                    {bd.lines.map((l, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12.5, marginBottom: 3 }}>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <strong>{lineName(l)}</strong> · {l.count === 1 ? 'pág.' : 'págs.'} {formatPageRanges(l.pages)}
+                        </span>
+                        <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{l.count} × ${l.price.toFixed(2)}</span>
+                      </div>
+                    ))}
+                    {bd.mode === 'bn' && bd.colorPagesAsBn.length > 0 && (
+                      <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 4 }}>
+                        Págs. {formatPageRanges(bd.colorPagesAsBn)} tienen imagen o color, pero las imprimirán en blanco y negro.
+                      </p>
+                    )}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <ToggleButton active={bd.mode === 'color'} onClick={() => setDocColorMode('color')} icon="ti-palette" label="Con color" />
+                      <ToggleButton active={bd.mode === 'bn'} onClick={() => setDocColorMode('bn')} icon="ti-contrast" label="Todo B/N" />
+                    </div>
+                    {bd.scanLike && bd.mode === 'color' && (
+                      <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 8 }}>
+                        Parece un documento escaneado. Si es en blanco y negro, pulsa «Todo B/N» para pagar menos.
+                      </p>
+                    )}
+                    {bd.approx && (
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                        Detección aproximada (Word). Para un cobro exacto, guárdalo como PDF.
+                      </p>
+                    )}
+                  </div>
+                )
+              })()}
+
               {/* Orientación */}
               <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
                 <ToggleButton active={orientation === 'vertical'} onClick={() => onUpdateDraft({ orientation: 'vertical' })} icon="ti-rectangle-vertical" label="Vertical" />
@@ -1073,7 +1198,9 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
               </p>
               <p style={{ fontSize: 14, lineHeight: 1.6 }}>
                 <strong>{physicalSheets} {pageWord}</strong>
-                {selectedService ? <>, {serviceLabel(selectedService).toLowerCase()}</> : ''},
+                {priceItems.some(it => it.breakdown)
+                  ? <>, cobradas según lo que lleva cada hoja</>
+                  : selectedService ? <>, {serviceLabel(selectedService).toLowerCase()}</> : ''},
                 {' '}{copies} {copyWord}
                 {fit === 'fit' ? ', ajustado a la hoja' : ', tamaño real'}
                 {orientation === 'horizontal' ? ', horizontal' : ''}.

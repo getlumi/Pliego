@@ -878,7 +878,7 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
           <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom: o.store_items?.length > 0 ? 8 : 10 }}>
             <Chip icon="ti-file-text" label={`${o.file_count} hoja${o.file_count > 1 ? 's' : ''}`} />
             <Chip icon="ti-copy" label={`${o.copies} copia${o.copies > 1 ? 's' : ''}`} />
-            {(!o.image_items || o.image_items.length <= 1) && (
+            {(!o.image_items || (o.image_items.length <= 1 && !o.image_items.some(it => it.breakdown))) && (
               <Chip icon={o.color_mode === 'color' ? 'ti-palette' : 'ti-file-text'} label={`${o.color_mode === 'color' ? 'Color' : 'B/N'} · ${o.paper_size}`} />
             )}
             {o.estimated_cost != null && <Chip label={`$${o.estimated_cost}`} bold />}
@@ -892,13 +892,13 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
               primer archivo aplicado a todo el pedido. Con orders viejas
               (`image_items` sin `name`/`label`, de antes de este cambio) cae
               a "Archivo N" / el código interno — sigue siendo mejor que nada. */}
-          {o.image_items?.length > 1 && (
+          {(o.image_items?.length > 1 || o.image_items?.some(it => it.breakdown)) && (
             <div style={{
               background:'var(--bg)', border:'1px solid var(--border-light)',
               borderRadius:'var(--radius-md)', padding:'8px 12px', marginBottom:10,
             }}>
               <p style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary)', marginBottom:4 }}>
-                <i className="ti ti-stack-2" style={{ fontSize:12, verticalAlign:-1 }} /> {o.image_items.length} ARCHIVOS EN ESTE PEDIDO — CADA UNO CON SU TIPO
+                <i className="ti ti-stack-2" style={{ fontSize:12, verticalAlign:-1 }} /> {o.image_items.length > 1 ? `${o.image_items.length} ARCHIVOS EN ESTE PEDIDO — CADA UNO CON SU TIPO` : 'DETALLE POR HOJAS — SEGÚN LO QUE LLEVA CADA UNA'}
               </p>
               <OrderItemRows order={o} />
             </div>

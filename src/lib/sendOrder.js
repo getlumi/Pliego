@@ -366,7 +366,9 @@ export async function sendOrder({ session, draft, selectedService, imageItems = 
       // Desglose real por archivo (Idea 1 — varias imágenes, cada una
       // con su propio tamaño/precio). null si es un pedido "clásico" de
       // un solo tipo — no cambia nada del comportamiento de siempre.
-      image_items: imageItemsForDb.length > 1 ? imageItemsForDb : null,
+      // Se guarda con >1 archivo, o con un solo documento cobrado hoja por
+      // hoja (desglose de imágenes/color para la papelería).
+      image_items: (imageItemsForDb.length > 1 || imageItemsForDb.some(it => it.breakdown)) ? imageItemsForDb : null,
       store_items: storeItems.length > 0 ? storeItems : null,
       store_total: storeTotal,
       user_name: userRow.name ?? null,

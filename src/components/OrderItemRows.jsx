@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { formatPageRanges, TIER_LABEL } from '../lib/pageBreakdown'
 
 // ─────────────────────────────────────────────────────────────────────
 // Filas del desglose por archivo, cada una con su propio botón "Abrir"
@@ -64,6 +65,24 @@ export default function OrderItemRows({ order }) {
             {it.label ?? it.service_type ?? '—'}
             {it.shared_sheet ? ' · comparte hoja con otras imágenes' : ''}
           </p>
+          {it.breakdown && (
+            <div style={{ marginTop:4 }}>
+              {it.breakdown.lines.map((l, j) => (
+                <p key={j} style={{ fontSize:12, color:'var(--text-primary)', lineHeight:1.45 }}>
+                  • <strong>{l.kind === 'image' ? `Con imagen${l.tier ? ' · ' + TIER_LABEL[l.tier] : ''}` : l.kind === 'color_text' ? 'Texto a color' : 'Solo texto B/N'}</strong>
+                  {' '}· {l.count === 1 ? 'pág.' : 'págs.'} {formatPageRanges(l.pages)} — {l.count} × ${Number(l.price).toFixed(2)}
+                </p>
+              ))}
+              {it.breakdown.mode === 'bn' && it.breakdown.color_pages_as_bn?.length > 0 && (
+                <p style={{ fontSize:12, fontWeight:700, color:'var(--amber-dark, #8a6100)', marginTop:2 }}>
+                  El cliente eligió TODO B/N: págs. {formatPageRanges(it.breakdown.color_pages_as_bn)} tienen imagen o color pero van en blanco y negro.
+                </p>
+              )}
+              {it.breakdown.approx && (
+                <p style={{ fontSize:11, color:'var(--text-muted)' }}>Detección aproximada (Word): confirma al imprimir.</p>
+              )}
+            </div>
+          )}
         </div>
         {it.path && !finished && (
           url ? (

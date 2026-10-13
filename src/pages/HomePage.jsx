@@ -335,7 +335,7 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
   const [modal, setModal] = useState(null) // { type, title?, message, onClose? } | null
   const services = shop.printshop_services?.filter(s => s.enabled) ?? []
 
-  const { totalPages, total, selectedService } = calculateOrderTotal({
+  const { totalPages, total, selectedService, items: priceItems } = calculateOrderTotal({
     files: draft.files, services, copies: draft.copies,
   })
 
@@ -366,20 +366,35 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
   //     el precio/tipo guardado aquí coincida siempre con lo que
   //     realmente se cobró (antes, sin serviceId explícito, quedaba en
   //     null/0 aunque sí se hubiera cobrado algo).
-  const imageItems = draft.files.map(f => {
+  const imageItems = draft.files.map((f, i) => {
     const service = services.find(s => s.id === f.serviceId) ?? services[0] ?? null
+    // Documento cobrado hoja por hoja (imágenes/color): se guarda el
+    // desglose para que la papelería vea qué páginas son de cada tipo.
+    const bd = priceItems[i]?.breakdown ?? null
     return {
       name: f.file?.name ?? null,
       frame: f.imageFrame ?? null,
       service_type: service?.service_type ?? null,
-      label: service ? serviceLabel(service) : null,
-      price: service?.price_per_sheet ?? 0,
+      label: bd ? 'Cobro por hoja según lo que lleva' : (service ? serviceLabel(service) : null),
+      price: bd ? Math.round((bd.total / Math.max(1, f.pageCount ?? 1)) * 100) / 100 : (service?.price_per_sheet ?? 0),
       pages: f.pageCount ?? 1,
+      ...(bd ? {
+        breakdown: {
+          mode: bd.mode, approx: bd.approx, color_pages_as_bn: bd.colorPagesAsBn,
+          lines: bd.lines.map(l => ({ label: l.label, service_type: l.service_type, price: l.price, count: l.count, kind: l.kind, tier: l.tier, pages: l.pages })),
+        },
+      } : {}),
     }
   })
 
   const handleSend = async (e) => {
     e.stopPropagation()
+    // El análisis hoja por hoja de un PDF corre en segundo plano al subirlo;
+    // si aún no termina, el precio todavía no es el definitivo.
+    if (draft.files.some(f => f.pageAnalysis?.status === 'pending')) {
+      setModal({ type: 'error', title: 'Revisando tus hojas', message: 'Estamos revisando las imágenes y el color de tu documento. Espera unos segundos e inténtalo de nuevo.' })
+      return
+    }
     // Seguro (13/10/2026): ninguna IMAGEN viaja sin un tipo de impresión
     // VÁLIDO de ESTA papelería (Imprimir se lo asigna al abrirse). Si no lo tiene (p. ej. cambió de papelería
     // después de armar el pedido), el precio mostrado vendría del primer

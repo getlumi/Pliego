@@ -36,7 +36,7 @@ export const colorModeOfService = (service) =>
   service && BN_TYPES.includes(service.service_type) ? 'bn' : 'color'
 
 export const materialOfService = (service) =>
-  service && (Object.values(FRAME_TO_SERVICE_TYPE.opalina).includes(service.service_type) || service.service_type === 'opalina_bn')
+  service && (Object.values(FRAME_TO_SERVICE_TYPE.opalina).includes(service.service_type) || service.service_type === 'opalina_bn' || service.service_type === 'opalina_color')
     ? 'opalina' : 'bond'
 
 // Servicio que corresponde a {material, colorMode, frame}. null si la
