@@ -6,6 +6,10 @@ import { renderPdfFirstPageThumbnail } from '../lib/pdfThumbnail'
 import IneCapture from './IneCapture'
 import DocumentScanner from './DocumentScanner'
 import { CARTA_H, MARGIN, pageSize, frameBoxSize, packImagesIntoPages, slotRect } from '../lib/imageFraming'
+import {
+  FRAME_TO_SERVICE_TYPE, isImageFile, isImageOrBnService, colorModeOfService,
+  materialOfService, resolveImageService, pickDefaultService,
+} from '../lib/imageService'
 
 // La caja de "ajustes especiales con IA" está temporalmente oculta:
 // por ahora la app solo soporta documentos ya listos para imprimir.
@@ -78,8 +82,11 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
         if (enabled.length > 0) {
           const needsDefault = files.some(f => !enabled.some(s => s.id === f.serviceId))
           if (needsDefault) {
+            // Las IMÁGENES entran como Color en hoja completa (no como el
+            // primer servicio de la lista) — ver imageService.js.
+            const anyFrames = enabled.some(s => ['color_imagen_cuarto', 'color_imagen_medio', 'color_imagen_completa'].includes(s.service_type))
             const copy = files.map(f =>
-              enabled.some(s => s.id === f.serviceId) ? f : { ...f, serviceId: enabled[0].id }
+              enabled.some(s => s.id === f.serviceId) ? f : { ...f, serviceId: pickDefaultService(f, enabled, anyFrames)?.id ?? enabled[0].id }
             )
             onUpdateDraft({ files: copy })
           }
@@ -110,7 +117,14 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
         pageCount, pageCountAuto, serviceId: null,
       }
     }))
-    onUpdateDraft({ files: [...files, ...mapped] })
+    // Cada archivo nuevo entra YA con su servicio (imagen → Color, hoja
+    // completa): sin esto, el precio usaba el primer servicio de la
+    // lista hasta que alguien tocaba la miniatura.
+    const withService = mapped.map(m => {
+      const svc = pickDefaultService(m, enabledServices, anyImageFrameOffered)
+      return { ...m, serviceId: svc?.id ?? m.serviceId ?? null, ...(isImageFile(m) ? { colorMode: colorModeOfService(svc) } : {}) }
+    })
+    onUpdateDraft({ files: [...files, ...withService] })
     e.target.value = ''
   }
 
@@ -141,9 +155,16 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     const file = list[0]
     const { pageCount, pageCountAuto } = await detectPageCount(file)
     const groupId = activeFile.groupId ?? crypto.randomUUID()
+    // La imagen nueva hereda Color/B/N y material (Bond/Opalina) de la
+    // hoja que ya existe — una hoja física no puede ser mitad y mitad.
+    const activeSvc = enabledServices.find(s => s.id === activeFile.serviceId)
+    const inherited = isImageOrBnService(activeSvc)
+      ? resolveImageService(enabledServices, { material: materialOfService(activeSvc), colorMode: colorModeOfService(activeSvc), frame: 'cuarto' })
+      : null
+    const newSvc = inherited ?? pickDefaultService({ file, groupId }, enabledServices, anyImageFrameOffered, 'cuarto')
     const newImage = {
       file, previewUrl: URL.createObjectURL(file), pageCount, pageCountAuto,
-      groupId, imageFrame: 'cuarto', serviceId: null,
+      groupId, imageFrame: 'cuarto', serviceId: newSvc?.id ?? null, colorMode: colorModeOfService(newSvc),
     }
     const copy = files.map((f, i) => (i === activeIndex && !f.groupId) ? { ...f, groupId } : f)
     onUpdateDraft({ files: [...copy, newImage], activeIndex: copy.length }) // activa la recién agregada
@@ -171,41 +192,44 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
   const activeFile = files[activeIndex]
   const activeIsImage = activeFile?.file?.type?.startsWith('image/')
 
-  // Tamaño de imagen × material de la hoja — dos ejes independientes.
-  // Si la papelería no ofrece la combinación exacta (ej. Opalina 1/4 de
-  // hoja), se cae de vuelta a la versión en Bond de ese mismo tamaño,
-  // para nunca dejar seleccionado un servicio que no corresponde.
-  const FRAME_TO_SERVICE_TYPE = {
-    bond:    { cuarto: 'color_imagen_cuarto',   medio: 'color_imagen_medio',   completa: 'color_imagen_completa' },
-    opalina: { cuarto: 'opalina_imagen_cuarto', medio: 'opalina_imagen_medio', completa: 'opalina_imagen_completa' },
-  }
-  const ALL_IMAGE_SERVICE_TYPES = [...Object.values(FRAME_TO_SERVICE_TYPE.bond), ...Object.values(FRAME_TO_SERVICE_TYPE.opalina)]
-  const materialOf = (service) =>
-    service && Object.values(FRAME_TO_SERVICE_TYPE.opalina).includes(service.service_type) ? 'opalina' : 'bond'
+  // Tamaño de imagen × material de la hoja × Color/B/N — la regla vive
+  // en lib/imageService.js (un solo lugar). Si la papelería no ofrece la
+  // combinación exacta (ej. Opalina 1/4 de hoja), se cae de vuelta a la
+  // versión en Bond, para nunca dejar seleccionado un servicio que no
+  // corresponde.
+  const materialOf = materialOfService
 
   // ¿La papelería ofrece Opalina en AL MENOS un tamaño? Si no, el botón
   // de material ni siquiera se muestra — "solo tendrán la opción de
   // opalina si el negocio la habilita".
-  const anyOpalinaImageOffered = enabledServices.some(s => Object.values(FRAME_TO_SERVICE_TYPE.opalina).includes(s.service_type))
+  const anyOpalinaImageOffered = enabledServices.some(s => Object.values(FRAME_TO_SERVICE_TYPE.opalina).includes(s.service_type) || s.service_type === 'opalina_bn')
 
-  // Cubre el caso donde la persona NUNCA toca los botones de tamaño
-  // (queda en "Completa" por default) — sin esto, podría quedar
-  // seleccionado un servicio sin relación (ej. B/N Bond) mientras se
-  // manda una imagen a color, cobrando mal.
+  // Efecto único para TODAS las imágenes del borrador (no solo la
+  // activa) — 13/10/2026, reporte real: al agregar una 2ª imagen el
+  // precio salía como el del primer servicio de la lista (un B/N de $1)
+  // hasta tocar la miniatura; si se enviaba directo, se cobraba mal.
+  //  (1) Toda imagen sin servicio válido entra como COLOR en su tamaño
+  //      por defecto (completa; 1/4 si comparte hoja).
+  //  (2) f.colorMode ('color' | 'bn') SIEMPRE refleja el servicio
+  //      elegido — lo usan el preview (grises) y el PDF (sendOrder.js).
+  // Es idempotente: solo actualiza si algo realmente cambia (sin bucles).
   useEffect(() => {
-    if (!activeIsImage || !anyImageFrameOffered) return
-    const currentIsImageService = enabledServices.some(
-      s => s.id === activeFile.serviceId && ALL_IMAGE_SERVICE_TYPES.includes(s.service_type)
-    )
-    if (currentIsImageService) return // ya está en un servicio de imagen, no se pisa una elección real
-    const frame = activeFile.imageFrame ?? 'completa'
-    const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE.bond[frame])
-    if (matchingService) {
-      const copy = files.map((f, i) => i === activeIndex ? { ...f, serviceId: matchingService.id } : f)
-      onUpdateDraft({ files: copy })
-    }
+    if (enabledServices.length === 0) return
+    const next = files.map(f => {
+      if (!isImageFile(f)) return f
+      let nf = f
+      const svc = enabledServices.find(s => s.id === f.serviceId)
+      if (!svc || (anyImageFrameOffered && !isImageOrBnService(svc))) {
+        const d = pickDefaultService(f, enabledServices, anyImageFrameOffered)
+        if (d && d.id !== f.serviceId) nf = { ...nf, serviceId: d.id }
+      }
+      const cm = colorModeOfService(enabledServices.find(s => s.id === nf.serviceId))
+      if (nf.colorMode !== cm) nf = { ...nf, colorMode: cm }
+      return nf
+    })
+    if (next.some((nf, i) => nf !== files[i])) onUpdateDraft({ files: next })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIndex, activeIsImage, anyImageFrameOffered])
+  }, [files, shop, anyImageFrameOffered])
 
   // Identificación — mismo patrón, pero sin importar el ORDEN en que
   // pasen las cosas: da igual si primero se elige la papelería y luego
@@ -228,46 +252,65 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [containsId, shop?.id])
 
+  // Archivos que se ven afectados por Color/B/N y Bond/Opalina: la HOJA
+  // física completa — si la imagen activa comparte hoja con otras, todas.
+  const activeTargets = !activeFile ? [] : activeFile.groupId ? files.filter(f => f.groupId === activeFile.groupId) : [activeFile]
+  const frameOf = (f) => f.imageFrame ?? (f.groupId ? 'cuarto' : 'completa')
+
+  // Servicio que le tocaría a CADA archivo de `targets` con el cambio
+  // pedido (material y/o colorMode; lo no indicado se conserva). Todo o
+  // nada: si a uno solo no le corresponde un servicio que la papelería
+  // ofrezca, devuelve null y no se cambia nada (nunca media hoja en
+  // Opalina y media en Bond).
+  const resolveForTargets = (targets, { colorMode, material }) => {
+    const out = new Map()
+    for (const t of targets) {
+      const tSvc = enabledServices.find(s => s.id === t.serviceId)
+      const svc = resolveImageService(enabledServices, {
+        material: material ?? materialOf(tSvc),
+        colorMode: colorMode ?? colorModeOfService(tSvc),
+        frame: frameOf(t), strict: true,
+      })
+      if (!svc) return null
+      out.set(t, svc)
+    }
+    return out
+  }
+  const applyResolved = (resolved) => {
+    onUpdateDraft({ files: files.map(f => resolved.has(f) ? { ...f, serviceId: resolved.get(f).id, colorMode: colorModeOfService(resolved.get(f)) } : f) })
+  }
+
   const setImageFrame = (frame) => {
-    // Si ya estaba en Opalina, cambiar de tamaño debe MANTENER Opalina
-    // (solo cambia el tamaño) — antes esto se reseteaba siempre a color
-    // normal, perdiendo la elección de material del usuario.
+    // Cambiar de tamaño MANTIENE material (Bond/Opalina) y Color/B/N —
+    // solo cambia el tamaño (y el precio, si es a color). En B/N el
+    // servicio es el mismo para cualquier tamaño.
     const currentService = enabledServices.find(s => s.id === activeFile.serviceId)
-    const material = materialOf(currentService)
-    const matchingService =
-      enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[material][frame]) ??
-      enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE.bond[frame]) // esa combinación no existe en Opalina — cae a Bond de ese tamaño
+    const matchingService = resolveImageService(enabledServices, {
+      material: materialOf(currentService), colorMode: colorModeOfService(currentService), frame,
+    })
     const copy = files.map((f, i) => i === activeIndex
-      ? { ...f, imageFrame: frame, serviceId: matchingService ? matchingService.id : f.serviceId }
+      ? { ...f, imageFrame: frame, serviceId: matchingService ? matchingService.id : f.serviceId, ...(matchingService ? { colorMode: colorModeOfService(matchingService) } : {}) }
       : f)
     onUpdateDraft({ files: copy })
   }
 
-  // Botón "Opalina" junto al tamaño — solo tiene sentido si la papelería
-  // ofrece opalina para el tamaño ACTUAL específicamente (puede que solo
-  // la habilite para algunos tamaños, no todos).
+  // Botón Bond/Opalina. El material es de la HOJA FÍSICA: si la imagen
+  // activa comparte hoja, cambia para todas a la vez, cada una a la
+  // versión de su propio tamaño (y manteniendo Color/B/N).
   const setMaterial = (material) => {
-    // El material (Bond/Opalina) es una propiedad de la HOJA FÍSICA, no
-    // de una imagen individual — si dos imágenes comparten la misma
-    // hoja, no se puede imprimir la mitad en Bond y la mitad en Opalina
-    // (es literalmente el mismo papel). Si el archivo activo comparte
-    // grupo, el material cambia para TODAS las imágenes de ese grupo a
-    // la vez, cada una a la versión de su propio tamaño.
-    if (activeFile.groupId) {
-      const copy = files.map(f => {
-        if (f.groupId !== activeFile.groupId) return f
-        const frame = f.imageFrame ?? 'cuarto'
-        const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[material][frame])
-        return matchingService ? { ...f, serviceId: matchingService.id } : f
-      })
-      onUpdateDraft({ files: copy })
-      return
-    }
-    const frame = activeFile.imageFrame ?? 'completa'
-    const matchingService = enabledServices.find(s => s.service_type === FRAME_TO_SERVICE_TYPE[material][frame])
-    if (!matchingService) return
-    const copy = files.map((f, i) => i === activeIndex ? { ...f, serviceId: matchingService.id } : f)
-    onUpdateDraft({ files: copy })
+    const resolved = resolveForTargets(activeTargets, { material })
+    if (resolved) applyResolved(resolved)
+  }
+
+  // Botón Color / B/N (13/10/2026). B/N = hoja B/N normal del material
+  // (bn_bond / opalina_bn), sin importar el tamaño. Aplica a toda la hoja
+  // compartida. Si Opalina no ofrece esa variante, se pasa a Bond (el
+  // botón HOJA lo deja ver) — siempre toda la hoja junta.
+  const colorModeResolved = (mode) =>
+    resolveForTargets(activeTargets, { colorMode: mode }) ?? resolveForTargets(activeTargets, { colorMode: mode, material: 'bond' })
+  const setColorMode = (mode) => {
+    const resolved = colorModeResolved(mode)
+    if (resolved) applyResolved(resolved)
   }
 
   const setImageAlign = (align) => {
@@ -628,6 +671,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                                   width: memberSwapped ? r.h : r.w, height: memberSwapped ? r.w : r.h,
                                   transform: `translate(-50%, -50%) rotate(${memberRot}deg)`,
                                   objectFit: 'contain',
+                                  filter: f.colorMode === 'bn' ? 'grayscale(1)' : undefined, // B/N: el preview muestra lo que se imprime
                                 }} />
                               )}
                             </div>
@@ -649,6 +693,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                                 width: swapped ? box.h : box.w, height: swapped ? box.w : box.h,
                                 transform: `translate(-50%, -50%) rotate(${rot}deg)`,
                                 objectFit: 'contain', transition: 'transform 0.2s',
+                                filter: activeFile.colorMode === 'bn' ? 'grayscale(1)' : undefined,
                               }} />
                           </div>
                         ) : (
@@ -659,6 +704,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                               transform: `translate(-50%, -50%) rotate(${rot}deg)`,
                               objectFit: fit === 'actual' ? 'cover' : 'contain',
                               transition: 'object-fit 0.2s, transform 0.2s',
+                              filter: activeFile.colorMode === 'bn' ? 'grayscale(1)' : undefined,
                             }} />
                         )
                       ) : (
@@ -698,7 +744,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                       overflow: 'hidden', cursor: 'pointer', position:'relative',
                     }}>
                       {f.previewUrl ? (
-                        <img src={f.previewUrl} alt={f.file.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={f.previewUrl} alt={f.file.name} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: f.colorMode === 'bn' ? 'grayscale(1)' : undefined }} />
                       ) : (
                         <i className={`ti ${fileIcon(f.file)}`} style={{ fontSize: 18, color: 'var(--text-muted)' }} />
                       )}
@@ -768,6 +814,38 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                   la papelería elegida realmente ofrece esos tamaños */}
               {activeIsImage && anyImageFrameOffered && (
                 <div style={{ marginTop: 14 }}>
+                  {(() => {
+                    const activeColorMode = colorModeOfService(enabledServices.find(s => s.id === activeFile.serviceId))
+                    const colorOk = !!colorModeResolved('color')
+                    const bnOk = !!colorModeResolved('bn')
+                    return (
+                      <>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                          COLOR
+                        </p>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                          <ToggleButton active={activeColorMode === 'color'} onClick={() => setColorMode('color')} icon="ti-palette" label="Color" disabled={!colorOk} />
+                          <ToggleButton active={activeColorMode === 'bn'} onClick={() => setColorMode('bn')} icon="ti-contrast" label="B/N" disabled={!bnOk} />
+                        </div>
+                        {!bnOk && (
+                          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+                            Esta papelería no ofrece blanco y negro para imágenes.
+                          </p>
+                        )}
+                        {bnOk && activeColorMode === 'bn' && (
+                          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+                            Se cobra como una hoja B/N normal, sin importar el tamaño.
+                          </p>
+                        )}
+                        {activeFile.groupId && (
+                          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+                            Aplica a toda la hoja compartida.
+                          </p>
+                        )}
+                        <div style={{ height: 6 }} />
+                      </>
+                    )
+                  })()}
                   <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>
                     TAMAÑO EN LA HOJA
                   </p>
@@ -821,7 +899,7 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                               border: i === activeIndex ? '2px solid var(--green)' : '1px solid var(--border)',
                               cursor: 'pointer', flexShrink: 0,
                             }}>
-                              <img src={f.previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <img src={f.previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: f.colorMode === 'bn' ? 'grayscale(1)' : undefined }} />
                               <button onClick={(e) => { e.stopPropagation(); removeFile(i) }} style={{
                                 position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: '50%',
                                 background: 'var(--red)', color: '#fff', border: 'none', fontSize: 10, lineHeight: 1,
@@ -835,16 +913,12 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                   })()}
 
                   {anyOpalinaImageOffered && (() => {
-                    const frame = activeFile.imageFrame ?? 'completa'
                     const material = materialOf(enabledServices.find(s => s.id === activeFile.serviceId))
-                    // Si el archivo activo comparte hoja con otros, TODOS
-                    // los tamaños del grupo necesitan tener Opalina
-                    // disponible — no se puede aplicar a la mitad de una
-                    // hoja física nada más.
-                    const groupFrames = activeFile.groupId
-                      ? files.filter(f => f.groupId === activeFile.groupId).map(f => f.imageFrame ?? 'cuarto')
-                      : [frame]
-                    const opalinaAvailable = groupFrames.every(fr => enabledServices.some(s => s.service_type === FRAME_TO_SERVICE_TYPE.opalina[fr]))
+                    // Si el archivo activo comparte hoja con otros, TODAS
+                    // las imágenes del grupo necesitan tener Opalina
+                    // disponible (en su Color/B/N y tamaño actual) — no se
+                    // puede aplicar a la mitad de una hoja física nada más.
+                    const opalinaAvailable = !!resolveForTargets(activeTargets, { material: 'opalina' })
                     return (
                       <>
                         <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', margin: '12px 0 8px' }}>

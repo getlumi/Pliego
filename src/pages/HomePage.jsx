@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { isOpenNow, todayLabel } from '../lib/hours'
 import { sendOrder } from '../lib/sendOrder'
 import { calculateOrderTotal } from '../lib/pricing'
+import { isImageFile } from '../lib/imageService'
 import { serviceLabel } from '../lib/services'
 import AppModal from '../components/AppModal'
 
@@ -379,6 +380,20 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
 
   const handleSend = async (e) => {
     e.stopPropagation()
+    // Seguro (13/10/2026): ninguna IMAGEN viaja sin un tipo de impresión
+    // VÁLIDO de ESTA papelería (Imprimir se lo asigna al abrirse). Si no lo tiene (p. ej. cambió de papelería
+    // después de armar el pedido), el precio mostrado vendría del primer
+    // servicio de la lista, no de una elección real — se manda a
+    // revisarlo en Imprimir, donde se asigna el correcto.
+    if (draft.files.some(f => isImageFile(f) && !services.some(s => s.id === f.serviceId))) {
+      setModal({
+        type: 'error',
+        title: 'Revisa tu impresión',
+        message: 'Confirma el tipo de impresión de tus archivos antes de enviar.',
+        onClose: () => { setModal(null); onNavigate('upload') },
+      })
+      return
+    }
     if (!window.confirm(`¿Vas a enviar tu documento a ${shop.name}? Esto no se puede deshacer. Total a pagar al llegar: $${grandTotal.toFixed(2)}.`)) return
     setSending(true)
     const result = await sendOrder({ session, draft, selectedService, imageItems, totalPages, total, storeItems, storeTotal })

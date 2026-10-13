@@ -56,7 +56,12 @@ function isDocx(file) {
 // distinto según fabricante de cámara, fácil de romper). La rotación
 // elegida por el usuario se aplica en el mismo paso de canvas, girando
 // el lienzo y —si es 90°/270°— intercambiando ancho/alto de salida.
-async function normalizeImageOrientation(file, extraRotationDeg = 0) {
+//
+// 13/10/2026 — `grayscale`: imágenes en B/N (colorMode 'bn'). El PDF
+// debe verse igual que el preview que aprobó el cliente (en grises) y
+// que lo que se cobró (hoja B/N). Se convierte pixel por pixel (luma
+// estándar) en vez de ctx.filter, que Safari/iOS no soporta.
+async function normalizeImageOrientation(file, extraRotationDeg = 0, grayscale = false) {
   const url = URL.createObjectURL(file)
   try {
     const img = await new Promise((resolve, reject) => {
@@ -81,6 +86,22 @@ async function normalizeImageOrientation(file, extraRotationDeg = 0) {
     // translate+rotate ya la deja en el lugar correcto del lienzo
     // (swapeado si hacía falta), sin deformarla.
     ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2)
+
+    if (grayscale) {
+      try {
+        const data = ctx.getImageData(0, 0, outW, outH)
+        const px = data.data
+        for (let i = 0; i < px.length; i += 4) {
+          const g = (px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000
+          px[i] = px[i + 1] = px[i + 2] = g
+        }
+        ctx.putImageData(data, 0, 0)
+      } catch (err) {
+        // Sin poder convertir (memoria del dispositivo): se manda a color —
+        // la papelería imprime en B/N igual, el cobro ya es el de B/N.
+        console.warn('No se pudo convertir la imagen a B/N:', err)
+      }
+    }
 
     const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
     const blob = await new Promise(resolve => canvas.toBlob(resolve, mime, 0.92))
@@ -157,7 +178,7 @@ export async function buildUploadFile(files, orientation) { // export: usado tam
 
 // Una imagen sin grupo: una hoja para ella sola, con su tamaño/alineación.
 async function drawSingleImage(doc, f, orientation) {
-  const { bytes, mime } = await normalizeImageOrientation(f.file, f.imageRotation ?? 0)
+  const { bytes, mime } = await normalizeImageOrientation(f.file, f.imageRotation ?? 0, f.colorMode === 'bn')
   const img = mime === 'image/png'
     ? await doc.embedPng(bytes)
     : await doc.embedJpg(bytes)
@@ -173,7 +194,7 @@ async function drawImageGroup(doc, groupFiles, orientation) {
   // cada espacio de la cuadrícula.
   const normalized = []
   for (const gf of groupFiles) {
-    const { bytes, mime } = await normalizeImageOrientation(gf.file, gf.imageRotation ?? 0)
+    const { bytes, mime } = await normalizeImageOrientation(gf.file, gf.imageRotation ?? 0, gf.colorMode === 'bn')
     const img = mime === 'image/png' ? await doc.embedPng(bytes) : await doc.embedJpg(bytes)
     normalized.push({ img, frame: gf.imageFrame ?? 'cuarto' })
   }
