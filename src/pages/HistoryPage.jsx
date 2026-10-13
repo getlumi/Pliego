@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabase'
+import { formatPageRanges, TIER_LABEL } from '../lib/pageBreakdown'
 
 const STATUS_LABEL = {
   nuevo:      'Enviado',
@@ -367,7 +368,38 @@ function OrderRow({ order: o, onRate }) {
       {open && (
         <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border-light)', fontSize:12, color:'var(--text-secondary)', display:'flex', flexDirection:'column', gap:4 }}>
           <p><strong>Hojas:</strong> {o.file_count} · <strong>Copias:</strong> {o.copies}</p>
-          <p><strong>Tipo:</strong> {o.color_mode === 'bn' ? 'Blanco y negro' : 'Color'} · {o.paper_size}</p>
+          {/* Pedidos con varios archivos o cobrados hoja por hoja: el "Tipo" único
+              engañaría (esas columnas solo describen el primer archivo) — se
+              muestra el detalle real de cada archivo y de sus hojas. */}
+          {(o.image_items?.length > 1 || o.image_items?.some(it => it.breakdown)) ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {o.image_items.map((it, i) => (
+                <div key={i}>
+                  <p style={{ color:'var(--text-primary)', fontWeight:700 }}>
+                    {o.image_items.length > 1 ? `${i + 1}. ` : ''}{it.name ?? `Archivo ${i + 1}`}{it.pages > 1 ? ` (${it.pages} hojas)` : ''}
+                  </p>
+                  {it.breakdown ? (
+                    <>
+                      {it.breakdown.lines.map((l, j) => (
+                        <p key={j}>
+                          • {l.kind === 'image' ? `Con imagen${l.tier ? ' · ' + TIER_LABEL[l.tier] : ''}` : l.kind === 'color_text' ? 'Texto a color' : 'Solo texto B/N'}
+                          {' '}· {l.count === 1 ? 'pág.' : 'págs.'} {formatPageRanges(l.pages)} — {l.count} × ${Number(l.price).toFixed(2)}
+                        </p>
+                      ))}
+                      {it.breakdown.mode === 'bn' && it.breakdown.color_pages_as_bn?.length > 0 && (
+                        <p>Elegiste todo en B/N (págs. {formatPageRanges(it.breakdown.color_pages_as_bn)} tienen imagen o color).</p>
+                      )}
+                      {it.breakdown.approx && <p style={{ color:'var(--text-muted)' }}>Detección aproximada (Word).</p>}
+                    </>
+                  ) : (
+                    <p>{it.label ?? it.service_type ?? '—'}{it.price != null ? ` · $${Number(it.price).toFixed(2)}/hoja` : ''}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p><strong>Tipo:</strong> {o.color_mode === 'bn' ? 'Blanco y negro' : 'Color'} · {o.paper_size}</p>
+          )}
           {o.estimated_cost != null && <p><strong>Total:</strong> ${o.estimated_cost}</p>}
           <p style={{ color:'var(--text-muted)' }}><i className="ti ti-clock" style={{ fontSize:11 }} /> Enviado: {fmtTime(o.created_at)}</p>
           {o.ready_at && <p style={{ color:'var(--text-muted)' }}><i className="ti ti-check" style={{ fontSize:11 }} /> Listo: {fmtTime(o.ready_at)}</p>}
