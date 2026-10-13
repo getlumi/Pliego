@@ -7,6 +7,7 @@ import IneCapture from './IneCapture'
 import DocumentScanner from './DocumentScanner'
 import { CARTA_H, MARGIN, pageSize, frameBoxSize, packImagesIntoPages, slotRect } from '../lib/imageFraming'
 import { analyzePdfPages } from '../lib/pdfPageAnalysis'
+import { analyzeDocx } from '../lib/docxAnalysis'
 import { formatPageRanges, TIER_LABEL } from '../lib/pageBreakdown'
 import {
   FRAME_TO_SERVICE_TYPE, isImageFile, isImageOrBnService, colorModeOfService,
@@ -24,6 +25,9 @@ function fileIcon(file) {
   if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) return 'ti-file-type-doc'
   return 'ti-file'
 }
+
+// PDF y Word (.docx) se revisan hoja por hoja en segundo plano.
+const isAnalyzable = (file) => file.type === 'application/pdf' || /\.docx$/i.test(file.name)
 
 // Cuenta páginas reales para PDF; 1 para imágenes; no-auto (editable) para el resto.
 async function detectPageCount(file) {
@@ -128,17 +132,26 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
         ...m, serviceId: svc?.id ?? m.serviceId ?? null,
         ...(isImageFile(m) ? { colorMode: colorModeOfService(svc) } : {}),
         // PDF: se revisa hoja por hoja (imágenes/color) en segundo plano.
-        ...(m.file.type === 'application/pdf' ? { pageAnalysis: { status: 'pending' } } : {}),
+        ...(isAnalyzable(m.file) ? { pageAnalysis: { status: 'pending' } } : {}),
       }
     })
     onUpdateDraft({ files: [...files, ...withService] })
     // El resultado llega después: se guarda con la forma de FUNCIÓN para no
     // pisar lo que la persona haya cambiado mientras tanto. Tope de 45 s:
     // si no termina, se sigue como siempre (hojas × precio del tipo).
-    withService.filter(m => m.file.type === 'application/pdf').forEach(m => {
+    withService.filter(m => isAnalyzable(m.file)).forEach(m => {
+      const isPdf = m.file.type === 'application/pdf'
       const timeout = new Promise(resolve => setTimeout(() => resolve({ status: 'failed' }), 45000))
-      Promise.race([analyzePdfPages(m.file), timeout]).then(result => {
-        onUpdateDraft(d => ({ files: d.files.map(f => f.file === m.file ? { ...f, pageAnalysis: result } : f) }))
+      Promise.race([isPdf ? analyzePdfPages(m.file) : analyzeDocx(m.file), timeout]).then(result => {
+        onUpdateDraft(d => ({
+          files: d.files.map(f => {
+            if (f.file !== m.file) return f
+            // Word: si se pudo leer el número de hojas, se toma de ahí (queda
+            // editable por si el archivo trae un dato viejo).
+            if (!isPdf && result.status === 'done') return { ...f, pageAnalysis: result, pageCount: result.pages.length }
+            return { ...f, pageAnalysis: result }
+          }),
+        }))
       })
     })
     e.target.value = ''
@@ -821,7 +834,9 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                 <div style={{ marginBottom: 14, padding:'8px 10px', background:'var(--bg)', borderRadius:'var(--radius-md)' }}>
                   <p style={{ fontSize:11, color:'var(--text-secondary)', marginBottom:8 }}>
                     <i className="ti ti-info-circle" style={{ fontSize:12, verticalAlign:-1 }} />{' '}
-                    No podemos contar las páginas de estos archivos automáticamente — ajústalo para que el precio sea exacto:
+                    {files.some(f => !f.pageCountAuto && f.pageAnalysis?.status === 'done')
+                      ? 'Leímos el número de hojas de tu Word. Si no coincide con lo que ves al abrirlo, corrígelo para que el precio sea exacto:'
+                      : 'No podemos contar las páginas de estos archivos automáticamente — ajústalo para que el precio sea exacto:'}
                   </p>
                   {files.map((f, idx) => !f.pageCountAuto && (
                     <div key={idx} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:6 }}>
@@ -1040,12 +1055,22 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
                 }
                 if (a.status !== 'done') return null
                 if (!bd) {
+                  if (a.approx && activeFile.pageCount !== a.pages.length && a.pages.some(p => p.image || p.color)) {
+                    return (
+                      <div style={box}>
+                        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          Cambiaste el número de hojas, así que ya no se detalla por hoja: se cobra todo como el tipo de impresión elegido. Para un cobro exacto, súbelo en PDF.
+                        </p>
+                      </div>
+                    )
+                  }
                   if (a.pages.some(p => p.image || p.color)) return null // tipo de impresión sin desglose (p. ej. doble carta)
                   return (
                     <div style={box}>
                       <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                         <i className="ti ti-circle-check" style={{ fontSize: 14, verticalAlign: -2, marginRight: 4 }} />
                         Revisamos tus {a.pages.length} {a.pages.length === 1 ? 'hoja' : 'hojas'}: solo texto, sin imágenes ni color.
+                        {a.approx && ' (Detección aproximada de Word.)'}
                       </p>
                     </div>
                   )

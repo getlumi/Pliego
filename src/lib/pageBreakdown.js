@@ -55,6 +55,9 @@ export function formatPageRanges(pages) {
 export function computeBreakdown(f, services) {
   const a = f?.pageAnalysis
   if (!a || a.status !== 'done' || !Array.isArray(a.pages) || a.pages.length === 0) return null
+  // Word (aproximado): si la persona corrigió el número de hojas, el detalle
+  // por hoja ya no corresponde al documento — se vuelve a hojas × precio.
+  if (a.approx && f.pageCount != null && f.pageCount !== a.pages.length) return null
   const list = services ?? []
   const base = list.find(s => s.id === f.serviceId) ?? list[0] ?? null
   if (!base || !ELIGIBLE_BASE.includes(base.service_type)) return null
