@@ -717,10 +717,10 @@ function OrdersTab({ shop, orders, setOrders, onReload, onReloadOrders }) {
       supabase.rpc('start_guarantee_clock', { p_order_id: orderId })
     }
 
-    // Libera o revierte la garantía cuando el cliente sí recoge su pedido
-    if (status === 'entregado' && order?.guarantee_covered) {
-      supabase.rpc('release_guarantee_hold', { p_order_id: orderId })
-    }
+    // La garantía se libera/revierte DENTRO de update_order_status (en la
+    // base de datos, misma operación) al marcar 'entregado' — ya no depende
+    // de una segunda llamada desde aquí que podía fallar sin avisar
+    // (fix_status_delivery_releases_guarantee.sql, 19/10/2026).
 
     // Push al usuario cuando su impresión está lista
     if (status === 'listo' && order?.user_id) {
