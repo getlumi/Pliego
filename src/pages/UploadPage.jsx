@@ -163,7 +163,15 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
     copy.splice(idx, 1)
     const newActive = Math.max(0, activeIndex >= idx ? activeIndex - 1 : activeIndex)
     const stillHasId = copy.some(f => f.file.name === 'identificacion.pdf')
-    onUpdateDraft({ files: copy, activeIndex: newActive, containsId: stillHasId })
+    // Con un solo archivo ya no se muestra la nota "por documento" (la caja
+    // única de indicaciones es la del pedido): si ese archivo traía una, se
+    // pasa a esa caja para que NO se pierda ni quede oculta.
+    const patch = { files: copy, activeIndex: newActive, containsId: stillHasId }
+    if (copy.length === 1 && copy[0].note?.trim()) {
+      patch.instructions = [instructions?.trim(), copy[0].note.trim()].filter(Boolean).join('. ')
+      copy[0] = { ...copy[0], note: '' }
+    }
+    onUpdateDraft(patch)
   }
 
   const setFilePageCount = (idx, pageCount) => {
@@ -1143,25 +1151,42 @@ export default function UploadPage({ session, onNavigate, draft, onUpdateDraft, 
               </div>
             </div>
 
-            {/* Comentario para la papelería — SIEMPRE visible, sin IA de
-                por medio. Antes esto vivía escondido dentro del bloque de
-                IA (abajo), que está apagado con AI_INSTRUCTIONS_ENABLED —
-                por eso nunca aparecía en pantalla. Reutiliza el mismo
-                draft.instructions, que ya viaja hasta special_instructions
-                en sendOrder.js y ya se muestra en el panel de la papelería. */}
+            {/* Indicaciones para la papelería — SIEMPRE visibles, sin IA.
+                Un solo archivo: una caja (la del pedido, draft.instructions →
+                special_instructions). Varios archivos (19/10/2026): cada
+                documento tiene SU nota (files[i].note → image_items[i].note,
+                se ve en el panel del cliente y de la papelería) y además
+                queda el comentario general del pedido. */}
+            {files.length > 1 && activeFile && (
+              <div className="card">
+                <label style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <i className="ti ti-message-circle" style={{ fontSize: 15, color: 'var(--green)' }} />
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    Indicaciones para este documento: {activeFile.file?.name}
+                  </span>
+                </label>
+                <NoteField
+                  value={activeFile.note ?? ''}
+                  onChange={v => onUpdateDraft({ files: files.map((f, i) => i === activeIndex ? { ...f, note: v } : f) })}
+                  placeholder="Ej. solo las páginas 2 y 3, o por ambos lados"
+                  withChips
+                />
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                  Solo para este archivo. Cambia de archivo arriba para escribir las de los demás.
+                </p>
+              </div>
+            )}
+
             <div className="card">
               <label style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                 <i className="ti ti-message-circle" style={{ fontSize: 15, color: 'var(--green)' }} />
-                Comentario para la papelería (opcional)
+                {files.length > 1 ? 'Comentario general del pedido (opcional)' : 'Indicaciones para la papelería (opcional)'}
               </label>
-              <textarea
-                value={instructions} onChange={e => onUpdateDraft({ instructions: e.target.value })}
-                placeholder="Ej. imprimir solo la página 2, o cualquier detalle que necesiten saber"
-                style={{
-                  width: '100%', minHeight: 60, resize: 'none', fontSize: 16,
-                  padding: '10px 12px', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)', fontFamily: 'inherit',
-                }}
+              <NoteField
+                value={instructions}
+                onChange={v => onUpdateDraft({ instructions: v })}
+                placeholder={files.length > 1 ? 'Ej. paso por él a las 5, o algo que aplica a todo' : 'Ej. imprimir solo la página 2, o cualquier detalle que necesiten saber'}
+                withChips={files.length <= 1}
               />
               <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
                 La papelería lo verá junto con tu pedido.
@@ -1301,5 +1326,53 @@ function StepperButton({ icon, onClick }) {
     }}>
       <i className={`ti ${icon}`} style={{ fontSize: 14 }} />
     </button>
+  )
+}
+
+
+// Caja de indicaciones con botones de uso frecuente (para escribir menos).
+// Tocar un botón agrega esa frase; tocarlo otra vez la quita.
+const NOTE_CHIPS = ['Por ambos lados', 'Engargolado', 'Engrapado', 'Tamaño oficio', 'Solo las páginas:']
+const NOTE_MAX = 300
+
+function toggleNoteChip(current, chip) {
+  const cur = current ?? ''
+  if (cur.includes(chip)) {
+    return cur.replace(chip, '').replace(/\s*\.\s*\./g, '.').replace(/^[\s.]+|[\s.]+$/g, '').replace(/\s{2,}/g, ' ')
+  }
+  const base = cur.trim()
+  const sep = !base ? '' : /[.:]$/.test(base) ? ' ' : '. '
+  return (base + sep + chip + (chip.endsWith(':') ? ' ' : '')).slice(0, NOTE_MAX)
+}
+
+function NoteField({ value, onChange, placeholder, withChips }) {
+  return (
+    <>
+      {withChips && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {NOTE_CHIPS.map(chip => {
+            const on = (value ?? '').includes(chip)
+            return (
+              <button key={chip} type="button" onClick={() => onChange(toggleNoteChip(value, chip))} style={{
+                padding: '7px 12px', fontSize: 13, fontWeight: 600, borderRadius: 999, cursor: 'pointer',
+                border: on ? '1.5px solid var(--green)' : '1px solid var(--border)',
+                background: on ? 'var(--green-light)' : '#fff', color: 'var(--text-primary)',
+              }}>
+                {on ? '✓ ' : ''}{chip.replace(/:$/, '')}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      <textarea
+        value={value ?? ''} onChange={e => onChange(e.target.value.slice(0, NOTE_MAX))}
+        placeholder={placeholder} maxLength={NOTE_MAX}
+        style={{
+          width: '100%', minHeight: 60, resize: 'none', fontSize: 16,
+          padding: '10px 12px', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)', fontFamily: 'inherit',
+        }}
+      />
+    </>
   )
 }

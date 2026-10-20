@@ -368,7 +368,7 @@ export async function sendOrder({ session, draft, selectedService, imageItems = 
       // un solo tipo — no cambia nada del comportamiento de siempre.
       // Se guarda con >1 archivo, o con un solo documento cobrado hoja por
       // hoja (desglose de imágenes/color para la papelería).
-      image_items: (imageItemsForDb.length > 1 || imageItemsForDb.some(it => it.breakdown)) ? imageItemsForDb : null,
+      image_items: (imageItemsForDb.length > 1 || imageItemsForDb.some(it => it.breakdown || it.note)) ? imageItemsForDb : null,
       store_items: storeItems.length > 0 ? storeItems : null,
       store_total: storeTotal,
       user_name: userRow.name ?? null,
@@ -508,7 +508,8 @@ export async function sendOrder({ session, draft, selectedService, imageItems = 
               paginas:        String(totalPages),
               tipo_impresion: serviceLabel,
               copias:         String(draft.copies ?? 1),
-              instrucciones:  draft.instructions || '',
+              // Comentario general + notas por documento (si hay varios archivos)
+              instrucciones:  [draft.instructions || '', ...imageItems.map((it, i) => it.note ? `(${i + 1}) ${it.note}` : '')].filter(Boolean).join(' · '),
               garantia:       guaranteeCovered ? 'si' : 'no',
               productos:      storeSummary,
             }

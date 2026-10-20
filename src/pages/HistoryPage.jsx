@@ -371,13 +371,14 @@ function OrderRow({ order: o, onRate }) {
           {/* Pedidos con varios archivos o cobrados hoja por hoja: el "Tipo" único
               engañaría (esas columnas solo describen el primer archivo) — se
               muestra el detalle real de cada archivo y de sus hojas. */}
-          {(o.image_items?.length > 1 || o.image_items?.some(it => it.breakdown)) ? (
+          {(o.image_items?.length > 1 || o.image_items?.some(it => it.breakdown || it.note)) ? (
             <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
               {o.image_items.map((it, i) => (
                 <div key={i}>
                   <p style={{ color:'var(--text-primary)', fontWeight:700 }}>
                     {o.image_items.length > 1 ? `${i + 1}. ` : ''}{it.name ?? `Archivo ${i + 1}`}{it.pages > 1 ? ` (${it.pages} hojas)` : ''}
                   </p>
+                  {it.note && <p><strong>Tu indicación:</strong> {it.note}</p>}
                   {it.breakdown ? (
                     <>
                       {it.breakdown.lines.map((l, j) => (

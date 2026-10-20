@@ -378,6 +378,9 @@ function ShopCard({ shop, serviceIcons, Stars, isSelected, onSelect, draft, sess
       label: bd ? 'Cobro por hoja según lo que lleva' : (service ? serviceLabel(service) : null),
       price: bd ? Math.round((bd.total / Math.max(1, f.pageCount ?? 1)) * 100) / 100 : (service?.price_per_sheet ?? 0),
       pages: f.pageCount ?? 1,
+      // Nota propia de ESTE documento (solo cuando el pedido trae varios;
+      // con uno solo la nota va en special_instructions).
+      ...(draft.files.length > 1 && f.note?.trim() ? { note: f.note.trim().slice(0, 300) } : {}),
       ...(bd ? {
         breakdown: {
           mode: bd.mode, approx: bd.approx, color_pages_as_bn: bd.colorPagesAsBn,

@@ -65,6 +65,15 @@ export default function OrderItemRows({ order }) {
             {it.label ?? it.service_type ?? '—'}
             {it.shared_sheet ? ' · comparte hoja con otras imágenes' : ''}
           </p>
+          {it.note && (
+            <p style={{
+              fontSize:13, fontWeight:700, lineHeight:1.35, marginTop:4, padding:'6px 10px',
+              background:'var(--amber-light, #fff8e1)', border:'1px solid var(--amber, #f5b301)',
+              borderRadius:'var(--radius-md)',
+            }}>
+              <i className="ti ti-message-circle" style={{ fontSize:13, verticalAlign:-1 }} /> {it.note}
+            </p>
+          )}
           {it.breakdown && (
             <div style={{ marginTop:4 }}>
               {it.breakdown.lines.map((l, j) => (
