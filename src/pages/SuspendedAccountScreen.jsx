@@ -82,7 +82,7 @@ export default function SuspendedAccountScreen({ session, onReactivated }) {
             <div className="card">
               <p style={{ fontSize:14, fontWeight:800, marginBottom:10 }}>¿Por qué se suspendió?</p>
               <p style={{ fontSize:13, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:14 }}>
-                Con el plan mensual, cada documento de hasta $50 se imprime sin
+                Con el plan mensual, cada documento de hasta $75 se imprime sin
                 apartar nada por adelantado — pero si no pasas a recogerlo
                 dentro de las 24 horas después de que esté listo, tu cuenta se
                 suspende por completo.

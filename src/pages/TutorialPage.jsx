@@ -45,7 +45,7 @@ const TUTORIAL_USER = [
   {
     icon:  'ti-shield-check',
     title: '6. La garantía: imprime antes de llegar',
-    desc:  'Cuando tu pedido cabe en tu saldo (o cuesta $50 o menos con el plan Ilimitado), la papelería lo imprime antes de que llegues — no esperas en la fila. A cambio, tienes 24 horas desde que está "Listo" para pasar por él.\n\nSi usas créditos y no pasas a tiempo: se descuenta el crédito de tu cuenta.\nSi tienes el plan Ilimitado y no pasas a tiempo: tu cuenta se suspende hasta pagar una multa de $50 para reactivarla.',
+    desc:  'Cuando tu pedido cabe en tu saldo (o cuesta $75 o menos con el plan Ilimitado), la papelería lo imprime antes de que llegues — no esperas en la fila. A cambio, tienes 24 horas desde que está "Listo" para pasar por él.\n\nSi usas créditos y no pasas a tiempo: se descuenta el crédito de tu cuenta.\nSi tienes el plan Ilimitado y no pasas a tiempo: tu cuenta se suspende hasta pagar una multa de $50 para reactivarla.',
     tip:   '💡 Puedes pedir 2 horas más una sola vez, desde el aviso en "Historial", si se te complica llegar a tiempo.',
   },
   {

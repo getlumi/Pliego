@@ -452,7 +452,7 @@ export async function sendOrder({ session, draft, selectedService, imageItems = 
 
     // 6) Decidir si el pedido queda cubierto por la garantía anti-no-show.
     //    Créditos: cabe si hay saldo suficiente apartado (place_guarantee_hold).
-    //    Suscriptores: cabe si el pedido cuesta $50 o menos (tope fijo, sin
+    //    Suscriptores: cabe si el pedido cuesta $75 o menos (tope fijo, sin
     //    créditos de por medio) — place_guarantee_hold_subscription. Si no
     //    pasan a tiempo, en vez de descontarse dinero se suspende la cuenta
     //    (ver supabase_migration_suspension.sql).
