@@ -44,7 +44,7 @@ export default function StripeCardForm({ clientSecret, amount, onSuccess, onCanc
     })
     setProcessing(false)
     if (error) {
-      setCardError(error.message)
+      setCardError(`${error.message} Puedes corregir los datos o probar con otra tarjeta.`)
     } else if (paymentIntent.status === 'succeeded') {
       onSuccess()
     }

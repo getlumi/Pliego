@@ -187,7 +187,10 @@ export default function PrintshopPage({ session }) {
   // Gracia vencida sin suscripción — bloqueo hasta que se suscriban.
   // No borra nada de su información, solo deja de recibir pedidos.
   // (Soporte, arriba, sigue accesible aunque esté bloqueada.)
-  if (shop.subscription_status === 'bloqueada') return (
+  // Regla del dueño (20/11/2026): sin pago no hay acceso y NO hay gracia por
+  // pagos fallidos — si no, bastaría meter tarjetas malas para alargar la
+  // gracia. 'past_due' (cobro fallido) se trata igual que 'bloqueada'.
+  if (shop.subscription_status === 'bloqueada' || shop.subscription_status === 'past_due') return (
     <ShopBlockedScreen shop={shop} onReload={loadShop} onSupport={() => setShowSupport(true)} />
   )
 
@@ -1627,15 +1630,20 @@ function ShopBlockedScreen({ shop, onReload, onSupport }) {
         }}>
           <i className="ti ti-store" style={{ fontSize:30, color:'var(--accent)' }} />
         </div>
-        <p style={{ fontSize:20, fontWeight:900, color:'#fff' }}>Tu periodo de gracia terminó</p>
+        <p style={{ fontSize:20, fontWeight:900, color:'#fff' }}>
+          {shop.subscription_status === 'past_due' ? 'No pudimos cobrar tu mensualidad' : 'Tu periodo de gracia terminó'}
+        </p>
         <p style={{ fontSize:13, color:'rgba(255,255,255,0.6)', marginTop:6, maxWidth:280, marginLeft:'auto', marginRight:'auto' }}>
           {shop.name} dejó de recibir pedidos de Pliego
+          {shop.subscription_status === 'past_due' ? ' hasta que el pago se complete' : ''}
         </p>
       </div>
 
       <div className="scroll-content" style={{ flex:1 }}>
         <div className="card">
-          <p style={{ fontSize:14, fontWeight:800, marginBottom:10 }}>Suscríbete para reactivarla</p>
+          <p style={{ fontSize:14, fontWeight:800, marginBottom:10 }}>
+            {shop.subscription_status === 'past_due' ? 'Paga para reactivarla' : 'Suscríbete para reactivarla'}
+          </p>
           <p style={{ fontSize:13, color:'var(--text-secondary)', lineHeight:1.6 }}>
             $75/mes, sin comisión sobre lo que cobras — te quedas con el 100%
             de cada impresión que entregas en efectivo. Tu información,
@@ -1729,13 +1737,6 @@ function ShopSubscriptionCard({ shop, onReload }) {
       <button onClick={handleCancel} disabled={cancelling} className="btn-outline">
         {cancelling ? 'Cancelando...' : 'Cancelar suscripción'}
       </button>
-    </div>
-  )
-
-  if (shop.subscription_status === 'past_due') return (
-    <div className="card" style={{ marginBottom:16, background:'var(--red-light)', border:'1px solid #F09595' }}>
-      <p style={{ fontSize:13, fontWeight:800, color:'var(--red)', marginBottom:4 }}>Hubo un problema con tu pago</p>
-      <p style={{ fontSize:12, color:'var(--red)' }}>No pudimos renovar tu suscripción. Actualiza tu método de pago para seguir recibiendo pedidos.</p>
     </div>
   )
 

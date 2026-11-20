@@ -310,7 +310,7 @@ function PrintshopsTab() {
       return { label: 'Suscrita · $75/mes', bg: 'var(--green-light)', color: 'var(--green-dark)' }
     }
     if (shop.subscription_status === 'past_due') {
-      return { label: '⚠️ Pago pendiente', bg: 'var(--red-light)', color: 'var(--red)' }
+      return { label: '🔒 Bloqueada (pago fallido)', bg: 'var(--red-light)', color: 'var(--red)' }
     }
     if (shop.subscription_status === 'bloqueada') {
       return { label: '🔒 Bloqueada (gracia vencida)', bg: 'var(--red-light)', color: 'var(--red)' }
