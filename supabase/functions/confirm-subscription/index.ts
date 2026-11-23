@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
     if (authError || !user) return json({ error: 'No autorizado' }, 401)
 
     const STRIPE_SK = Deno.env.get('STRIPE_SECRET_KEY')!
+    const { session_id } = await req.json().catch(() => ({}))
 
     // ¿Es dueño de papelería o cliente?
     const { data: shop } = await supabase.from('printshops')
@@ -51,17 +52,37 @@ Deno.serve(async (req) => {
     if (row.subscription_status === 'exento') return json({ status: 'exento', active: true })
     // Ya activa: nada que sincronizar (evita llamar a Stripe en cada apertura).
     if (row.subscription_status === 'active') return json({ status: 'active', active: true })
-    if (!row.subscription_id) return json({ status: row.subscription_status, active: row.subscription_status === 'active' })
+    const sGet = async (path: string) => {
+      const r = await fetch(`https://api.stripe.com/v1/${path}`, { headers: { Authorization: `Bearer ${STRIPE_SK}` } })
+      return { ok: r.ok, data: await r.json() }
+    }
 
-    // Estado REAL en Stripe
-    const res = await fetch(
-      `https://api.stripe.com/v1/subscriptions/${row.subscription_id}?expand[]=latest_invoice`,
-      { headers: { Authorization: `Bearer ${STRIPE_SK}` } },
-    )
-    const sub = await res.json()
-    if (!res.ok) {
-      console.error('Stripe no devolvió la suscripción', row.subscription_id, JSON.stringify(sub.error))
-      return json({ status: row.subscription_status, active: row.subscription_status === 'active', checked: false })
+    // A) Venimos de Stripe Checkout: la suscripción se crea al pagar, así
+    //    que el id se toma de la sesión (y se verifica que sea de este usuario).
+    let sub: any = null
+    if (session_id) {
+      const { ok, data: cs } = await sGet(`checkout/sessions/${session_id}?expand[]=subscription.latest_invoice`)
+      if (!ok || cs.metadata?.owner_id !== user.id) return json({ status: row.subscription_status, active: false, expired: true })
+      if (cs.mode !== 'subscription') return json({ status: row.subscription_status, active: false, expired: true })
+      if (cs.status === 'expired') return json({ status: row.subscription_status, active: false, expired: true })
+      if (cs.status === 'complete' && cs.payment_status === 'paid' && cs.subscription && typeof cs.subscription === 'object') {
+        sub = cs.subscription
+        await supabase.from(shop ? 'printshops' : 'users').update({ subscription_id: sub.id }).eq('id', row.id)
+      } else {
+        // Aún abierta o procesando: sigue pendiente
+        return json({ status: row.subscription_status, active: false, pending: true })
+      }
+    }
+
+    // B) Flujo con formulario en la app: la suscripción ya está guardada.
+    if (!sub) {
+      if (!row.subscription_id) return json({ status: row.subscription_status, active: false })
+      const { ok, data } = await sGet(`subscriptions/${row.subscription_id}?expand[]=latest_invoice`)
+      if (!ok) {
+        console.error('Stripe no devolvió la suscripción', row.subscription_id, JSON.stringify(data.error))
+        return json({ status: row.subscription_status, active: false, checked: false })
+      }
+      sub = data
     }
 
     const invoice = sub.latest_invoice
