@@ -1629,11 +1629,22 @@ function ShopBlockedScreen({ shop, onReload, onSupport }) {
 
   // Al abrir la pantalla: si el cobro ya se hizo pero la cuenta no se
   // enteró (aviso de Stripe tardado o app reiniciada), se sincroniza sola.
+  // También cuando el usuario VUELVE a la app (ej. después de salir a
+  // copiar el número de su tarjeta) y mientras haya un pago por confirmar.
+  const [notice, setNotice] = useState('')
   useEffect(() => {
     let alive = true
-    confirmSubscription().then(ok => { if (ok && alive) onReload() })
-    return () => { alive = false }
+    const check = () => confirmSubscription().then(ok => { if (ok && alive) onReload() })
+    check()
+    const onVisible = () => { if (document.visibilityState === 'visible') check() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { alive = false; document.removeEventListener('visibilitychange', onVisible) }
   }, [])
+  useEffect(() => {
+    if (!notice) return
+    const t = setInterval(() => { confirmSubscription().then(ok => { if (ok) onReload() }) }, 8000)
+    return () => clearInterval(t)
+  }, [notice])
 
   const handleSubscribe = async () => {
     setError(''); setLoading(true)
@@ -1686,16 +1697,30 @@ function ShopBlockedScreen({ shop, onReload, onSupport }) {
           </div>
         )}
 
+        {notice && (
+          <div style={{ background:'var(--accent-light)', border:'1px solid var(--accent)', borderRadius:'var(--radius-md)', padding:'10px 14px' }}>
+            <p style={{ fontSize:13, color:'#14532D' }}>{notice}</p>
+          </div>
+        )}
+
         {step === 'form' && cardSecret ? (
           <StripeCardForm
             clientSecret={cardSecret}
             amount={75}
             label="Suscripción mensual de tu papelería"
-            onSuccess={async () => { await confirmSubscriptionWithRetry(); try { sessionStorage.removeItem('pliego:shop_pending_payment') } catch {}; onReload() }}
+            onSuccess={async () => {
+              const ok = await confirmSubscriptionWithRetry()
+              try { sessionStorage.removeItem('pliego:shop_pending_payment') } catch {}
+              if (ok) { onReload(); return }
+              // Cobro hecho pero Stripe aún no lo marca como pagado: se
+              // sigue revisando solo, sin pedirle que pague otra vez.
+              setStep('info'); setCardSecret(null)
+              setNotice('Recibimos tu pago y lo estamos confirmando. Esta pantalla se actualiza sola; no vuelvas a pagar.')
+            }}
             onCancel={() => { setStep('info'); setCardSecret(null) }}
           />
         ) : (
-          <button onClick={handleSubscribe} disabled={loading} className="btn-primary">
+          <button onClick={handleSubscribe} disabled={loading || !!notice} className="btn-primary">
             <i className="ti ti-credit-card" style={{ fontSize:18 }} />
             {loading ? 'Un momento...' : 'Suscribirme por $75/mes'}
           </button>

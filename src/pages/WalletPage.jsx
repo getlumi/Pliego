@@ -67,7 +67,11 @@ export default function WalletPage({ session }) {
     loadData()
     // Si un cobro de mensualidad quedó sin sincronizar (aviso tardado o app
     // reiniciada), se recupera al abrir Saldo.
-    confirmSubscription().then(ok => { if (ok) loadData() })
+    const check = () => confirmSubscription().then(ok => { if (ok) loadData() })
+    check()
+    // y al volver a la app tras salir a otra (ej. a copiar la tarjeta)
+    const onVisible = () => { if (document.visibilityState === 'visible') check() }
+    document.addEventListener('visibilitychange', onVisible)
     const channel = supabase
       .channel(`wallet:${session.user.id}`)
       .on('postgres_changes', { event:'UPDATE', schema:'public', table:'users', filter:`id=eq.${session.user.id}` },
@@ -78,7 +82,7 @@ export default function WalletPage({ session }) {
           setSubPeriodEnd(payload.new.subscription_period_end)
         })
       .subscribe()
-    return () => supabase.removeChannel(channel)
+    return () => { document.removeEventListener('visibilitychange', onVisible); supabase.removeChannel(channel) }
   }, [session])
 
   const loadData = async () => {
