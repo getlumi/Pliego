@@ -1,4 +1,4 @@
-// Pliego · Edge Function: stripe-webhook v5
+// Pliego · Edge Function: stripe-webhook v6
 // Verifica la firma de Stripe antes de procesar el evento.
 // Maneja tres familias de eventos:
 // 1) payment_intent.succeeded — puede ser: (a) pago de reactivación de
@@ -8,6 +8,17 @@
 //    procesa en el bloque 2 vía invoice.paid.
 // 2) invoice.paid / customer.subscription.deleted / invoice.payment_failed
 //    — ciclo de vida de la suscripción mensual de $75.
+//
+// v6 (23/11/2026) — regla del dueño: NO hay gracia por pagos fallidos.
+//  - invoice.payment_failed: la papelería queda bloqueada ('past_due' +
+//    is_available=false) hasta pagar. Única excepción: si todavía está en su
+//    gracia gratuita (status 'gracia' sin vencer) un intento de pago adelantado
+//    fallido NO le quita ni le alarga días. Las exentas nunca se bloquean.
+//  - Se ignoran eventos de una suscripción vieja (ya reemplazada por un
+//    reintento con otra tarjeta): si no, un aviso atrasado bloquearía a
+//    quien ya pagó.
+//  - customer.subscription.deleted: papelería cancelada también apaga
+//    is_available, e ignora suscripciones viejas.
 // Secrets requeridos: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -51,6 +62,10 @@ async function verifyStripeSignature(body: string, signature: string, secret: st
     return false
   }
 }
+
+// Id de la suscripción de un invoice (campo anterior o el nuevo de la API).
+const invoiceSubId = (inv: any): string | null =>
+  inv?.subscription ?? inv?.parent?.subscription_details?.subscription ?? null
 
 Deno.serve(async (req) => {
   try {
@@ -228,24 +243,48 @@ Deno.serve(async (req) => {
       return json({ ok: true, ignored: 'not_found' })
     }
 
-    // ── 3) SUSCRIPCIÓN — pago de renovación falló ──────────────────────────
+    // ── 3) SUSCRIPCIÓN — un cobro falló (primer pago o renovación) ─────────
+    // Sin gracia: el acceso se cierra hasta que el pago salga (ver v6 arriba).
     if (event.type === 'invoice.payment_failed') {
       const invoice = event.data.object
       const customerId = invoice.customer
+      const failedSubId = invoiceSubId(invoice)
 
       const { data: userRow } = await supabase
-        .from('users').select('id').eq('stripe_customer_id', customerId).maybeSingle()
+        .from('users').select('id, subscription_id').eq('stripe_customer_id', customerId).maybeSingle()
       if (userRow) {
+        if (failedSubId && userRow.subscription_id && failedSubId !== userRow.subscription_id) {
+          return json({ ok: true, ignored: 'stale_subscription' })
+        }
+        // Para un cliente, 'past_due' ya no da ningún beneficio del plan
+        // (solo 'active' los da): basta con marcarlo.
         await supabase.from('users').update({ subscription_status: 'past_due' }).eq('id', userRow.id)
         console.log(`⚠️ Pago de suscripción falló (cliente) para ${userRow.id}`)
         return json({ ok: true, subscription: 'past_due', kind: 'cliente' })
       }
 
       const { data: shopRow } = await supabase
-        .from('printshops').select('id').eq('stripe_customer_id', customerId).maybeSingle()
+        .from('printshops')
+        .select('id, subscription_status, grace_period_ends_at, subscription_id')
+        .eq('stripe_customer_id', customerId).maybeSingle()
       if (shopRow) {
-        await supabase.from('printshops').update({ subscription_status: 'past_due' }).eq('id', shopRow.id)
-        console.log(`⚠️ Pago de suscripción falló (papelería) para ${shopRow.id}`)
+        if (failedSubId && shopRow.subscription_id && failedSubId !== shopRow.subscription_id) {
+          return json({ ok: true, ignored: 'stale_subscription' })
+        }
+        if (shopRow.subscription_status === 'exento') {
+          return json({ ok: true, ignored: 'exenta' })
+        }
+        const inGrace = shopRow.subscription_status === 'gracia'
+          && shopRow.grace_period_ends_at
+          && new Date(shopRow.grace_period_ends_at).getTime() > Date.now()
+        if (inGrace) {
+          console.log(`Pago adelantado falló durante la gracia (papelería ${shopRow.id}): sin cambios`)
+          return json({ ok: true, ignored: 'failed_during_grace' })
+        }
+        await supabase.from('printshops')
+          .update({ subscription_status: 'past_due', is_available: false })
+          .eq('id', shopRow.id)
+        console.log(`⛔ Pago de suscripción falló (papelería) — bloqueada: ${shopRow.id}`)
         return json({ ok: true, subscription: 'past_due', kind: 'papeleria' })
       }
 
@@ -258,8 +297,13 @@ Deno.serve(async (req) => {
       const customerId = sub.customer
 
       const { data: userRow } = await supabase
-        .from('users').select('id').eq('stripe_customer_id', customerId).maybeSingle()
+        .from('users').select('id, subscription_id').eq('stripe_customer_id', customerId).maybeSingle()
       if (userRow) {
+        // Una suscripción vieja cerrada a propósito al reintentar con otra
+        // tarjeta no debe cancelar la nueva.
+        if (userRow.subscription_id && userRow.subscription_id !== sub.id) {
+          return json({ ok: true, ignored: 'stale_subscription' })
+        }
         await supabase.from('users').update({
           subscription_status: 'canceled',
           subscription_id: null,
@@ -270,10 +314,14 @@ Deno.serve(async (req) => {
       }
 
       const { data: shopRow } = await supabase
-        .from('printshops').select('id').eq('stripe_customer_id', customerId).maybeSingle()
+        .from('printshops').select('id, subscription_id').eq('stripe_customer_id', customerId).maybeSingle()
       if (shopRow) {
+        if (shopRow.subscription_id && shopRow.subscription_id !== sub.id) {
+          return json({ ok: true, ignored: 'stale_subscription' })
+        }
         await supabase.from('printshops').update({
           subscription_status: 'canceled',
+          is_available: false,
           subscription_id: null,
           subscription_canceled_at: new Date().toISOString(),
         }).eq('id', shopRow.id)

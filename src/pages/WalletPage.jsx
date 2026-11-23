@@ -188,8 +188,14 @@ export default function WalletPage({ session }) {
           </div>
         ) : subStatus === 'past_due' ? (
           <div className="card" style={{ background:'var(--red-light)', border:'1px solid #F09595' }}>
-            <p style={{ fontSize:14, fontWeight:800, color:'var(--red)', marginBottom:4 }}>Hubo un problema con tu pago</p>
-            <p style={{ fontSize:13, color:'var(--red)' }}>No pudimos renovar tu suscripción. Actualiza tu método de pago para seguir con acceso ilimitado.</p>
+            <p style={{ fontSize:14, fontWeight:800, color:'var(--red)', marginBottom:4 }}>
+              {subPeriodEnd ? 'No pudimos renovar tu suscripción' : 'No se pudo completar tu pago'}
+            </p>
+            <p style={{ fontSize:13, color:'var(--red)' }}>
+              {subPeriodEnd
+                ? 'Paga de nuevo con una tarjeta válida para recuperar el acceso ilimitado.'
+                : 'Tu tarjeta fue rechazada o hubo un problema con el cobro. Prueba otra vez, con la misma u otra tarjeta, para activar el plan mensual.'}
+            </p>
           </div>
         ) : null}
 

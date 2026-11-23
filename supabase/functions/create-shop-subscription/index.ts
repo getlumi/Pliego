@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     // Verificar que quien llama es dueño de una papelería
     const { data: shop } = await supabase
       .from('printshops')
-      .select('id, name, stripe_customer_id, subscription_status')
+      .select('id, name, stripe_customer_id, subscription_status, subscription_id')
       .eq('owner_id', user.id)
       .maybeSingle()
 
@@ -100,6 +100,16 @@ Deno.serve(async (req) => {
     await supabase.from('printshops').update({
       subscription_id: subscription.id,
     }).eq('id', shop.id)
+
+    // Reintento (otra tarjeta tras un pago fallido): la suscripción anterior
+    // se cierra para que NUNCA queden dos cobrando. Va DESPUÉS de guardar la
+    // nueva: el webhook ignora la vieja porque ya no es la de la fila.
+    if (shop.subscription_id && shop.subscription_id !== subscription.id) {
+      const del = await fetch(`https://api.stripe.com/v1/subscriptions/${shop.subscription_id}`, {
+        method: 'DELETE', headers: { 'Authorization': `Bearer ${STRIPE_SK}` },
+      })
+      if (!del.ok) console.error('No se pudo cerrar la suscripción anterior', shop.subscription_id, await del.text())
+    }
 
     return json({
       client_secret: confirmationSecret.client_secret,

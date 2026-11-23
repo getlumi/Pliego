@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     if (!PRICE_ID) return json({ error: 'Falta configurar STRIPE_MENSUALIDAD_PRICE_ID' }, 500)
 
     const { data: userRow } = await supabase
-      .from('users').select('name, stripe_customer_id, subscription_status')
+      .from('users').select('name, stripe_customer_id, subscription_status, subscription_id')
       .eq('id', user.id).maybeSingle()
 
     if (userRow?.subscription_status === 'active') {
@@ -104,6 +104,16 @@ Deno.serve(async (req) => {
     await supabase.from('users').update({
       subscription_id: subscription.id,
     }).eq('id', user.id)
+
+    // Reintento (otra tarjeta tras un pago fallido): se cierra la suscripción
+    // anterior para que NUNCA queden dos cobrando. Va DESPUÉS de guardar la
+    // nueva: el webhook ignora la vieja porque ya no es la de la fila.
+    if (userRow?.subscription_id && userRow.subscription_id !== subscription.id) {
+      const del = await fetch(`https://api.stripe.com/v1/subscriptions/${userRow.subscription_id}`, {
+        method: 'DELETE', headers: { 'Authorization': `Bearer ${STRIPE_SK}` },
+      })
+      if (!del.ok) console.error('No se pudo cerrar la suscripción anterior', userRow.subscription_id, await del.text())
+    }
 
     return json({
       client_secret: confirmationSecret.client_secret,
