@@ -189,7 +189,7 @@ Deno.serve(async (req) => {
     // customer_id.
     if (event.type === 'invoice.paid') {
       const invoice = event.data.object
-      const subscriptionId = invoice.subscription
+      const subscriptionId = invoiceSubId(invoice)
       const customerId     = invoice.customer
       if (!subscriptionId || !customerId) return json({ ok: true, ignored: 'no_subscription' })
 

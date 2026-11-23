@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import SupportPage  from './SupportPage'
 import TutorialPage from './TutorialPage'
+import { confirmSubscription, confirmSubscriptionWithRetry } from '../lib/confirmSubscription'
 import StripeCardForm from '../components/StripeCardForm'
 import LocationMapPicker from '../components/LocationMapPicker'
 import AppModal from '../components/AppModal'
@@ -1563,6 +1564,8 @@ function GracePeriodBanner({ shop, onReload }) {
 
   const handleSubscribe = async () => {
     setError(''); setLoading(true)
+    // Si ya pagó y solo faltaba sincronizar, no se crea otro cobro.
+    if (await confirmSubscription()) { setLoading(false); onReload(); return }
     const { data, error: fnErr } = await invokeShopFn('create-shop-subscription', {})
     setLoading(false)
     if (fnErr || data?.error) { setError(data?.error ?? 'No se pudo iniciar la suscripción'); return }
@@ -1576,7 +1579,7 @@ function GracePeriodBanner({ shop, onReload }) {
         clientSecret={cardSecret}
         amount={75}
         label="Suscripción mensual de tu papelería"
-        onSuccess={() => { setStep('info'); setCardSecret(null); onReload() }}
+        onSuccess={async () => { await confirmSubscriptionWithRetry(); setStep('info'); setCardSecret(null); onReload() }}
         onCancel={() => { setStep('info'); setCardSecret(null) }}
       />
     )
@@ -1609,13 +1612,33 @@ function GracePeriodBanner({ shop, onReload }) {
 // suscripción. No borra información — solo deja de recibir pedidos
 // hasta pagar.
 function ShopBlockedScreen({ shop, onReload, onSupport }) {
-  const [step, setStep] = useState('info') // 'info' | 'form'
+  // Si iOS descarga la página al salir a copiar la tarjeta, el formulario
+  // en curso se restaura desde sessionStorage (mismo patrón que Saldo).
+  const saved = (() => { try { return JSON.parse(sessionStorage.getItem('pliego:shop_pending_payment') || 'null') } catch { return null } })()
+  const [step, setStep] = useState(saved?.cardSecret ? 'form' : 'info') // 'info' | 'form'
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [cardSecret, setCardSecret] = useState(null)
+  const [cardSecret, setCardSecret] = useState(saved?.cardSecret ?? null)
+
+  useEffect(() => {
+    try {
+      if (step === 'form' && cardSecret) sessionStorage.setItem('pliego:shop_pending_payment', JSON.stringify({ cardSecret }))
+      else sessionStorage.removeItem('pliego:shop_pending_payment')
+    } catch {}
+  }, [step, cardSecret])
+
+  // Al abrir la pantalla: si el cobro ya se hizo pero la cuenta no se
+  // enteró (aviso de Stripe tardado o app reiniciada), se sincroniza sola.
+  useEffect(() => {
+    let alive = true
+    confirmSubscription().then(ok => { if (ok && alive) onReload() })
+    return () => { alive = false }
+  }, [])
 
   const handleSubscribe = async () => {
     setError(''); setLoading(true)
+    // Antes de crear un cobro nuevo: ¿ya se había pagado? (evita cobrar doble)
+    if (await confirmSubscription()) { setLoading(false); onReload(); return }
     const { data, error: fnErr } = await invokeShopFn('create-shop-subscription', {})
     setLoading(false)
     if (fnErr || data?.error) { setError(data?.error ?? 'No se pudo iniciar la suscripción'); return }
@@ -1668,7 +1691,7 @@ function ShopBlockedScreen({ shop, onReload, onSupport }) {
             clientSecret={cardSecret}
             amount={75}
             label="Suscripción mensual de tu papelería"
-            onSuccess={onReload}
+            onSuccess={async () => { await confirmSubscriptionWithRetry(); try { sessionStorage.removeItem('pliego:shop_pending_payment') } catch {}; onReload() }}
             onCancel={() => { setStep('info'); setCardSecret(null) }}
           />
         ) : (

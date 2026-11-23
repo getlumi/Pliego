@@ -7,6 +7,7 @@ export default function StripeCardForm({ clientSecret, amount, onSuccess, onCanc
   const [stripeLoaded, setStripeLoaded] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [cardError, setCardError] = useState('')
+  const [confirming, setConfirming] = useState(false)
   const [stripe, setStripe] = useState(null)
   const [elements, setElements] = useState(null)
   const cardRef = useRef(null)
@@ -42,11 +43,16 @@ export default function StripeCardForm({ clientSecret, amount, onSuccess, onCanc
     const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
       payment_method: { card },
     })
-    setProcessing(false)
     if (error) {
+      setProcessing(false)
       setCardError(`${error.message} Puedes corregir los datos o probar con otra tarjeta.`)
     } else if (paymentIntent.status === 'succeeded') {
-      onSuccess()
+      // El cobro ya se hizo: se deja el botón en "Confirmando" mientras la
+      // pantalla de arriba verifica con el servidor (puede tardar unos s).
+      setConfirming(true)
+      try { await onSuccess() } finally { setConfirming(false); setProcessing(false) }
+    } else {
+      setProcessing(false)
     }
   }
 
@@ -69,7 +75,7 @@ export default function StripeCardForm({ clientSecret, amount, onSuccess, onCanc
 
       <button onClick={handlePay} disabled={!stripeLoaded || processing} className="btn-primary" style={{ marginTop:14 }}>
         <i className="ti ti-lock" style={{ fontSize:16 }} />
-        {processing ? 'Procesando...' : `Pagar $${amount}`}
+        {confirming ? 'Confirmando tu pago...' : processing ? 'Procesando...' : `Pagar $${amount}`}
       </button>
 
       {onCancel && (

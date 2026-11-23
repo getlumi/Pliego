@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import StripeCardForm from '../components/StripeCardForm'
+import { confirmSubscription, confirmSubscriptionWithRetry } from '../lib/confirmSubscription'
 
 const PACKAGES = [
   { id: 'basic',   amount: 26.5, prints: 2 },
@@ -64,6 +65,9 @@ export default function WalletPage({ session }) {
   useEffect(() => {
     if (!session) return
     loadData()
+    // Si un cobro de mensualidad quedó sin sincronizar (aviso tardado o app
+    // reiniciada), se recupera al abrir Saldo.
+    confirmSubscription().then(ok => { if (ok) loadData() })
     const channel = supabase
       .channel(`wallet:${session.user.id}`)
       .on('postgres_changes', { event:'UPDATE', schema:'public', table:'users', filter:`id=eq.${session.user.id}` },
@@ -116,6 +120,8 @@ export default function WalletPage({ session }) {
 
   const handleSubscribe = async () => {
     setError(''); setLoading(true); setOxxoData(null)
+    // Si ya había pagado y solo faltaba sincronizar, no se crea otro cobro.
+    if (await confirmSubscription()) { setLoading(false); await loadData(); return }
     const { data, error: fnErr } = await invokeFn('create-subscription', {})
     setLoading(false)
     if (fnErr || data?.error) { setError(data?.error ?? 'Error al iniciar la suscripción'); return }
@@ -379,7 +385,11 @@ export default function WalletPage({ session }) {
           <StripeCardForm
             clientSecret={cardSecret}
             amount={cardStep === 'form-sub' ? MENSUALIDAD.amount : pkg?.amount}
-            onSuccess={() => { setCardStep(cardStep === 'form-sub' ? 'done-sub' : 'done'); loadData() }}
+            onSuccess={async () => {
+              // Mensualidad: se confirma directo con Stripe (no espera al webhook)
+              if (cardStep === 'form-sub') await confirmSubscriptionWithRetry()
+              setCardStep(cardStep === 'form-sub' ? 'done-sub' : 'done'); loadData()
+            }}
             onCancel={() => setCardStep(null)}
           />
         )}
