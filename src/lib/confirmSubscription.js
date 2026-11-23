@@ -1,13 +1,5 @@
 import { supabase } from './supabase'
 
-// Pago en Stripe Checkout en curso: el id de la sesión se guarda al salir a
-// pagar y se confirma al volver (incluso si el usuario cierra la app y la
-// abre después). Se borra cuando ya quedó activa o la sesión expiró.
-export const PENDING_CHECKOUT_KEY = 'pliego:pending_checkout'
-export const getPendingCheckout = () => { try { return localStorage.getItem(PENDING_CHECKOUT_KEY) } catch { return null } }
-export const setPendingCheckout = (id) => { try { localStorage.setItem(PENDING_CHECKOUT_KEY, id) } catch {} }
-export const clearPendingCheckout = () => { try { localStorage.removeItem(PENDING_CHECKOUT_KEY) } catch {} }
-
 // Pide al servidor que revise con Stripe si la mensualidad ya se cobró y,
 // si es así, la active (ver supabase/functions/confirm-subscription).
 // No depende de que el aviso (webhook) de Stripe haya llegado.
@@ -16,13 +8,11 @@ export async function confirmSubscription() {
   try {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return false
-    const sessionId = getPendingCheckout()
     const { data, error } = await supabase.functions.invoke('confirm-subscription', {
-      body: sessionId ? { session_id: sessionId } : {},
+      body: {},
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
     if (error) return false
-    if (data?.active || data?.expired) clearPendingCheckout()
     return !!data?.active
   } catch { return false }
 }

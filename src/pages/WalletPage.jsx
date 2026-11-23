@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { startCheckout } from '../lib/checkout'
 import StripeCardForm from '../components/StripeCardForm'
 import { confirmSubscription, confirmSubscriptionWithRetry } from '../lib/confirmSubscription'
 
@@ -108,8 +107,6 @@ export default function WalletPage({ session }) {
 
   const handleCard = async () => {
     setError(''); setLoading(true); setOxxoData(null)
-    const co = await startCheckout('credits', selectedPkg)
-    if (co.ok) { setTimeout(() => setLoading(false), 4000); return }
     const { data, error: fnErr } = await invokeFn('create-stripe-payment', { package_id: selectedPkg, method: 'card' })
     setLoading(false)
     if (fnErr || data?.error) { setError(data?.error ?? 'Error al iniciar pago'); return }
@@ -129,9 +126,6 @@ export default function WalletPage({ session }) {
     setError(''); setLoading(true); setOxxoData(null)
     // Si ya había pagado y solo faltaba sincronizar, no se crea otro cobro.
     if (await confirmSubscription()) { setLoading(false); await loadData(); return }
-    // Preferido: página de pago de Stripe. Respaldo: formulario en la app.
-    const co = await startCheckout('subscription')
-    if (co.ok) { setTimeout(() => setLoading(false), 4000); return }
     const { data, error: fnErr } = await invokeFn('create-subscription', {})
     setLoading(false)
     if (fnErr || data?.error) { setError(data?.error ?? 'Error al iniciar la suscripción'); return }

@@ -13,10 +13,9 @@ import AdminPage       from './pages/AdminPage'
 import SuspendedAccountScreen from './pages/SuspendedAccountScreen'
 import Navbar          from './components/layout/Navbar'
 import { createEmptyDraft, revokeDraftUrls } from './lib/draft'
-import CheckoutReturnToast from './components/CheckoutReturnToast'
 // push se activa desde ProfilePage cuando el usuario lo solicita
 
-function AppInner() {
+export default function App() {
   const [session,  setSession]  = useState(null)
   const [loading,  setLoading]  = useState(true)
   const [onboarded, setOnboarded] = useState(false)
@@ -231,11 +230,6 @@ function AppInner() {
       </div>
     </div>
   )
-}
-
-// Envoltura: el aviso de regreso de Stripe vive por encima de cualquier pantalla
-export default function App() {
-  return (<><AppInner /><CheckoutReturnToast /></>)
 }
 
 function PaymentResult({ status, onNavigate }) {

@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase'
 import SupportPage  from './SupportPage'
 import TutorialPage from './TutorialPage'
 import { confirmSubscription, confirmSubscriptionWithRetry } from '../lib/confirmSubscription'
-import { startCheckout } from '../lib/checkout'
 import StripeCardForm from '../components/StripeCardForm'
 import LocationMapPicker from '../components/LocationMapPicker'
 import AppModal from '../components/AppModal'
@@ -1567,10 +1566,6 @@ function GracePeriodBanner({ shop, onReload }) {
     setError(''); setLoading(true)
     // Si ya pagó y solo faltaba sincronizar, no se crea otro cobro.
     if (await confirmSubscription()) { setLoading(false); onReload(); return }
-    // Preferido: página de pago de Stripe (el estado vive allá, no en la app)
-    const co = await startCheckout('subscription')
-    if (co.ok) { setTimeout(() => setLoading(false), 4000); return }
-    // Respaldo: formulario de tarjeta dentro de la app
     const { data, error: fnErr } = await invokeShopFn('create-shop-subscription', {})
     setLoading(false)
     if (fnErr || data?.error) { setError(data?.error ?? 'No se pudo iniciar la suscripción'); return }
@@ -1655,10 +1650,6 @@ function ShopBlockedScreen({ shop, onReload, onSupport }) {
     setError(''); setLoading(true)
     // Antes de crear un cobro nuevo: ¿ya se había pagado? (evita cobrar doble)
     if (await confirmSubscription()) { setLoading(false); onReload(); return }
-    // Preferido: página de pago de Stripe (el estado vive allá, no en la app)
-    const co = await startCheckout('subscription')
-    if (co.ok) { setTimeout(() => setLoading(false), 4000); return }
-    // Respaldo: formulario de tarjeta dentro de la app
     const { data, error: fnErr } = await invokeShopFn('create-shop-subscription', {})
     setLoading(false)
     if (fnErr || data?.error) { setError(data?.error ?? 'No se pudo iniciar la suscripción'); return }
