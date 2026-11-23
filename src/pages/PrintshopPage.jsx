@@ -1732,6 +1732,12 @@ function ShopBlockedScreen({ shop, onReload, onSupport }) {
         }}>
           Contactar a soporte
         </button>
+
+        {/* Salida: la pantalla bloquea todo lo demás, así que siempre debe
+            haber una forma de irse (p. ej. entrar con otra cuenta). */}
+        <button onClick={() => { try { sessionStorage.removeItem('pliego:shop_pending_payment') } catch {}; supabase.auth.signOut() }} className="btn-outline">
+          <i className="ti ti-logout" style={{ fontSize:18 }} /> Cerrar sesión · usar otra cuenta
+        </button>
       </div>
     </div>
   )
