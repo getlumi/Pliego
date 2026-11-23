@@ -190,7 +190,9 @@ export default function PrintshopPage({ session }) {
   // Regla del dueño (20/11/2026): sin pago no hay acceso y NO hay gracia por
   // pagos fallidos — si no, bastaría meter tarjetas malas para alargar la
   // gracia. 'past_due' (cobro fallido) se trata igual que 'bloqueada'.
-  if (shop.subscription_status === 'bloqueada' || shop.subscription_status === 'past_due') return (
+  // 'canceled' = canceló y ya terminó su periodo pagado: tampoco debe seguir
+  // entrando gratis (hueco encontrado el 20/11/2026).
+  if (['bloqueada', 'past_due', 'canceled'].includes(shop.subscription_status)) return (
     <ShopBlockedScreen shop={shop} onReload={loadShop} onSupport={() => setShowSupport(true)} />
   )
 
@@ -1631,18 +1633,22 @@ function ShopBlockedScreen({ shop, onReload, onSupport }) {
           <i className="ti ti-store" style={{ fontSize:30, color:'var(--accent)' }} />
         </div>
         <p style={{ fontSize:20, fontWeight:900, color:'#fff' }}>
-          {shop.subscription_status === 'past_due' ? 'No pudimos cobrar tu mensualidad' : 'Tu periodo de gracia terminó'}
+          {shop.subscription_status === 'past_due' ? 'No pudimos cobrar tu mensualidad'
+            : shop.subscription_status === 'canceled' ? 'Tu suscripción terminó'
+            : 'Tu periodo de gracia terminó'}
         </p>
         <p style={{ fontSize:13, color:'rgba(255,255,255,0.6)', marginTop:6, maxWidth:280, marginLeft:'auto', marginRight:'auto' }}>
           {shop.name} dejó de recibir pedidos de Pliego
-          {shop.subscription_status === 'past_due' ? ' hasta que el pago se complete' : ''}
+          {shop.subscription_status === 'past_due' ? ' hasta que el pago se complete'
+            : shop.subscription_status === 'canceled' ? ' hasta que te vuelvas a suscribir' : ''}
         </p>
       </div>
 
       <div className="scroll-content" style={{ flex:1 }}>
         <div className="card">
           <p style={{ fontSize:14, fontWeight:800, marginBottom:10 }}>
-            {shop.subscription_status === 'past_due' ? 'Paga para reactivarla' : 'Suscríbete para reactivarla'}
+            {shop.subscription_status === 'past_due' ? 'Paga para reactivarla'
+              : shop.subscription_status === 'canceled' ? 'Vuelve a suscribirte para reactivarla' : 'Suscríbete para reactivarla'}
           </p>
           <p style={{ fontSize:13, color:'var(--text-secondary)', lineHeight:1.6 }}>
             $75/mes, sin comisión sobre lo que cobras — te quedas con el 100%

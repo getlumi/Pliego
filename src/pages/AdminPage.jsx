@@ -312,6 +312,9 @@ function PrintshopsTab() {
     if (shop.subscription_status === 'past_due') {
       return { label: '🔒 Bloqueada (pago fallido)', bg: 'var(--red-light)', color: 'var(--red)' }
     }
+    if (shop.subscription_status === 'canceled') {
+      return { label: '🔒 Bloqueada (suscripción terminada)', bg: 'var(--red-light)', color: 'var(--red)' }
+    }
     if (shop.subscription_status === 'bloqueada') {
       return { label: '🔒 Bloqueada (gracia vencida)', bg: 'var(--red-light)', color: 'var(--red)' }
     }
